@@ -1,0 +1,118 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "moodle",
+  "title": "Moodle",
+  "description": "Quickly access resources on Moodle",
+  "icon": "icon.png",
+  "author": "slmnbruno",
+  "categories": [
+    "Productivity"
+  ],
+  "platforms": [
+    "macOS",
+    "Windows"
+  ],
+  "owner": "bce",
+  "license": "MIT",
+  "commands": [
+    {
+      "name": "search-courses",
+      "title": "Search Courses",
+      "description": "Browse your courses by semester",
+      "mode": "view"
+    }
+  ],
+  "dependencies": {
+    "@bwat47/turndown-plugin-gfm": "^1.0.5",
+    "@mixmark-io/domino": "^2.2.0",
+    "@raycast/api": "^1.103.10",
+    "@raycast/utils": "^2.2.2",
+    "@tanstack/react-query": "^5.90.12",
+    "@tanstack/react-query-persist-client": "^5.90.14",
+    "date-fns": "^4.1.0",
+    "html-entities": "^2.6.0",
+    "os-proxy-config": "^1.1.2",
+    "prettier-plugin-organize-imports": "^4.3.0",
+    "react-devtools": "6.1.1",
+    "react-error-boundary": "^6.0.0",
+    "sanitize-filename-ts": "^1.0.2",
+    "turndown": "^7.2.2",
+    "undici": "^7.16.0",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^2.1.1",
+    "@tanstack/eslint-plugin-query": "^5.91.2",
+    "@types/node": "22.13.10",
+    "@types/react": "19.0.10",
+    "@types/turndown": "^5.0.6",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "prettier": "^3.7.4",
+    "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "build": "ray build",
+    "dev": "ray develop | grep -vF '[0m'",
+    "fix-lint": "ray lint --fix",
+    "lint": "ray lint",
+    "prepublishOnly": "echo \"\\n\\nIt seems like you are trying to publish the Raycast extension to npm.\\n\\nIf you did intend to publish it to npm, remove the \\`prepublishOnly\\` script and rerun \\`npm publish\\` again.\\nIf you wanted to publish it to the Raycast Store instead, use \\`npm run publish\\` instead.\\n\\n\" && exit 1",
+    "publish": "ray publish"
+  },
+  "preferences": [
+    {
+      "name": "site_url",
+      "title": "Moodle site url",
+      "description": "eg. https://moodle.uni-corvinus.hu",
+      "type": "textfield",
+      "required": true
+    },
+    {
+      "name": "username",
+      "title": "Username",
+      "description": "eg. sigma",
+      "type": "textfield",
+      "required": false
+    },
+    {
+      "name": "password",
+      "title": "Password",
+      "description": "eg. sigma",
+      "type": "password",
+      "required": false
+    },
+    {
+      "name": "sync_folder",
+      "title": "Sync Folder",
+      "description": "Leave empty to disable sync",
+      "type": "directory",
+      "required": false
+    },
+    {
+      "name": "sync_max_size",
+      "title": "Maximum Sync Filesize",
+      "description": "Files larger than the selected option will not be downloaded",
+      "type": "dropdown",
+      "data": [
+        {
+          "title": "50 Mb",
+          "value": "50"
+        },
+        {
+          "title": "100 Mb",
+          "value": "100"
+        },
+        {
+          "title": "200 Mb",
+          "value": "200"
+        },
+        {
+          "title": "No limit",
+          "value": "0"
+        }
+      ],
+      "required": false,
+      "default": "50"
+    }
+  ]
+}
