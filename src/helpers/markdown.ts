@@ -20,15 +20,11 @@ turndownService.addRule("iframe", {
 
 const loaders: MarkdownLoader[] = [mathjaxNotationLoader];
 
-const turndownCache = new Map<string, string>();
-
 export function turndown(html: string) {
-  if (turndownCache.has(html)) {
-    return turndownCache.get(html)!;
-  }
+  const start = performance.now();
   const markdown = turndownService.turndown(html);
   const result = loaders.reduce((content, loader) => loader(content), markdown);
-  turndownCache.set(html, result);
+  console.log(`Turndown took ${(performance.now() - start).toFixed(2)}ms`);
   return result;
 }
 

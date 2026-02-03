@@ -1,7 +1,8 @@
 import { Action, Icon, LocalStorage, open } from "@raycast/api";
 import { useUser } from "../client";
-import { getUrlForService, shortcut, siteHostname } from "../helpers";
+import { getUrlForService, shortcut } from "../helpers";
 import { handleFileUrl } from "../helpers/files";
+import { siteHostname } from "../helpers/preferences";
 import { CoreWSExternalWarning } from "../types";
 
 let timestamp;

@@ -1,6 +1,6 @@
 import { ActionPanel, Icon, List } from "@raycast/api";
-import { useUser } from "./client";
-import { preferences, siteHostname, stripHTML } from "./helpers";
+import { stripHTML } from "./helpers";
+import { preferences, siteHostname } from "./helpers/preferences";
 import { Course } from "./types";
 // @ts-expect-error no types
 import domino from "@mixmark-io/domino";
@@ -10,10 +10,9 @@ import WithHiddenItems, { HiddenItemActionsSection } from "./components/WithHidd
 import { useWSQuery } from "./hooks/useWSQuery";
 
 export default function ViewCourseGrades({ course }: { course: Course }) {
-  const { id } = useUser();
   const { data, isLoading } = useWSQuery("gradereport_user_get_grades_table", {
     courseid: +course.id,
-    userid: id,
+    userid: 0,
   });
 
   return (

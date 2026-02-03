@@ -8,6 +8,7 @@ import CourseContext from "../course-context";
 import { stripHTML } from "../helpers";
 import { getFilePath } from "../helpers/files";
 import { turndown } from "../helpers/markdown";
+import { createRenderProfiler, useRenderTimer } from "../hooks/useRenderTimer";
 import { useWSQuery } from "../hooks/useWSQuery";
 import { useSync } from "../sync";
 import { Module } from "../types";
@@ -20,15 +21,20 @@ import DefaultListItem from "./default";
 import ResourceListItem from "./resource";
 
 export default function AssignListItem({ module }: { module: Module }) {
+  useRenderTimer(`AssignListItem:${module.id}`);
+  const render = createRenderProfiler(`AssignListItem:${module.id}`);
   const course = useContext(CourseContext);
   const { data, isPending } = useWSQuery("mod_assign_get_assignments", { "courseids[0]": Number(course.id) });
+  render.step("after assignments query");
   const currentAssignment = data?.courses.flatMap((c) => c.assignments).find((a) => a.id === module.instance);
+  render.step("after assignment lookup");
 
   if (!currentAssignment) {
+    render.end("no assignment");
     return <DefaultListItem module={module} />;
   }
 
-  return (
+  const result = (
     <DefaultListItem
       module={module}
       detail={<AssignListItemDetail assignment={currentAssignment} isLoading={isPending} module={module} />}
@@ -48,6 +54,9 @@ export default function AssignListItem({ module }: { module: Module }) {
       }
     />
   );
+
+  render.end("with assignment");
+  return result;
 }
 
 function AssignListItemDetail({
@@ -59,11 +68,15 @@ function AssignListItemDetail({
   isLoading: boolean;
   module: Module;
 }) {
+  useRenderTimer(`AssignListItemDetail:${assignment.id}`);
+  const render = createRenderProfiler(`AssignListItemDetail:${assignment.id}`);
   const { data: submissionsData } = useWSQuery("mod_assign_get_submission_status", { assignid: module.instance });
+  render.step("after submission status query");
 
   const submission = submissionsData?.lastattempt?.teamsubmission ?? submissionsData?.lastattempt?.submission;
+  render.step("after submission derive");
 
-  return (
+  const detail = (
     <List.Item.Detail
       isLoading={isLoading}
       markdown={turndown(assignment.intro || "")}
@@ -110,11 +123,18 @@ function AssignListItemDetail({
       }
     />
   );
+
+  render.step("after detail element");
+  render.end();
+  return detail;
 }
 
 function AssignmentFilesList({ module, assignment }: { module: Module; assignment: AddonModAssignAssign }) {
+  useRenderTimer(`AssignmentFilesList:${assignment.id}`);
+  const render = createRenderProfiler(`AssignmentFilesList:${assignment.id}`);
   const course = useContext(CourseContext);
   const { data: submissionsData } = useWSQuery("mod_assign_get_submission_status", { assignid: module.instance });
+  render.step("after submission status query");
 
   const submissions = submissionsData?.lastattempt?.teamsubmission ?? submissionsData?.lastattempt?.submission;
 
@@ -124,6 +144,7 @@ function AssignmentFilesList({ module, assignment }: { module: Module; assignmen
       [],
     [submissions],
   );
+  render.step("after submittedFiles memo");
 
   const { introattachments = [] } = assignment;
 
@@ -134,10 +155,12 @@ function AssignmentFilesList({ module, assignment }: { module: Module; assignmen
       .map((file) => [getFilePath(file, module, course), file] as const);
     return [...introFiles, ...submitted];
   }, [introattachments, submittedFiles, module, course]);
+  render.step("after allFiles memo");
 
   useSync(allFiles);
+  render.step("after useSync");
 
-  return (
+  const result = (
     <List navigationTitle={`Files for ${module.name}`}>
       <List.Section title="Intro Files">
         {introattachments.map((i) => (
@@ -151,9 +174,14 @@ function AssignmentFilesList({ module, assignment }: { module: Module; assignmen
       </List.Section>
     </List>
   );
+
+  render.end();
+  return result;
 }
 
 function FeedbackComment({ cmid, itemid }: { cmid: number; itemid: number }) {
+  useRenderTimer(`FeedbackComment:${itemid}`);
+  const render = createRenderProfiler(`FeedbackComment:${itemid}`);
   const { data: comments } = useWSQuery("core_comment_get_comments", {
     contextlevel: "module",
     instanceid: cmid,
@@ -162,10 +190,15 @@ function FeedbackComment({ cmid, itemid }: { cmid: number; itemid: number }) {
     area: "submission_comments",
     page: 0,
   });
+  render.step("after comments query");
 
   if (comments?.comments.length || 0 > 0) {
-    return <List.Item.Detail.Metadata.Label title="Feedback" text={turndown(comments!.comments[0].content)} />;
+    const result = <List.Item.Detail.Metadata.Label title="Feedback" text={turndown(comments!.comments[0].content)} />;
+    render.end("with comment");
+    return result;
   }
+
+  render.end("no comment");
 }
 
 function getSubmissionStatusLabelProps(status: AddonModAssignSubmissionStatusValues) {

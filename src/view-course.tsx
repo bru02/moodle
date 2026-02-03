@@ -5,8 +5,10 @@ import CourseContext from "./course-context";
 import { stripHTML } from "./helpers";
 import { getFilePath } from "./helpers/files";
 import { getModuleListItemId } from "./helpers/modules";
+import { useRenderTimer } from "./hooks/useRenderTimer";
 import { useSuspenseWSQuery } from "./hooks/useWSQuery";
 import ListItems, { ModuleViewComponents } from "./mods";
+import { ModuleListContextProvider } from "./mods/module-list-context";
 import { useSync } from "./sync";
 import { Course, Module } from "./types";
 import { CoreCourseGetContentsWSSection, Modname } from "./types/contents";
@@ -15,11 +17,17 @@ type RenderedContent = CoreCourseGetContentsWSSection & { subtitle: string };
 const EMPTY_CONTENT: CoreCourseGetContentsWSSection[] = [];
 
 export default function ViewCourse({ course, preselectItem }: { course: Course; preselectItem?: number }) {
+  useRenderTimer(`ViewCourse:${course.id}`);
+  console.log("Rendering ViewCourse for course:", course.id);
   const courseId = String(course.id);
   const { displayname: displayName } = course;
-  const { data, isPending } = useSuspenseWSQuery("core_course_get_contents", {
-    courseid: courseId,
-  });
+  const { data, isFetching } = useSuspenseWSQuery(
+    "core_course_get_contents",
+    {
+      courseid: courseId,
+    },
+    { staleTime: 0 },
+  );
   const content = data ?? EMPTY_CONTENT;
 
   const files = useMemo(() => {
@@ -46,7 +54,7 @@ export default function ViewCourse({ course, preselectItem }: { course: Course; 
           <CourseContentList
             key={courseId}
             displayName={displayName}
-            isLoading={isPending}
+            isLoading={isFetching}
             content={c}
             preselectItem={preselectItem}
             courseId={courseId}
@@ -66,8 +74,9 @@ type CourseContentListProps = {
 };
 
 function CourseContentList({ displayName, isLoading, content, preselectItem, courseId }: CourseContentListProps) {
-  const [isShowingDetail, setIsShowingDetail] = useState<boolean | null>(null);
-  const [selectedItemId, setSelectedItemId] = useState<string | undefined>();
+  useRenderTimer(`CourseContentList:${courseId}`);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [forcedSelectedItemId, setForcedSelectedItemId] = useState<string | null>(null);
   const { push } = useNavigation();
 
   const preselectedModule = useMemo(() => {
@@ -97,7 +106,9 @@ function CourseContentList({ displayName, isLoading, content, preselectItem, cou
 
     hasVisitedPreselectedItem.current = preselectedKey;
     if (!(preselectedModule.modname in ModuleViewComponents)) {
-      setTimeout(() => setSelectedItemId(getModuleListItemId(preselectedModule)), 0);
+      const preselectedId = getModuleListItemId(preselectedModule);
+      setSelectedItemId(preselectedId);
+      setForcedSelectedItemId(preselectedId);
       return;
     }
 
@@ -106,34 +117,51 @@ function CourseContentList({ displayName, isLoading, content, preselectItem, cou
   }, [courseId, preselectedModule, push, isLoading]);
 
   const regroupedContent = useMemo(() => regroupCourseContent(content), [content]);
-
   const firstListItemId = getFirstListItemId(regroupedContent);
 
-  const effectiveSelectedItemId = selectedItemId ?? firstListItemId;
-  const effectiveIsShowingDetail = isShowingDetail ?? effectiveSelectedItemId?.startsWith("D-") ?? false;
+  useEffect(() => {
+    if (!selectedItemId && firstListItemId) {
+      setSelectedItemId(firstListItemId);
+    }
+  }, [firstListItemId, selectedItemId]);
+
+  useEffect(() => {
+    if (!forcedSelectedItemId) return;
+    const timeout = setTimeout(() => setForcedSelectedItemId(null), 0);
+    return () => clearTimeout(timeout);
+  }, [forcedSelectedItemId]);
+
+  const effectiveSelectedItemId = selectedItemId ?? forcedSelectedItemId ?? firstListItemId;
+  const effectiveIsShowingDetail = effectiveSelectedItemId?.startsWith("D-") ?? false;
+  const moduleListContextValue = useMemo(
+    () => ({ selectedItemId: effectiveSelectedItemId, isShowingDetail: effectiveIsShowingDetail }),
+    [effectiveIsShowingDetail, effectiveSelectedItemId],
+  );
 
   return (
-    <List
-      navigationTitle={displayName}
-      isLoading={isLoading}
-      isShowingDetail={effectiveIsShowingDetail}
-      selectedItemId={effectiveSelectedItemId}
-      onSelectionChange={(id) => {
-        if (!id) return;
-
-
-        const shouldShow = id.startsWith("D-");
-          setIsShowingDetail(shouldShow);
-      }}
-    >
-      {regroupedContent.map((section) => (
-        <List.Section key={section.id} title={section.name} subtitle={section.subtitle}>
-          {section.modules.map((module: Module) => {
-            const Component = ListItems[module.modname as Modname] ?? ListItems.default;
-            return <Component key={module.id} module={module} />;
-          })}
-        </List.Section>
-      ))}
+      <List
+        navigationTitle={displayName}
+        isLoading={isLoading}
+        isShowingDetail={effectiveIsShowingDetail}
+        selectedItemId={forcedSelectedItemId ?? undefined}
+        onSelectionChange={(id) => {
+          if (!id) return;
+          setSelectedItemId(id);
+          if (forcedSelectedItemId) {
+            setForcedSelectedItemId(null);
+          }
+        }}
+      >
+      <ModuleListContextProvider value={moduleListContextValue}>
+        {regroupedContent.map((section) => (
+          <List.Section key={section.id} title={section.name} subtitle={section.subtitle}>
+            {section.modules.map((module: Module) => {
+              const Component = ListItems[module.modname as Modname] ?? ListItems.default;
+              return <Component key={module.id} module={module} />;
+            })}
+          </List.Section>
+        ))}
+      </ModuleListContextProvider>
     </List>
   );
 }

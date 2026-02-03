@@ -2,12 +2,12 @@ import { randomUUID } from "crypto";
 import { ReadStream } from "fs";
 import { join } from "path";
 import { sanitize } from "sanitize-filename-ts";
-import { preferences } from ".";
 import { getUserSync } from "../client";
 import { CoreWSExternalFile, Course, FilePath, Module } from "../types";
+import { preferences } from "./preferences";
 
 export function handleFileUrl(url: string) {
-  const { accessKey } = getUserSync()!;
+  const accessKey = getUserSync()?.accessKey;
 
   if (accessKey) {
     url = url.replace(/(\/webservice)?\/pluginfile\.php/g, `/tokenpluginfile.php/${accessKey}`);

@@ -1,13 +1,12 @@
 import { Action, ActionPanel, Grid, Icon, LaunchProps, open } from "@raycast/api";
 import { createDeeplink, useCachedState, useFrecencySorting } from "@raycast/utils";
-import fs from "fs";
 import { mkdir } from "fs/promises";
 import { useEffect, useMemo, useRef } from "react";
-import { useUser } from "./client";
 import { OpenInBrowserAction } from "./components/OpenInBrowserAction";
 import WithHiddenItems, { HiddenItemActionsSection } from "./components/WithHiddenItems";
-import { preferences, shortcut } from "./helpers";
+import { shortcut } from "./helpers";
 import { getCourseFolder, handleFileUrl } from "./helpers/files";
+import { preferences } from "./helpers/preferences";
 import "./helpers/proxy";
 import { useSuspenseWSQuery } from "./hooks/useWSQuery";
 import ViewCourse from "./view-course";
@@ -21,9 +20,8 @@ type SearchCoursesLaunchContext = {
 type SearchCoursesLaunchProps = LaunchProps<{ launchContext?: SearchCoursesLaunchContext }>;
 
 export default function Command({ launchContext }: SearchCoursesLaunchProps) {
-  const { id } = useUser();
   const { data: courses } = useSuspenseWSQuery("core_enrol_get_users_courses", {
-    userid: id,
+    userid: 0,
   });
 
   const [selectedSemester, setSelectedSemester] = useCachedState<string | undefined>("selectedSemester");

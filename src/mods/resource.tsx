@@ -2,21 +2,28 @@ import { Action, ActionPanel, Color, Icon, Keyboard } from "@raycast/api";
 import { getProgressIcon } from "@raycast/utils";
 import { useContext } from "react";
 import CourseContext from "../course-context";
-import { formatBytes, preferences, shortcut } from "../helpers";
+import { formatBytes, shortcut } from "../helpers";
 import { checkFileSize, getFilePath, handleFileUrl, pdfify } from "../helpers/files";
-import { useFileSyncStore } from "../store";
+import { preferences } from "../helpers/preferences";
+import { useFileSyncExceptionsStore, useFileSyncProgressStore } from "../store";
 import { CoreWSExternalFile, Course, Module } from "../types";
 import DefaultListItem from "./default";
 
 const syncEnabled = Boolean(preferences.sync_folder);
 
 export default function ResourceListItem({ module, content }: { module: Module; content?: CoreWSExternalFile }) {
-  const fileContent: CoreWSExternalFile = content ?? module.contents![0];
+  const fileContent: CoreWSExternalFile | undefined = content ?? module.contents?.[0];
+
+  // If no file content is available, render a fallback
+  if (!fileContent) {
+    return <DefaultListItem module={module} icon={Icon.Document} />;
+  }
+
   const course = useContext(CourseContext) as Course;
   const path = getFilePath(fileContent, module, course);
-  const progress = useFileSyncStore((state) => state.progress[path]);
-  const isException = useFileSyncStore((state) => state.exceptions.includes(path));
-  const addException = useFileSyncStore((state) => state.addException);
+  const progress = useFileSyncProgressStore((state) => state.progress[path]);
+  const isException = useFileSyncExceptionsStore((state) => state.exceptions.includes(path));
+  const addException = useFileSyncExceptionsStore((state) => state.addException);
   const fileSize = fileContent.filesize ?? 0;
   let filename = fileContent.filename ?? module.name;
   const downloadProgress = progress?.progress ?? 0;

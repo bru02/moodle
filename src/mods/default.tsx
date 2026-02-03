@@ -1,24 +1,40 @@
 import { ActionPanel, Color, Icon, List } from "@raycast/api";
 import { getFavicon } from "@raycast/utils";
 import { decode } from "html-entities";
-import { memo, useContext } from "react";
+import { useContext } from "react";
 import CompletionAction from "../components/CompletionAction";
 import { OpenInBrowserAction } from "../components/OpenInBrowserAction";
 import CourseContext from "../course-context";
 import { turndown } from "../helpers/markdown";
 import { getModuleListItemId } from "../helpers/modules";
+import { useRenderTimer } from "../hooks/useRenderTimer";
 import { Module } from "../types";
 import { CoreCourseModuleCompletionStatus } from "../types/contents";
+import { useModuleListContext } from "./module-list-context";
 
 type DefaultListItemProps = {
   module: Module;
   contentFilename?: string;
 } & Partial<List.Item.Props>;
 
-function DefaultListItem({ module, detail: customDetail, contentFilename, ...props }: DefaultListItemProps) {
-  const fallbackDetail = module.description ? <List.Item.Detail markdown={turndown(module.description)} /> : undefined;
-  const detail = customDetail ?? fallbackDetail;
-  const itemId = getModuleListItemId(module, { suffix: contentFilename, hasDetail: Boolean(detail) });
+export default function DefaultListItem({
+  module,
+  detail: customDetail,
+  contentFilename,
+  ...props
+}: DefaultListItemProps) {
+  useRenderTimer(`DefaultListItem:${module.id}`);
+  const moduleListCtx = useModuleListContext();
+  const itemId = getModuleListItemId(module, {
+    suffix: contentFilename,
+    hasDetail: customDetail != null ? true : undefined,
+  });
+  const shouldRenderDetail = moduleListCtx
+    ? moduleListCtx.isShowingDetail && moduleListCtx.selectedItemId === itemId
+    : true;
+  const fallbackDetail =
+    shouldRenderDetail && module.description ? <List.Item.Detail markdown={turndown(module.description)} /> : undefined;
+  const detail = shouldRenderDetail ? (customDetail ?? fallbackDetail) : undefined;
   const course = useContext(CourseContext);
 
   return (
@@ -29,7 +45,9 @@ function DefaultListItem({ module, detail: customDetail, contentFilename, ...pro
       actions={
         <ActionPanel>
           {module.url && (
-            <OpenInBrowserAction url={module.modname === "url" ? module.contents![0].fileurl : module.url} />
+            <OpenInBrowserAction
+              url={module.modname === "url" && module.contents?.[0] ? module.contents[0].fileurl : module.url}
+            />
           )}
           <CompletionAction module={module} course={course} />
         </ActionPanel>
@@ -40,13 +58,11 @@ function DefaultListItem({ module, detail: customDetail, contentFilename, ...pro
   );
 }
 
-export default memo(DefaultListItem);
-
 function getIcon(module: Module) {
-  let icon;
+  let icon: Icon | undefined;
   switch (module.modname) {
     case "url":
-      return getFavicon(module.contents![0].fileurl);
+      return module.contents?.[0] ? getFavicon(module.contents[0].fileurl) : Icon.Link;
     case "folder":
       icon = Icon.Folder;
       break;

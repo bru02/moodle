@@ -5,15 +5,15 @@ import { useEffect } from "react";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
 import { useUser } from "./client";
-import { preferences } from "./helpers";
 import { canConvert, checkFileSize, convertToPdf, handleFileUrl, pdfify } from "./helpers/files";
-import { useFileSyncStore } from "./store";
+import { preferences } from "./helpers/preferences";
+import { useFileSyncExceptionsStore, useFileSyncProgressStore } from "./store";
 import type { CoreWSExternalFile } from "./types";
 
 export function useSync(files: readonly (readonly [string, CoreWSExternalFile])[]) {
-  const setDownloadProgress = useFileSyncStore((state) => state.setDownloadProgress);
-  const setConvertProgress = useFileSyncStore((state) => state.setConvertProgress);
-  const exceptions = useFileSyncStore((state) => state.exceptions);
+  const setDownloadProgress = useFileSyncProgressStore((state) => state.setDownloadProgress);
+  const setConvertProgress = useFileSyncProgressStore((state) => state.setConvertProgress);
+  const exceptions = useFileSyncExceptionsStore((state) => state.exceptions);
 
   const { accessKey } = useUser();
 
@@ -22,27 +22,34 @@ export function useSync(files: readonly (readonly [string, CoreWSExternalFile])[
 
     if (!preferences.sync_folder) return;
 
-    (async () => {
-      for (const [path, file] of files) {
-        if (shouldSkipSync(path, file, exceptions)) continue;
+    let cancelled = false;
 
-        try {
-          await syncFile({
-            ctrl,
-            path,
-            file,
-            setDownloadProgress,
-            setConvertProgress,
-          });
-        } catch (err) {
-          console.error("sync: failed while processing file", { path, error: err });
+    const idleHandle = scheduleIdle(() => {
+      if (cancelled) return;
+      (async () => {
+        for (const [path, file] of files) {
+          if (shouldSkipSync(path, file, exceptions)) continue;
+
+          try {
+            await syncFile({
+              ctrl,
+              path,
+              file,
+              setDownloadProgress,
+              setConvertProgress,
+            });
+          } catch (err) {
+            console.error("sync: failed while processing file", { path, error: err });
+          }
         }
-      }
-    })().catch((err) => {
-      console.error("sync: background task aborted", err);
+      })().catch((err) => {
+        console.error("sync: background task aborted", err);
+      });
     });
 
     return () => {
+      cancelled = true;
+      cancelIdle(idleHandle);
       ctrl.abort();
     };
   }, [files, accessKey, exceptions, setConvertProgress, setDownloadProgress]);
@@ -79,6 +86,41 @@ interface DownloadContext {
 }
 
 type TeeContext = DownloadContext & { pdf: PdfContext };
+
+type IdleHandle =
+  | {
+      mode: "ric";
+      id: number;
+    }
+  | {
+      mode: "timeout";
+      id: ReturnType<typeof setTimeout>;
+    };
+
+function scheduleIdle(cb: () => void, timeoutMs = 250): IdleHandle {
+  const idleApi = globalThis as typeof globalThis & {
+    requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+  };
+
+  if (typeof idleApi.requestIdleCallback === "function") {
+    return { mode: "ric", id: idleApi.requestIdleCallback(cb, { timeout: timeoutMs }) };
+  }
+
+  return { mode: "timeout", id: setTimeout(cb, 50) };
+}
+
+function cancelIdle(handle: IdleHandle) {
+  const idleApi = globalThis as typeof globalThis & {
+    cancelIdleCallback?: (id: number) => void;
+  };
+
+  if (handle.mode === "ric" && typeof idleApi.cancelIdleCallback === "function") {
+    idleApi.cancelIdleCallback(handle.id);
+    return;
+  }
+
+  clearTimeout(handle.id);
+}
 
 function shouldSkipSync(path: string, file: CoreWSExternalFile, exceptions: readonly string[]) {
   const filesize = file.filesize ?? 0;
@@ -350,7 +392,7 @@ async function streamToFile(
   nodeReadable.on("data", (chunk) => {
     downloadedSize += chunk.length;
     const progress = totalSize > 0 ? (downloadedSize / totalSize) * 100 : 0;
-    if (totalSize > 0 && (progress - lastProgress >= 0.5 || progress === 100)) {
+    if (totalSize > 0 && (progress - lastProgress >= 5 || progress === 100)) {
       lastProgress = progress;
       onProgress(progress);
     }
