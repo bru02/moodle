@@ -1,14 +1,13 @@
 import { Action, ActionPanel, Color, List } from "@raycast/api";
-import { formatDuration, intervalToDuration } from "date-fns";
-import { useContext, useMemo } from "react";
+import { memo, useContext, useMemo } from "react";
 import CompletionAction from "../components/CompletionAction";
 import DatesDetail from "../components/DatesDetail";
 import { OpenInBrowserAction } from "../components/OpenInBrowserAction";
 import CourseContext from "../course-context";
+import { formatDurationBetween } from "../helpers/format";
 import { stripHTML } from "../helpers";
 import { getFilePath } from "../helpers/files";
 import { turndown } from "../helpers/markdown";
-import { createRenderProfiler, useRenderTimer } from "../hooks/useRenderTimer";
 import { useWSQuery } from "../hooks/useWSQuery";
 import { useSync } from "../sync";
 import { Module } from "../types";
@@ -20,21 +19,16 @@ import type {
 import DefaultListItem from "./default";
 import ResourceListItem from "./resource";
 
-export default function AssignListItem({ module }: { module: Module }) {
-  useRenderTimer(`AssignListItem:${module.id}`);
-  const render = createRenderProfiler(`AssignListItem:${module.id}`);
+function AssignListItem({ module }: { module: Module }) {
   const course = useContext(CourseContext);
   const { data, isPending } = useWSQuery("mod_assign_get_assignments", { "courseids[0]": Number(course.id) });
-  render.step("after assignments query");
   const currentAssignment = data?.courses.flatMap((c) => c.assignments).find((a) => a.id === module.instance);
-  render.step("after assignment lookup");
 
   if (!currentAssignment) {
-    render.end("no assignment");
     return <DefaultListItem module={module} />;
   }
 
-  const result = (
+  return (
     <DefaultListItem
       module={module}
       detail={<AssignListItemDetail assignment={currentAssignment} isLoading={isPending} module={module} />}
@@ -54,10 +48,9 @@ export default function AssignListItem({ module }: { module: Module }) {
       }
     />
   );
-
-  render.end("with assignment");
-  return result;
 }
+
+export default memo(AssignListItem);
 
 function AssignListItemDetail({
   assignment,
@@ -68,13 +61,9 @@ function AssignListItemDetail({
   isLoading: boolean;
   module: Module;
 }) {
-  useRenderTimer(`AssignListItemDetail:${assignment.id}`);
-  const render = createRenderProfiler(`AssignListItemDetail:${assignment.id}`);
   const { data: submissionsData } = useWSQuery("mod_assign_get_submission_status", { assignid: module.instance });
-  render.step("after submission status query");
 
   const submission = submissionsData?.lastattempt?.teamsubmission ?? submissionsData?.lastattempt?.submission;
-  render.step("after submission derive");
 
   const detail = (
     <List.Item.Detail
@@ -105,12 +94,7 @@ function AssignListItemDetail({
           {assignment.cutoffdate > 0 && assignment.cutoffdate !== assignment.duedate ? (
             <List.Item.Detail.Metadata.Label
               title="Grace Period"
-              text={formatDuration(
-                intervalToDuration({
-                  start: new Date(assignment.duedate * 1000),
-                  end: new Date(assignment.cutoffdate * 1000),
-                }),
-              )}
+              text={formatDurationBetween(assignment.duedate, assignment.cutoffdate)}
             />
           ) : null}
           {submission?.attemptnumber !== undefined && assignment.maxattempts !== 1 && (
@@ -124,17 +108,12 @@ function AssignListItemDetail({
     />
   );
 
-  render.step("after detail element");
-  render.end();
   return detail;
 }
 
 function AssignmentFilesList({ module, assignment }: { module: Module; assignment: AddonModAssignAssign }) {
-  useRenderTimer(`AssignmentFilesList:${assignment.id}`);
-  const render = createRenderProfiler(`AssignmentFilesList:${assignment.id}`);
   const course = useContext(CourseContext);
   const { data: submissionsData } = useWSQuery("mod_assign_get_submission_status", { assignid: module.instance });
-  render.step("after submission status query");
 
   const submissions = submissionsData?.lastattempt?.teamsubmission ?? submissionsData?.lastattempt?.submission;
 
@@ -144,7 +123,6 @@ function AssignmentFilesList({ module, assignment }: { module: Module; assignmen
       [],
     [submissions],
   );
-  render.step("after submittedFiles memo");
 
   const { introattachments = [] } = assignment;
 
@@ -155,12 +133,10 @@ function AssignmentFilesList({ module, assignment }: { module: Module; assignmen
       .map((file) => [getFilePath(file, module, course), file] as const);
     return [...introFiles, ...submitted];
   }, [introattachments, submittedFiles, module, course]);
-  render.step("after allFiles memo");
 
   useSync(allFiles);
-  render.step("after useSync");
 
-  const result = (
+  return (
     <List navigationTitle={`Files for ${module.name}`}>
       <List.Section title="Intro Files">
         {introattachments.map((i) => (
@@ -174,14 +150,9 @@ function AssignmentFilesList({ module, assignment }: { module: Module; assignmen
       </List.Section>
     </List>
   );
-
-  render.end();
-  return result;
 }
 
 function FeedbackComment({ cmid, itemid }: { cmid: number; itemid: number }) {
-  useRenderTimer(`FeedbackComment:${itemid}`);
-  const render = createRenderProfiler(`FeedbackComment:${itemid}`);
   const { data: comments } = useWSQuery("core_comment_get_comments", {
     contextlevel: "module",
     instanceid: cmid,
@@ -190,15 +161,10 @@ function FeedbackComment({ cmid, itemid }: { cmid: number; itemid: number }) {
     area: "submission_comments",
     page: 0,
   });
-  render.step("after comments query");
 
   if (comments?.comments.length || 0 > 0) {
-    const result = <List.Item.Detail.Metadata.Label title="Feedback" text={turndown(comments!.comments[0].content)} />;
-    render.end("with comment");
-    return result;
+    return <List.Item.Detail.Metadata.Label title="Feedback" text={turndown(comments!.comments[0].content)} />;
   }
-
-  render.end("no comment");
 }
 
 function getSubmissionStatusLabelProps(status: AddonModAssignSubmissionStatusValues) {

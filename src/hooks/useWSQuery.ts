@@ -10,9 +10,71 @@ import {
   type UseSuspenseQueryOptions,
 } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
-import { getUser } from "../client";
+import { getUser, refreshUserTokens } from "../client";
+import { AuthError, isAuthError } from "../errors";
 import { getUrlForService } from "../helpers";
+import {
+  getMoodleErrorCode,
+  getMoodleErrorMessage,
+  isExpiredTokenError,
+  isMoodleErrorPayload,
+} from "../helpers/moodle-errors";
 import { WSParamsMap, WSResponseMap } from "../types/ws";
+
+const PERF_DEBUG = process.env.NODE_ENV === "development";
+
+type WSRequestResult<K extends keyof WSParamsMap> =
+  | { ok: true; data: WSResponseMap[K] }
+  | { ok: false; error: Error; payload?: unknown; shouldRefresh: boolean };
+
+async function requestWSInternal<K extends keyof WSParamsMap>(
+  key: K,
+  token: string,
+  params: WSParamsMap[K],
+): Promise<WSRequestResult<K>> {
+  let response: Response;
+  try {
+    response = await fetch(getUrlForService(key, token, params));
+  } catch (e) {
+    const error = e instanceof Error ? e : new Error("Network request failed");
+    return { ok: false, error, shouldRefresh: false };
+  }
+
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = undefined;
+  }
+
+  if (!response.ok || isMoodleErrorPayload(payload)) {
+    const message = getMoodleErrorMessage(payload) ?? response.statusText ?? "Request failed";
+    const code = getMoodleErrorCode(payload);
+    const shouldRefresh = isExpiredTokenError(payload) || response.status === 401 || response.status === 403;
+    const error = shouldRefresh ? new AuthError(message, { code, status: response.status }) : new Error(message);
+    return { ok: false, error, payload, shouldRefresh };
+  }
+
+  return { ok: true, data: payload as WSResponseMap[K] };
+}
+
+export async function requestWS<K extends keyof WSParamsMap>(key: K, params: WSParamsMap[K]): Promise<WSResponseMap[K]> {
+  const currentUser = await getUser();
+  const { token, id } = currentUser;
+
+  const requestParams =
+    "userid" in params && params.userid === 0 ? ({ ...params, userid: id } as WSParamsMap[K]) : params;
+
+  let result = await requestWSInternal(key, token, requestParams);
+  if (!result.ok && result.shouldRefresh) {
+    const refreshed = await refreshUserTokens();
+    result = await requestWSInternal(key, refreshed.token, requestParams);
+  }
+  if (!result.ok) {
+    throw result.error;
+  }
+  return result.data;
+}
 
 type WSQueryKey<K extends keyof WSParamsMap> = readonly [K, WSParamsMap[K]];
 
@@ -35,6 +97,9 @@ const cache = new Cache({
 const persister = experimental_createQueryPersister({
   storage: {
     getItem: (key) => {
+      if (!PERF_DEBUG) {
+        return cache.get(key);
+      }
       const label = `ws-cache:get:${key}`;
       console.time(label);
       const value = cache.get(key);
@@ -42,6 +107,9 @@ const persister = experimental_createQueryPersister({
       return value;
     },
     setItem: (key, value) => {
+      if (!PERF_DEBUG) {
+        return cache.set(key, value);
+      }
       const label = `ws-cache:set:${key}`;
       console.time(label);
       const result = cache.set(key, value);
@@ -49,6 +117,10 @@ const persister = experimental_createQueryPersister({
       return result;
     },
     removeItem: (key) => {
+      if (!PERF_DEBUG) {
+        cache.remove(key);
+        return;
+      }
       const label = `ws-cache:remove:${key}`;
       console.time(label);
       cache.remove(key);
@@ -63,10 +135,19 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       persister: persister.persisterFn,
+      retry: (failureCount, error) => {
+        if (isAuthError(error)) {
+          return false;
+        }
+        return failureCount < 3;
+      },
     },
   },
   queryCache: new QueryCache({
     onError: (error, query) => {
+      if (isAuthError(error)) {
+        return;
+      }
       if (query.state.data === undefined) {
         showFailureToast(error, {
           primaryAction: {
@@ -80,24 +161,28 @@ export const queryClient = new QueryClient({
   }),
 });
 
+let fetchTimingId = 0;
+
 function getQueryOptions<K extends keyof WSParamsMap>(key: K, params: WSParamsMap[K]) {
-  const queryKey: WSQueryKey<K> = [key, params];
+  const queryParams = { ...params } as WSParamsMap[K];
+  const queryKey: WSQueryKey<K> = [key, queryParams];
   return {
     queryKey,
     async queryFn() {
-      const { token, id } = await getUser();
-
-      if ("userid" in params && params.userid === 0) {
-        params.userid = id;
+      if (PERF_DEBUG) {
+        console.log("Fetching WS function", key, queryParams);
       }
-      //throw new Error("Fetching WS function: " + key);
-      console.log("Fetching WS function", key, params);
-      const fetchLabel = `ws-fetch:${String(key)}`;
-      console.time(fetchLabel);
-      const response = await fetch(getUrlForService(key, token, params));
-      const json = (await response.json()) as WSResponseMap[K];
-      console.timeEnd(fetchLabel);
-      return json;
+      const fetchLabel = PERF_DEBUG ? `ws-fetch:${String(key)}#${++fetchTimingId}` : "";
+      if (PERF_DEBUG) {
+        console.time(fetchLabel);
+      }
+      try {
+        return await requestWS(key, queryParams);
+      } finally {
+        if (PERF_DEBUG) {
+          console.timeEnd(fetchLabel);
+        }
+      }
     },
   };
 }
@@ -110,7 +195,7 @@ function useQueryTiming(mode: "useQuery" | "useSuspenseQuery", queryKey: AnyWSQu
   const endedRef = useRef(false);
   const cachedStateRef = useRef(queryClient.getQueryState(queryKey));
 
-  if (!labelRef.current) {
+  if (PERF_DEBUG && !labelRef.current) {
     labelRef.current = `${mode}:${String(queryKey[0])}#${++timingId}`;
     activeTimers.add(labelRef.current);
     const hasCachedData = cachedStateRef.current?.data !== undefined;
@@ -122,6 +207,7 @@ function useQueryTiming(mode: "useQuery" | "useSuspenseQuery", queryKey: AnyWSQu
   }
 
   const endTiming = useCallback((note: string) => {
+    if (!PERF_DEBUG) return;
     const label = labelRef.current;
     if (!label || endedRef.current || !activeTimers.has(label)) return;
     if (note) {

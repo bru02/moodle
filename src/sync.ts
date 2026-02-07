@@ -1,7 +1,7 @@
 import { createReadStream, createWriteStream } from "fs";
-import { mkdir, rename, stat, unlink, utimes } from "fs/promises";
-import { dirname } from "path";
-import { useEffect } from "react";
+import { mkdir, readdir, rename, stat, unlink, utimes } from "fs/promises";
+import { dirname, join } from "path";
+import { useEffect, useRef } from "react";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
 import { useUser } from "./client";
@@ -14,6 +14,7 @@ export function useSync(files: readonly (readonly [string, CoreWSExternalFile])[
   const setDownloadProgress = useFileSyncProgressStore((state) => state.setDownloadProgress);
   const setConvertProgress = useFileSyncProgressStore((state) => state.setConvertProgress);
   const exceptions = useFileSyncExceptionsStore((state) => state.exceptions);
+  const dirIndexRef = useRef(new Map<string, DirIndexEntry>());
 
   const { accessKey } = useUser();
 
@@ -27,6 +28,9 @@ export function useSync(files: readonly (readonly [string, CoreWSExternalFile])[
     const idleHandle = scheduleIdle(() => {
       if (cancelled) return;
       (async () => {
+        const dirs = Array.from(new Set(files.map(([path]) => dirname(path))));
+        await ensureDirIndex(dirs, dirIndexRef.current, ctrl);
+
         for (const [path, file] of files) {
           if (shouldSkipSync(path, file, exceptions)) continue;
 
@@ -37,6 +41,7 @@ export function useSync(files: readonly (readonly [string, CoreWSExternalFile])[
               file,
               setDownloadProgress,
               setConvertProgress,
+              dirIndex: dirIndexRef.current,
             });
           } catch (err) {
             console.error("sync: failed while processing file", { path, error: err });
@@ -63,6 +68,7 @@ interface SyncFileArgs {
   file: CoreWSExternalFile;
   setDownloadProgress: ProgressSetter;
   setConvertProgress: ProgressSetter;
+  dirIndex: Map<string, DirIndexEntry>;
 }
 
 interface PdfContext {
@@ -86,6 +92,18 @@ interface DownloadContext {
 }
 
 type TeeContext = DownloadContext & { pdf: PdfContext };
+
+const DIR_INDEX_TTL_MS = 20_000;
+
+type FileStatLite = {
+  mtimeMs: number;
+  size: number;
+};
+
+type DirIndexEntry = {
+  builtAt: number;
+  entries: Map<string, FileStatLite>;
+};
 
 type IdleHandle =
   | {
@@ -122,6 +140,53 @@ function cancelIdle(handle: IdleHandle) {
   clearTimeout(handle.id);
 }
 
+function isDirIndexFresh(entry: DirIndexEntry) {
+  return Date.now() - entry.builtAt <= DIR_INDEX_TTL_MS;
+}
+
+function getIndexedStat(index: Map<string, DirIndexEntry>, target: string) {
+  const dir = dirname(target);
+  const entry = index.get(dir);
+  if (!entry || !isDirIndexFresh(entry)) return null;
+  return entry.entries.get(target) ?? null;
+}
+
+async function ensureDirIndex(dirs: string[], index: Map<string, DirIndexEntry>, ctrl: AbortController) {
+  for (const dir of dirs) {
+    const existing = index.get(dir);
+    if (existing && isDirIndexFresh(existing)) continue;
+    const entries = await scanDir(dir, ctrl);
+    index.set(dir, { entries, builtAt: Date.now() });
+  }
+}
+
+async function scanDir(dir: string, ctrl: AbortController) {
+  const entries = new Map<string, FileStatLite>();
+  let dirents: Awaited<ReturnType<typeof readdir>> = [];
+  try {
+    dirents = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return entries;
+  }
+
+  let seen = 0;
+  for (const dirent of dirents) {
+    if (ctrl.signal.aborted) break;
+    if (!dirent.isFile()) continue;
+    const fullPath = join(dir, dirent.name);
+    try {
+      const st = await stat(fullPath);
+      entries.set(fullPath, { mtimeMs: st.mtimeMs, size: st.size });
+    } catch {
+      // ignore files that disappear between readdir/stat
+    }
+    if (++seen % 100 === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  }
+  return entries;
+}
+
 function shouldSkipSync(path: string, file: CoreWSExternalFile, exceptions: readonly string[]) {
   const filesize = file.filesize ?? 0;
 
@@ -129,7 +194,14 @@ function shouldSkipSync(path: string, file: CoreWSExternalFile, exceptions: read
   return false;
 }
 
-async function syncFile({ ctrl, path, file, setDownloadProgress, setConvertProgress }: SyncFileArgs) {
+async function syncFile({
+  ctrl,
+  path,
+  file,
+  setDownloadProgress,
+  setConvertProgress,
+  dirIndex,
+}: SyncFileArgs) {
   const { fileurl, mimetype } = file;
   const filesize = file.filesize ?? 0;
   const timemodified = file.timemodified ?? 0;
@@ -139,8 +211,8 @@ async function syncFile({ ctrl, path, file, setDownloadProgress, setConvertProgr
   const convertible = Boolean(mimetype && canConvert(mimetype));
   const pdfPath = convertible ? pdfify(path) : "";
 
-  const needsFile = await shouldDownload(path, effectiveTimemodified);
-  const needsPdf = convertible ? await shouldGeneratePdf(pdfPath, effectiveTimemodified) : false;
+  const needsFile = await shouldDownload(path, effectiveTimemodified, dirIndex);
+  const needsPdf = convertible ? await shouldGeneratePdf(pdfPath, effectiveTimemodified, dirIndex) : false;
 
   setDownloadProgress(fileId, needsFile ? 0 : 100);
   if (convertible && !needsPdf) {
@@ -388,12 +460,19 @@ async function streamToFile(
   }
 
   let lastProgress = 0;
+  let lastProgressAt = 0;
 
   nodeReadable.on("data", (chunk) => {
     downloadedSize += chunk.length;
-    const progress = totalSize > 0 ? (downloadedSize / totalSize) * 100 : 0;
-    if (totalSize > 0 && (progress - lastProgress >= 5 || progress === 100)) {
+    if (totalSize <= 0) return;
+
+    const progress = (downloadedSize / totalSize) * 100;
+    const now = Date.now();
+    const enoughDelta = progress - lastProgress >= 5;
+    const enoughTime = now - lastProgressAt >= 400;
+    if (progress >= 100 || enoughDelta || enoughTime) {
       lastProgress = progress;
+      lastProgressAt = now;
       onProgress(progress);
     }
   });
@@ -401,22 +480,47 @@ async function streamToFile(
   return pipeline(nodeReadable, writer);
 }
 
-async function shouldDownload(target: string, timemodified: number) {
+async function shouldDownload(
+  target: string,
+  timemodified: number,
+  index?: Map<string, DirIndexEntry>,
+) {
   if (!timemodified) return true;
+
+  if (index) {
+    const indexed = getIndexedStat(index, target);
+    if (indexed) {
+      const okMtime = Math.floor(indexed.mtimeMs / 1000) >= timemodified - 1;
+      return !okMtime;
+    }
+    return true;
+  }
 
   try {
     const st = await stat(target);
     // since we check it on download, might not need to validate size here
     const okMtime = Math.floor(st.mtimeMs / 1000) >= timemodified - 1;
-
     return !okMtime;
   } catch {
     return true;
   }
 }
 
-async function shouldGeneratePdf(target: string, timemodified: number) {
+async function shouldGeneratePdf(
+  target: string,
+  timemodified: number,
+  index?: Map<string, DirIndexEntry>,
+) {
   if (!timemodified) return true;
+
+  if (index) {
+    const indexed = getIndexedStat(index, target);
+    if (indexed) {
+      const ok = Math.floor(indexed.mtimeMs / 1000) >= timemodified - 1 && indexed.size > 0;
+      return !ok;
+    }
+    return true;
+  }
 
   try {
     const st = await stat(target);

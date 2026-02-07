@@ -1,11 +1,43 @@
 import { Action, Icon, LocalStorage, open } from "@raycast/api";
-import { useUser } from "../client";
+import { getUser } from "../client";
 import { getUrlForService, shortcut } from "../helpers";
 import { handleFileUrl } from "../helpers/files";
-import { siteHostname } from "../helpers/preferences";
+import { siteOrigin } from "../helpers/preferences";
 import { CoreWSExternalWarning } from "../types";
 
-let timestamp;
+let timestamp: string | undefined;
+
+export async function openInBrowserWithAuth(url: string, onOpen?: () => void) {
+  const user = await getUser();
+  const { token, privateToken, id } = user;
+  const direct = async (u = url) => (console.log("Opening URL:", u), await open(u), onOpen?.());
+
+  if (new URL(url).origin !== siteOrigin) return direct();
+
+  if (url.includes("/pluginfile.php")) return direct(handleFileUrl(url));
+
+  timestamp ??= (await LocalStorage.getItem<string>("lastAutoLoginTimestamp")) ?? undefined;
+  const lastLogin = timestamp ? Number(timestamp) : NaN;
+  const recentlyLoggedIn = Number.isFinite(lastLogin) && lastLogin + 6 * 60000 >= Date.now();
+
+  if (recentlyLoggedIn || !privateToken) return direct();
+
+  return fetch(getUrlForService("tool_mobile_get_autologin_key", token), {
+    method: "POST",
+    headers: { "User-Agent": "MoodleMobile", "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ privatetoken: privateToken }),
+  })
+    .then((r) => (r.ok ? (r.json() as Promise<CoreSiteAutologinKeyResult>) : Promise.reject()))
+    .then(async (d) => {
+      if (!d?.autologinurl || !d?.key) return direct();
+
+      direct(`${d.autologinurl}?${new URLSearchParams({ key: d.key, userid: id.toString(), urltogo: url })}`);
+
+      timestamp = Date.now().toString();
+      await LocalStorage.setItem("lastAutoLoginTimestamp", timestamp);
+    })
+    .catch(() => direct());
+}
 
 export function OpenInBrowserAction({
   applyShortcut = false,
@@ -20,36 +52,11 @@ export function OpenInBrowserAction({
   title?: string;
   icon?: Icon;
 }) {
-  const { token, privateToken, id } = useUser();
-
   return (
     <Action
       title={title}
       onAction={async () => {
-        const direct = async (u = url) => (await open(u), onOpen?.());
-
-        if (new URL(url).hostname !== siteHostname) return direct();
-
-        if (url.includes("/pluginfile.php")) return direct(handleFileUrl(url));
-
-        timestamp ??= await LocalStorage.getItem<string>("lastAutoLoginTimestamp");
-
-        if (+timestamp! + 6 * 60000 >= Date.now() || !privateToken) return direct();
-
-        return fetch(getUrlForService("tool_mobile_get_autologin_key", token), {
-          method: "POST",
-          headers: { "User-Agent": "MoodleMobile", "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({ privatetoken: privateToken }),
-        })
-          .then((r) => (r.ok ? (r.json() as Promise<CoreSiteAutologinKeyResult>) : Promise.reject()))
-          .then(async (d) => {
-            if (!d?.autologinurl || !d?.key) return direct();
-
-            direct(`${d.autologinurl}?${new URLSearchParams({ key: d.key, userid: id.toString(), urltogo: url })}`);
-
-            await LocalStorage.setItem("lastAutoLoginTimestamp", (timestamp = Date.now().toString()));
-          })
-          .catch(() => direct());
+        return openInBrowserWithAuth(url, onOpen);
       }}
       shortcut={applyShortcut ? shortcut("b") : undefined}
       icon={icon}

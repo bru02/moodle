@@ -4,7 +4,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { FilePath } from "./types";
 
 type FileSyncProgressState = {
-  progress: Record<
+  progress: Map<
     FilePath,
     {
       progress: number;
@@ -21,27 +21,32 @@ type FileSyncExceptionsState = {
 };
 
 export const useFileSyncProgressStore = create<FileSyncProgressState>((set) => ({
-  progress: {},
+  progress: new Map(),
   setDownloadProgress: (fileId, progress) => {
-    set((state) => ({
-      progress: {
-        ...state.progress,
-        [fileId]: {
-          progress,
-        },
-      },
-    }));
+    set((state) => {
+      const existing = state.progress.get(fileId);
+      if (existing?.progress === progress) {
+        return state;
+      }
+      state.progress.set(fileId, {
+        progress,
+        convertProgress: existing?.convertProgress,
+      });
+      return { progress: state.progress };
+    });
   },
   setConvertProgress: (fileId, progress) => {
-    set((state) => ({
-      progress: {
-        ...state.progress,
-        [fileId]: {
-          ...state.progress[fileId],
-          convertProgress: progress,
-        },
-      },
-    }));
+    set((state) => {
+      const existing = state.progress.get(fileId);
+      if (existing?.convertProgress === progress) {
+        return state;
+      }
+      state.progress.set(fileId, {
+        progress: existing?.progress ?? 0,
+        convertProgress: progress,
+      });
+      return { progress: state.progress };
+    });
   },
 }));
 

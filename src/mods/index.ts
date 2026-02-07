@@ -5,7 +5,9 @@ import AssignListItem from "./assign";
 import BookListItem, { ViewBook } from "./book";
 import DefaultListItem from "./default";
 import FolderListItem, { ViewFolder } from "./folder";
+import ForumListItem from "./forum";
 import PageListItem, { ViewPage } from "./page";
+import QuizListItem from "./quiz";
 import ResourceListItem from "./resource";
 
 type ModuleFC = FC<{ module: Module }>;
@@ -17,6 +19,8 @@ const ModuleListItems: Partial<Record<Modname, ModuleFC>> & { default: ModuleFC 
   page: PageListItem,
   default: DefaultListItem,
   assign: AssignListItem,
+  forum: ForumListItem,
+  quiz: QuizListItem,
 } as const;
 
 export const ModuleViewComponents: Partial<Record<Modname, ModuleFC>> = {

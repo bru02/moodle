@@ -31,6 +31,8 @@ import type {
   AddonModQuizGetQuizFeedbackForGradeWSResponse,
   AddonModQuizGetQuizzesByCoursesWSParams,
   AddonModQuizGetQuizzesByCoursesWSResponse,
+  AddonModQuizStartAttemptWSParams,
+  AddonModQuizStartAttemptWSResponse,
   AddonModQuizGetUserAttemptsWSParams,
   AddonModQuizGetUserAttemptsWSResponse,
   AddonModQuizGetUserBestGradeWSParams,
@@ -50,6 +52,7 @@ export type WSResponseMap = {
   mod_forum_get_discussion_posts: AddonModForumGetDiscussionPostsWSResponse;
   mod_quiz_get_quizzes_by_courses: AddonModQuizGetQuizzesByCoursesWSResponse;
   mod_quiz_get_quiz_access_information: AddonModQuizGetQuizAccessInformationWSResponse;
+  mod_quiz_start_attempt: AddonModQuizStartAttemptWSResponse;
   mod_quiz_get_user_best_grade: AddonModQuizGetUserBestGradeWSResponse;
   mod_quiz_get_user_attempts: AddonModQuizGetUserAttemptsWSResponse;
   mod_quiz_get_quiz_feedback_for_grade: AddonModQuizGetQuizFeedbackForGradeWSResponse;
@@ -69,6 +72,7 @@ export type WSParamsMap = {
   mod_forum_get_discussion_posts: AddonModForumGetDiscussionPostsWSParams;
   mod_quiz_get_quizzes_by_courses: ArrayValuesToIndexedAccess<AddonModQuizGetQuizzesByCoursesWSParams>;
   mod_quiz_get_quiz_access_information: AddonModQuizGetQuizAccessInformationWSParams;
+  mod_quiz_start_attempt: AddonModQuizStartAttemptWSParams;
   mod_quiz_get_user_best_grade: AddonModQuizGetUserBestGradeWSParams;
   mod_quiz_get_user_attempts: AddonModQuizGetUserAttemptsWSParams;
   mod_quiz_get_quiz_feedback_for_grade: AddonModQuizGetQuizFeedbackForGradeWSParams;

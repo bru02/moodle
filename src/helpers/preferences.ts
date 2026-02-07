@@ -6,5 +6,4 @@ const moodleAppPrefix = "moodlemobile://";
 
 export const isQrAuth = preferences.site_url.startsWith(moodleAppPrefix);
 export const siteUrl = new URL(preferences.site_url.replace(moodleAppPrefix, ""));
-export const siteHostname = siteUrl.origin;
-console.log({siteUrl, siteHostname})
+export const siteOrigin = siteUrl.origin;

@@ -94,6 +94,31 @@ export type AddonModQuizGetQuizAccessInformationWSResponse = {
 };
 
 /**
+ * Params of mod_quiz_start_attempt WS.
+ */
+export type AddonModQuizStartAttemptWSParams = {
+  quizid: number; // Quiz instance id.
+  preflightdata?: AddonModQuizPreflightDataWSParam[]; // Preflight required data (like passwords).
+  forcenew?: boolean; // Whether to force a new attempt or not.
+} & Partial<Record<`preflightdata[${number}][name]` | `preflightdata[${number}][value]`, string>>;
+
+/**
+ * Data returned by mod_quiz_start_attempt WS.
+ */
+export type AddonModQuizStartAttemptWSResponse = {
+  attempt: AddonModQuizAttemptWSData;
+  warnings?: CoreWSExternalWarning[];
+};
+
+/**
+ * Preflight data in the format accepted by the WebServices.
+ */
+export type AddonModQuizPreflightDataWSParam = {
+  name: string; // Data name.
+  value: string; // Data value.
+};
+
+/**
  * Params of mod_quiz_get_user_best_grade WS.
  */
 export type AddonModQuizGetUserBestGradeWSParams = {

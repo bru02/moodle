@@ -195,6 +195,7 @@ export type CoreTagItem = {
 export enum Modname {
   Assign = "assign",
   Folder = "folder",
+  Forum = "forum",
   H5Pactivity = "h5pactivity",
   Label = "label",
   Questionnaire = "questionnaire",

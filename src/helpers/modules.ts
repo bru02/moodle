@@ -3,6 +3,8 @@ import { Modname } from "../types/contents";
 
 const moduleDetailOverrides: Partial<Record<Modname, boolean>> = {
   assign: true,
+  forum: true,
+  quiz: true,
 };
 
 export function getModuleListItemId(module: Module, options: { hasDetail?: boolean; suffix?: string } = {}) {

@@ -2,13 +2,14 @@ import { Action, ActionPanel, Grid, Icon, LaunchProps, open } from "@raycast/api
 import { createDeeplink, useCachedState, useFrecencySorting } from "@raycast/utils";
 import { mkdir } from "fs/promises";
 import { useEffect, useMemo, useRef } from "react";
+import AuthErrorDetail from "./components/AuthErrorDetail";
 import { OpenInBrowserAction } from "./components/OpenInBrowserAction";
 import WithHiddenItems, { HiddenItemActionsSection } from "./components/WithHiddenItems";
 import { shortcut } from "./helpers";
 import { getCourseFolder, handleFileUrl } from "./helpers/files";
 import { preferences } from "./helpers/preferences";
 import "./helpers/proxy";
-import { useSuspenseWSQuery } from "./hooks/useWSQuery";
+import { useWSQuery } from "./hooks/useWSQuery";
 import ViewCourse from "./view-course";
 import ViewCourseGrades from "./view-course-grades";
 
@@ -20,7 +21,7 @@ type SearchCoursesLaunchContext = {
 type SearchCoursesLaunchProps = LaunchProps<{ launchContext?: SearchCoursesLaunchContext }>;
 
 export default function Command({ launchContext }: SearchCoursesLaunchProps) {
-  const { data: courses } = useSuspenseWSQuery("core_enrol_get_users_courses", {
+  const { data: courses, isLoading, error, refetch } = useWSQuery("core_enrol_get_users_courses", {
     userid: 0,
   });
 
@@ -38,11 +39,15 @@ export default function Command({ launchContext }: SearchCoursesLaunchProps) {
     return Array.from(semesters).toSorted().toReversed();
   }, [courses]);
 
-  useEffect(() => {
-    if (!selectedSemester && semesters.length > 0) {
-      setSelectedSemester(semesters[0]);
+  const effectiveSemester = useMemo(() => {
+    if (selectedSemester === "all") {
+      return "all";
     }
-  }, [selectedSemester, semesters, setSelectedSemester]);
+    if (selectedSemester && semesters.includes(selectedSemester)) {
+      return selectedSemester;
+    }
+    return semesters[0];
+  }, [selectedSemester, semesters]);
 
   const { data: sortedCourses, visitItem } = useFrecencySorting(courses || [], {
     sortUnvisited(a, b) {
@@ -54,16 +59,19 @@ export default function Command({ launchContext }: SearchCoursesLaunchProps) {
   });
 
   const filteredCourses = useMemo(() => {
-    if (!selectedSemester || selectedSemester === "all") {
+    if (!effectiveSemester || effectiveSemester === "all") {
       return sortedCourses;
     }
     return sortedCourses.filter((course) => {
-      return (course.fullname + course.shortname).includes(selectedSemester);
+      return (course.fullname + course.shortname).includes(effectiveSemester);
     });
-  }, [sortedCourses, selectedSemester]);
+  }, [sortedCourses, effectiveSemester]);
 
   const directLaunchCourseId = launchContext?.courseId;
-  const courseToLaunch = directLaunchCourseId ? courses.find((c) => c.id === directLaunchCourseId) : undefined;
+  const courseToLaunch =
+    directLaunchCourseId && courses
+      ? courses.find((c) => String(c.id) === String(directLaunchCourseId))
+      : undefined;
   const hasVisitedDirectCourse = useRef(false);
 
   useEffect(() => {
@@ -73,6 +81,10 @@ export default function Command({ launchContext }: SearchCoursesLaunchProps) {
     hasVisitedDirectCourse.current = true;
     visitItem(courseToLaunch);
   }, [courseToLaunch, visitItem]);
+
+  if (error) {
+    return <AuthErrorDetail error={error} onRetry={() => refetch()} />;
+  }
 
   if (courseToLaunch) {
     return (
@@ -88,8 +100,13 @@ export default function Command({ launchContext }: SearchCoursesLaunchProps) {
       columns={4}
       inset={Grid.Inset.Zero}
       fit={Grid.Fit.Fill}
+      isLoading={isLoading}
       searchBarAccessory={
-        <Grid.Dropdown tooltip="Filter by semester" onChange={(s) => setSelectedSemester(s)} value={selectedSemester}>
+        <Grid.Dropdown
+          tooltip="Filter by semester"
+          onChange={(s) => setSelectedSemester(s)}
+          value={effectiveSemester}
+        >
           {semesters.length > 0 && <Grid.Dropdown.Item title="All" value="all" />}
           {semesters.map((semester) => (
             <Grid.Dropdown.Item key={semester} title={semester} value={semester} />

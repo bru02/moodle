@@ -17,7 +17,7 @@ type MutationContext = { previousData?: CoreCourseGetContentsWSSection[] };
 export default function CompletionAction({ module, course }: { module: Module; course: Course }) {
   const { token } = useUser();
   const completionData = module.completiondata;
-  const courseQueryKey = ["core_course_get_contents", { courseid: course.id }] as const;
+  const courseQueryKey = ["core_course_get_contents", { courseid: String(course.id) }] as const;
 
   const mutation = useMutation<void, Error, boolean, MutationContext>(
     {

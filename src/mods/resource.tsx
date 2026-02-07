@@ -1,6 +1,6 @@
 import { Action, ActionPanel, Color, Icon, Keyboard } from "@raycast/api";
 import { getProgressIcon } from "@raycast/utils";
-import { useContext } from "react";
+import { useContext, useMemo } from "react";
 import CourseContext from "../course-context";
 import { formatBytes, shortcut } from "../helpers";
 import { checkFileSize, getFilePath, handleFileUrl, pdfify } from "../helpers/files";
@@ -20,16 +20,17 @@ export default function ResourceListItem({ module, content }: { module: Module; 
   }
 
   const course = useContext(CourseContext) as Course;
-  const path = getFilePath(fileContent, module, course);
-  const progress = useFileSyncProgressStore((state) => state.progress[path]);
+  const path = useMemo(() => getFilePath(fileContent, module, course), [fileContent, module, course]);
+  const progress = useFileSyncProgressStore((state) => state.progress.get(path));
   const isException = useFileSyncExceptionsStore((state) => state.exceptions.includes(path));
   const addException = useFileSyncExceptionsStore((state) => state.addException);
   const fileSize = fileContent.filesize ?? 0;
   let filename = fileContent.filename ?? module.name;
   const downloadProgress = progress?.progress ?? 0;
   const convertProgress = progress?.convertProgress;
+  const fileUrl = useMemo(() => handleFileUrl(fileContent.fileurl), [fileContent.fileurl]);
 
-  if (checkFileSize(fileSize) && !isException) {
+  if (syncEnabled && checkFileSize(fileSize) && !isException) {
     return (
       <DefaultListItem
         module={module}
@@ -40,11 +41,11 @@ export default function ResourceListItem({ module, content }: { module: Module; 
         actions={
           <ActionPanel>
             <Action title="Download File" icon={Icon.Download} onAction={() => addException(path)} />
-            <Action.OpenInBrowser url={handleFileUrl(fileContent.fileurl)} />
+            <Action.OpenInBrowser url={fileUrl} />
             <Action.CopyToClipboard
               title="Copy URL"
               shortcut={Keyboard.Shortcut.Common.Copy}
-              content={handleFileUrl(fileContent.fileurl)}
+              content={fileUrl}
             />
           </ActionPanel>
         }
@@ -61,11 +62,11 @@ export default function ResourceListItem({ module, content }: { module: Module; 
         icon={syncEnabled ? getProgressIcon(downloadProgress / 100 || 0, Color.Orange) : Icon.Document}
         actions={
           <ActionPanel>
-            <Action.OpenInBrowser url={handleFileUrl(fileContent.fileurl)} />
+            <Action.OpenInBrowser url={fileUrl} />
             <Action.CopyToClipboard
               title="Copy URL"
               shortcut={Keyboard.Shortcut.Common.Copy}
-              content={handleFileUrl(fileContent.fileurl)}
+              content={fileUrl}
             />
           </ActionPanel>
         }
@@ -114,7 +115,7 @@ export default function ResourceListItem({ module, content }: { module: Module; 
             <Action.CopyToClipboard
               title="Copy URL"
               shortcut={Keyboard.Shortcut.Common.Copy}
-              content={handleFileUrl(fileContent.fileurl)}
+              content={fileUrl}
             />
           </ActionPanel.Section>
         </ActionPanel>

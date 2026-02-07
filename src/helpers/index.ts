@@ -1,6 +1,6 @@
 import { Keyboard } from "@raycast/api";
 import { decode } from "html-entities";
-import { siteHostname } from "./preferences";
+import { siteOrigin } from "./preferences";
 
 export const stripHTML = (html: string) => decode(html.replace(/<[^>]+>/g, "")).trim();
 
@@ -20,4 +20,4 @@ export const shortcut = (key: Keyboard.KeyEquivalent, additionalModifiers: Keybo
   }) satisfies Keyboard.Shortcut;
 
 export const getUrlForService = (service: string, token: string, params: object = {}) =>
-  `${siteHostname}/webservice/rest/server.php?${new URLSearchParams({ wsfunction: service, ...params, wstoken: token, moodlewssettinglang: "en", moodlewsrestformat: "json" })}`;
+  `${siteOrigin}/webservice/rest/server.php?${new URLSearchParams({ wsfunction: service, ...params, wstoken: token, moodlewssettinglang: "en", moodlewsrestformat: "json" })}`;

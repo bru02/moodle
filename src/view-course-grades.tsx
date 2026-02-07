@@ -1,19 +1,24 @@
 import { ActionPanel, Icon, List } from "@raycast/api";
 import { stripHTML } from "./helpers";
-import { preferences, siteHostname } from "./helpers/preferences";
+import { preferences, siteOrigin } from "./helpers/preferences";
 import { Course } from "./types";
 // @ts-expect-error no types
 import domino from "@mixmark-io/domino";
 import { createDeeplink } from "@raycast/utils";
+import AuthErrorDetail from "./components/AuthErrorDetail";
 import { OpenInBrowserAction } from "./components/OpenInBrowserAction";
 import WithHiddenItems, { HiddenItemActionsSection } from "./components/WithHiddenItems";
 import { useWSQuery } from "./hooks/useWSQuery";
 
 export default function ViewCourseGrades({ course }: { course: Course }) {
-  const { data, isLoading } = useWSQuery("gradereport_user_get_grades_table", {
+  const { data, isLoading, error, refetch } = useWSQuery("gradereport_user_get_grades_table", {
     courseid: +course.id,
     userid: 0,
   });
+
+  if (error) {
+    return <AuthErrorDetail error={error} onRetry={() => refetch()} />;
+  }
 
   return (
     <List isLoading={isLoading} navigationTitle="Course Grades">
@@ -26,11 +31,14 @@ export default function ViewCourseGrades({ course }: { course: Course }) {
           tableData.map((row, i) => {
             const gradeHeader = domino.createDocument(row.itemname?.content || "").querySelector(".gradeitemheader");
             let linkedActivity = gradeHeader?.getAttribute("href");
+            console.log("Original linkedActivity:", linkedActivity);
 
             if (linkedActivity) {
               const url = new URL(linkedActivity);
+              console.log("Parsed URL:", url);
 
-              if (url.hostname === siteHostname) {
+              if (url.origin === siteOrigin) {
+                console.log("Creating deeplink for URL:", url);
                 const moduleId = url.searchParams.get("id");
 
                 if (moduleId)

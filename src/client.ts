@@ -1,9 +1,8 @@
 import { Cache, LocalStorage } from "@raycast/api";
+import { AuthError } from "./errors";
 import { getUrlForService } from "./helpers";
-import { isQrAuth, preferences, siteHostname, siteUrl } from "./helpers/preferences";
-let user: User | null = null;
-const wrappedUser = wrapPromise(fetchUser());
-const cache = new Cache({ namespace: "user" });
+import { getMoodleErrorCode, getMoodleErrorMessage } from "./helpers/moodle-errors";
+import { isQrAuth, preferences, siteOrigin, siteUrl } from "./helpers/preferences";
 
 interface User {
   token: string;
@@ -12,179 +11,129 @@ interface User {
   id: number;
 }
 
-async function loginUserPass() {
-  const tokenResp = await fetch(`${siteHostname}/login/token.php?lang=en`, {
-    method: "POST",
-    body: new URLSearchParams({
-      username: preferences.username!,
-      password: preferences.password!,
-      service: "moodle_mobile_app",
-    }),
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-  });
+const cache = new Cache({ namespace: "user" });
+let user: User | null = null;
+let userPromise: Promise<User> | null = null;
 
-  return (await tokenResp.json()) as CoreSitesLoginTokenResponse;
-}
+type TokenResponse = { token?: string; privatetoken?: string };
 
-async function loginQr() {
-  console.log(siteHostname);
-  const tokenResp = await fetch(
-    `${siteHostname}/lib/ajax/service-nologin.php?info=tool_mobile_get_tokens_for_qr_login&lang=en`,
-    {
-      method: "POST",
-      body: JSON.stringify([
-        {
+async function login(): Promise<{ token: string; privatetoken?: string }> {
+  if (isQrAuth) {
+    const resp = await fetch(
+      `${siteOrigin}/lib/ajax/service-nologin.php?info=tool_mobile_get_tokens_for_qr_login&lang=en`,
+      {
+        method: "POST",
+        body: JSON.stringify([{
           index: 0,
           methodname: "tool_mobile_get_tokens_for_qr_login",
-          args: {
-            qrloginkey: siteUrl.searchParams.get("qrlogin"),
-            userid: siteUrl.searchParams.get("userid"),
-          },
-        },
-      ]),
-      headers: {
-        "Content-Type": "application/json",
-        "User-Agent": "MoodleMobile",
+          args: { qrloginkey: siteUrl.searchParams.get("qrlogin"), userid: siteUrl.searchParams.get("userid") },
+        }]),
+        headers: { "Content-Type": "application/json", "User-Agent": "MoodleMobile" },
       },
-    },
-  );
+    );
+    const json = await resp.json() as TokenResponse | { data?: TokenResponse }[];
+    const data = Array.isArray(json) ? json[0]?.data : json;
+    if (!data?.token) throw new AuthError(getMoodleErrorMessage(data) ?? "QR login failed", { code: getMoodleErrorCode(data) });
+    return { token: data.token, privatetoken: data.privatetoken };
+  }
 
-  return (await tokenResp.json()) as CoreSitesLoginTokenResponse;
+  if (!preferences.username || !preferences.password) {
+    throw new AuthError("Missing username or password in preferences", { code: "missing_credentials" });
+  }
+
+  const resp = await fetch(`${siteOrigin}/login/token.php?lang=en`, {
+    method: "POST",
+    body: new URLSearchParams({ username: preferences.username, password: preferences.password, service: "moodle_mobile_app" }),
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+  });
+  const data = await resp.json() as TokenResponse;
+  if (!data?.token) throw new AuthError(getMoodleErrorMessage(data) ?? "Login failed", { code: getMoodleErrorCode(data) });
+  return { token: data.token, privatetoken: data.privatetoken };
 }
 
-async function fetchUser() {
-  const cachedUserData = cache?.get("userData");
-  if (!user && cachedUserData) {
-    try {
-      user = JSON.parse(cachedUserData) as User;
-    } catch {
-      cache.remove("userData");
-    }
-  }
+type SiteInfoResponse = { userid?: number; userprivateaccesskey?: string; message?: string };
 
-  let userData: User | null = null;
-
-  console.time("fetchUser");
-  const storedUserData = await LocalStorage.getItem<string>("userData");
-  console.timeEnd("fetchUser");
-
-  if (storedUserData) {
-    try {
-      userData = JSON.parse(storedUserData) as User;
-    } catch {
-      userData = null;
-    }
-  }
-
-  if (!userData && user) {
-    userData = user;
-  }
-
-  if (!userData) {
-    console.log("isQrAuth:", isQrAuth);
-    let tokenJson = isQrAuth ? await loginQr() : await loginUserPass();
-
-    console.log("Raw tokenJson:", JSON.stringify(tokenJson, null, 2));
-
-    if (Array.isArray(tokenJson)) {
-      tokenJson = tokenJson[0].data;
-      console.log("Extracted from array:", JSON.stringify(tokenJson, null, 2));
-    }
-
-    if (!tokenJson?.token) throw new Error(tokenJson?.error || "Failed to fetch token");
-    const { token: newToken, privatetoken } = tokenJson;
-
-    const siteInfoResp = await fetch(getUrlForService("core_webservice_get_site_info", newToken));
-    const siteInfoJson = (await siteInfoResp.json()) as {
-      userid?: number;
-      userprivateaccesskey?: string;
-      message?: string;
-    };
-
-    if (siteInfoJson.message) {
-      throw new Error(siteInfoJson.message);
-    }
-
-    const id = siteInfoJson.userid ?? 0;
-    const accessKey = siteInfoJson.userprivateaccesskey ?? "";
-
-    userData = { token: newToken, accessKey, id, privateToken: privatetoken };
-  }
-
-  if (!userData) {
-    throw new Error("Failed to load user data");
-  }
-
-  user = userData;
-  const serializedUser = JSON.stringify(userData);
-
-  cache.set("userData", serializedUser);
-  await LocalStorage.setItem("userData", serializedUser);
-
-  console.log("Final userData:", userData);
-
-  return userData;
-}
-/**
- * 
- * @returns   return {
-    token: "b7c96ea92d3da426794a038280fc5d97",
-    accessKey: "0f4acb37e7bb37b1d8fa9b1314ead9ca",
-    id: 18621,
-  } as User;
- */
-export function useUser() {
-  return wrappedUser.read();
+async function fetchSiteInfo(token: string): Promise<SiteInfoResponse> {
+  const resp = await fetch(getUrlForService("core_webservice_get_site_info", token));
+  const json = await resp.json() as SiteInfoResponse;
+  if (json.message) throw new AuthError(json.message, { code: "site_info_failed" });
+  return json;
 }
 
-export function getUser() {
-  return wrappedUser.promise;
+async function authenticate(): Promise<User> {
+  const { token, privatetoken } = await login();
+  const siteInfo = await fetchSiteInfo(token);
+  return {
+    token,
+    privateToken: privatetoken,
+    id: siteInfo.userid ?? 0,
+    accessKey: siteInfo.userprivateaccesskey ?? "",
+  };
 }
 
-export function getUserSync() {
+function saveUser(u: User) {
+  user = u;
+  const json = JSON.stringify(u);
+  cache.set("userData", json);
+  LocalStorage.setItem("userData", json);
+}
+
+async function loadUser(): Promise<User> {
+  const cached = cache.get("userData");
+  if (cached) {
+    try { user = JSON.parse(cached); } catch { /* ignore */ }
+  }
+
+  const stored = await LocalStorage.getItem<string>("userData");
+  if (stored) {
+    try { user = JSON.parse(stored); } catch { /* ignore */ }
+  }
+
+  if (!user) {
+    user = await authenticate();
+    saveUser(user);
+  }
+
   return user;
 }
 
-/**
- * Response of calls to login/token.php.
- */
-type CoreSitesLoginTokenResponse = {
-  token?: string;
-  privatetoken?: string;
-  error?: string;
-  errorcode?: string;
-  stacktrace?: string;
-  debuginfo?: string;
-  reproductionlink?: string;
-};
+function ensureUserPromise(): Promise<User> {
+  if (!userPromise) userPromise = loadUser();
+  return userPromise;
+}
 
-function wrapPromise<T>(promise: Promise<T>): { read(): T; promise: Promise<T> } {
-  let status = "pending";
-  let response: T;
+const suspended = createSuspense(ensureUserPromise());
 
+export function useUser(): User {
+  return suspended.read();
+}
+
+export function getUser(): Promise<User> {
+  return ensureUserPromise();
+}
+
+export function getUserSync(): User | null {
+  return user;
+}
+
+export async function refreshUserTokens(): Promise<User> {
+  const refreshed = await authenticate();
+  saveUser(refreshed);
+  return refreshed;
+}
+
+function createSuspense<T>(promise: Promise<T>): { read(): T } {
+  let status: "pending" | "success" | "error" = "pending";
+  let result: T;
   const suspender = promise.then(
-    (res) => {
-      status = "success";
-      response = res;
-    },
-    (err) => {
-      status = "error";
-      response = err;
-    },
+    (r) => { status = "success"; result = r; },
+    (e) => { status = "error"; result = e; },
   );
-
-  const read = () => {
-    switch (status) {
-      case "pending":
-        throw suspender;
-      case "error":
-        throw response;
-      default:
-        return response;
-    }
+  return {
+    read() {
+      if (status === "pending") throw suspender;
+      if (status === "error") throw result;
+      return result;
+    },
   };
-
-  return { read, promise };
 }

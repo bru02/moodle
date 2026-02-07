@@ -27,7 +27,12 @@ export function pdfify(path: string) {
 }
 
 export function getCourseFolder(course: Course) {
-  return join(preferences.sync_folder!, sanitize(course.displayname));
+  const baseDir = preferences.sync_folder;
+  const courseName = sanitize(course.displayname);
+  if (!baseDir) {
+    return courseName;
+  }
+  return join(baseDir, courseName);
 }
 
 export function getModuleFolder(course: Course, module: Module) {
