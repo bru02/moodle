@@ -58,7 +58,10 @@ async function requestWSInternal<K extends keyof WSParamsMap>(
   return { ok: true, data: payload as WSResponseMap[K] };
 }
 
-export async function requestWS<K extends keyof WSParamsMap>(key: K, params: WSParamsMap[K]): Promise<WSResponseMap[K]> {
+export async function requestWS<K extends keyof WSParamsMap>(
+  key: K,
+  params: WSParamsMap[K],
+): Promise<WSResponseMap[K]> {
   const currentUser = await getUser();
   const { token, id } = currentUser;
 

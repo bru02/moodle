@@ -1,9 +1,10 @@
 import { Action, ActionPanel, Color, Icon, Keyboard } from "@raycast/api";
 import { getProgressIcon } from "@raycast/utils";
 import { useContext, useMemo } from "react";
+import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
 import { formatBytes, shortcut } from "../helpers";
-import { checkFileSize, getFilePath, handleFileUrl, pdfify } from "../helpers/files";
+import { canConvert, checkFileSize, getFilePath, handleFileUrl, pdfify } from "../helpers/files";
 import { preferences } from "../helpers/preferences";
 import { useFileSyncExceptionsStore, useFileSyncProgressStore } from "../store";
 import { CoreWSExternalFile, Course, Module } from "../types";
@@ -13,22 +14,24 @@ const syncEnabled = Boolean(preferences.sync_folder);
 
 export default function ResourceListItem({ module, content }: { module: Module; content?: CoreWSExternalFile }) {
   const fileContent: CoreWSExternalFile | undefined = content ?? module.contents?.[0];
-
-  // If no file content is available, render a fallback
-  if (!fileContent) {
-    return <DefaultListItem module={module} icon={Icon.Document} />;
-  }
-
   const course = useContext(CourseContext) as Course;
-  const path = useMemo(() => getFilePath(fileContent, module, course), [fileContent, module, course]);
+  const path = useMemo(
+    () => (fileContent ? getFilePath(fileContent, module, course) : ""),
+    [fileContent, module, course],
+  );
   const progress = useFileSyncProgressStore((state) => state.progress.get(path));
   const isException = useFileSyncExceptionsStore((state) => state.exceptions.includes(path));
   const addException = useFileSyncExceptionsStore((state) => state.addException);
-  const fileSize = fileContent.filesize ?? 0;
-  let filename = fileContent.filename ?? module.name;
+  const fileSize = fileContent?.filesize ?? 0;
+  let filename = fileContent?.filename ?? module.name;
   const downloadProgress = progress?.progress ?? 0;
   const convertProgress = progress?.convertProgress;
-  const fileUrl = useMemo(() => handleFileUrl(fileContent.fileurl), [fileContent.fileurl]);
+  const fileUrl = useMemo(() => (fileContent ? handleFileUrl(fileContent.fileurl) : ""), [fileContent]);
+
+  // If no file content is available, render a fallback.
+  if (!fileContent) {
+    return <DefaultListItem module={module} icon={Icon.Document} />;
+  }
 
   if (syncEnabled && checkFileSize(fileSize) && !isException) {
     return (
@@ -42,11 +45,8 @@ export default function ResourceListItem({ module, content }: { module: Module; 
           <ActionPanel>
             <Action title="Download File" icon={Icon.Download} onAction={() => addException(path)} />
             <Action.OpenInBrowser url={fileUrl} />
-            <Action.CopyToClipboard
-              title="Copy URL"
-              shortcut={Keyboard.Shortcut.Common.Copy}
-              content={fileUrl}
-            />
+            <Action.CopyToClipboard title="Copy URL" shortcut={Keyboard.Shortcut.Common.Copy} content={fileUrl} />
+            <HiddenItemActionsSection item={module} />
           </ActionPanel>
         }
       />
@@ -63,11 +63,8 @@ export default function ResourceListItem({ module, content }: { module: Module; 
         actions={
           <ActionPanel>
             <Action.OpenInBrowser url={fileUrl} />
-            <Action.CopyToClipboard
-              title="Copy URL"
-              shortcut={Keyboard.Shortcut.Common.Copy}
-              content={fileUrl}
-            />
+            <Action.CopyToClipboard title="Copy URL" shortcut={Keyboard.Shortcut.Common.Copy} content={fileUrl} />
+            <HiddenItemActionsSection item={module} />
           </ActionPanel>
         }
       />
@@ -76,7 +73,7 @@ export default function ResourceListItem({ module, content }: { module: Module; 
 
   let filePath = path;
 
-  if (convertProgress === 100) {
+  if (convertProgress === 100 && canConvert(fileContent.mimetype)) {
     filename = pdfify(filename);
     filePath = pdfify(path);
   }
@@ -112,12 +109,9 @@ export default function ResourceListItem({ module, content }: { module: Module; 
             <Action.CopyToClipboard title="Copy File" shortcut={shortcut(".")} content={{ file: filePath }} />
             <Action.CopyToClipboard title="Copy Name" shortcut={Keyboard.Shortcut.Common.CopyName} content={filename} />
             <Action.CopyToClipboard title="Copy Path" shortcut={Keyboard.Shortcut.Common.CopyPath} content={filePath} />
-            <Action.CopyToClipboard
-              title="Copy URL"
-              shortcut={Keyboard.Shortcut.Common.Copy}
-              content={fileUrl}
-            />
+            <Action.CopyToClipboard title="Copy URL" shortcut={Keyboard.Shortcut.Common.Copy} content={fileUrl} />
           </ActionPanel.Section>
+          <HiddenItemActionsSection item={module} />
         </ActionPanel>
       }
     />

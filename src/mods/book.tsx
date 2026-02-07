@@ -1,5 +1,6 @@
 import { Action, ActionPanel, Icon, List } from "@raycast/api";
 import { OpenInBrowserAction } from "../components/OpenInBrowserAction";
+import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import { useRemoteHTMLResource } from "../hooks/useRemoteHTMLService";
 import { Module } from "../types";
 import { AddonModBookTocChapterParsed } from "../types/contents";
@@ -46,6 +47,7 @@ export default function BookListItem({ module }: { module: Module }) {
         <ActionPanel>
           <Action.Push title="View Book" icon={Icon.Eye} target={<ViewBook module={module} />} />
           <OpenInBrowserAction url={module.url!} />
+          <HiddenItemActionsSection item={module} />
         </ActionPanel>
       }
     />

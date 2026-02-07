@@ -3,6 +3,17 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { FilePath } from "./types";
 
+export type HiddenItemKey = string | number;
+export type HiddenItemsEntry = {
+  hidden: HiddenItemKey[];
+  pinned: HiddenItemKey[];
+};
+
+export const EMPTY_HIDDEN_ITEMS: HiddenItemsEntry = {
+  hidden: [],
+  pinned: [],
+};
+
 type FileSyncProgressState = {
   progress: Map<
     FilePath,
@@ -19,6 +30,17 @@ type FileSyncExceptionsState = {
   exceptions: string[];
   addException: (fileId: string) => void;
 };
+
+type HiddenItemsState = {
+  itemsByNamespace: Record<string, HiddenItemsEntry>;
+  toggleItem: (namespace: string, itemKey: HiddenItemKey, pinned: boolean) => void;
+};
+
+const persistedStorage = createJSONStorage(() => ({
+  getItem: (name: string) => LocalStorage.getItem(name).then((v) => v?.toString() ?? null),
+  setItem: (name: string, value: string) => LocalStorage.setItem(name, value),
+  removeItem: (name: string) => LocalStorage.removeItem(name),
+}));
 
 export const useFileSyncProgressStore = create<FileSyncProgressState>((set) => ({
   progress: new Map(),
@@ -61,11 +83,54 @@ export const useFileSyncExceptionsStore = create<FileSyncExceptionsState>()(
     }),
     {
       name: "filesync-exceptions",
-      storage: createJSONStorage(() => ({
-        getItem: (name) => LocalStorage.getItem(name).then((v) => v?.toString() ?? null),
-        setItem: (name, value) => LocalStorage.setItem(name, value),
-        removeItem: (name) => LocalStorage.removeItem(name),
-      })),
+      storage: persistedStorage,
     },
   ),
 );
+
+export const useHiddenItemsStore = create<HiddenItemsState>()(
+  persist(
+    (set) => ({
+      itemsByNamespace: {},
+      toggleItem: (namespace, itemKey, pinned) =>
+        set((state) => {
+          const existing = state.itemsByNamespace[namespace] ?? EMPTY_HIDDEN_ITEMS;
+          const nextValues = toggleItemInList(pinned ? existing.pinned : existing.hidden, itemKey);
+          const nextItems = pinned
+            ? {
+                hidden: existing.hidden,
+                pinned: nextValues,
+              }
+            : {
+                hidden: nextValues,
+                pinned: existing.pinned,
+              };
+          const isEmptyPayload = nextItems.hidden.length === 0 && nextItems.pinned.length === 0;
+          if (isEmptyPayload) {
+            if (!(namespace in state.itemsByNamespace)) {
+              return state;
+            }
+
+            const itemsByNamespace = { ...state.itemsByNamespace };
+            delete itemsByNamespace[namespace];
+            return { itemsByNamespace };
+          }
+
+          return {
+            itemsByNamespace: {
+              ...state.itemsByNamespace,
+              [namespace]: nextItems,
+            },
+          };
+        }),
+    }),
+    {
+      name: "hidden-items",
+      storage: persistedStorage,
+    },
+  ),
+);
+
+function toggleItemInList(list: readonly HiddenItemKey[], itemKey: HiddenItemKey): HiddenItemKey[] {
+  return list.includes(itemKey) ? list.filter((item) => item !== itemKey) : [...list, itemKey];
+}

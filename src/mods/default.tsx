@@ -4,6 +4,7 @@ import { decode } from "html-entities";
 import { memo, useContext } from "react";
 import CompletionAction from "../components/CompletionAction";
 import { OpenInBrowserAction } from "../components/OpenInBrowserAction";
+import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
 import { turndown } from "../helpers/markdown";
 import { getModuleListItemId } from "../helpers/modules";
@@ -15,12 +16,7 @@ type DefaultListItemProps = {
   contentFilename?: string;
 } & Partial<List.Item.Props>;
 
-function DefaultListItem({
-  module,
-  detail: customDetail,
-  contentFilename,
-  ...props
-}: DefaultListItemProps) {
+function DefaultListItem({ module, detail: customDetail, contentFilename, ...props }: DefaultListItemProps) {
   const itemId = getModuleListItemId(module, {
     suffix: contentFilename,
     hasDetail: customDetail != null ? true : undefined,
@@ -42,6 +38,7 @@ function DefaultListItem({
             />
           )}
           <CompletionAction module={module} course={course} />
+          <HiddenItemActionsSection item={module} />
         </ActionPanel>
       }
       detail={detail}

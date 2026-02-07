@@ -23,17 +23,20 @@ async function login(): Promise<{ token: string; privatetoken?: string }> {
       `${siteOrigin}/lib/ajax/service-nologin.php?info=tool_mobile_get_tokens_for_qr_login&lang=en`,
       {
         method: "POST",
-        body: JSON.stringify([{
-          index: 0,
-          methodname: "tool_mobile_get_tokens_for_qr_login",
-          args: { qrloginkey: siteUrl.searchParams.get("qrlogin"), userid: siteUrl.searchParams.get("userid") },
-        }]),
+        body: JSON.stringify([
+          {
+            index: 0,
+            methodname: "tool_mobile_get_tokens_for_qr_login",
+            args: { qrloginkey: siteUrl.searchParams.get("qrlogin"), userid: siteUrl.searchParams.get("userid") },
+          },
+        ]),
         headers: { "Content-Type": "application/json", "User-Agent": "MoodleMobile" },
       },
     );
-    const json = await resp.json() as TokenResponse | { data?: TokenResponse }[];
+    const json = (await resp.json()) as TokenResponse | { data?: TokenResponse }[];
     const data = Array.isArray(json) ? json[0]?.data : json;
-    if (!data?.token) throw new AuthError(getMoodleErrorMessage(data) ?? "QR login failed", { code: getMoodleErrorCode(data) });
+    if (!data?.token)
+      throw new AuthError(getMoodleErrorMessage(data) ?? "QR login failed", { code: getMoodleErrorCode(data) });
     return { token: data.token, privatetoken: data.privatetoken };
   }
 
@@ -43,11 +46,16 @@ async function login(): Promise<{ token: string; privatetoken?: string }> {
 
   const resp = await fetch(`${siteOrigin}/login/token.php?lang=en`, {
     method: "POST",
-    body: new URLSearchParams({ username: preferences.username, password: preferences.password, service: "moodle_mobile_app" }),
+    body: new URLSearchParams({
+      username: preferences.username,
+      password: preferences.password,
+      service: "moodle_mobile_app",
+    }),
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
   });
-  const data = await resp.json() as TokenResponse;
-  if (!data?.token) throw new AuthError(getMoodleErrorMessage(data) ?? "Login failed", { code: getMoodleErrorCode(data) });
+  const data = (await resp.json()) as TokenResponse;
+  if (!data?.token)
+    throw new AuthError(getMoodleErrorMessage(data) ?? "Login failed", { code: getMoodleErrorCode(data) });
   return { token: data.token, privatetoken: data.privatetoken };
 }
 
@@ -55,7 +63,7 @@ type SiteInfoResponse = { userid?: number; userprivateaccesskey?: string; messag
 
 async function fetchSiteInfo(token: string): Promise<SiteInfoResponse> {
   const resp = await fetch(getUrlForService("core_webservice_get_site_info", token));
-  const json = await resp.json() as SiteInfoResponse;
+  const json = (await resp.json()) as SiteInfoResponse;
   if (json.message) throw new AuthError(json.message, { code: "site_info_failed" });
   return json;
 }
@@ -81,12 +89,20 @@ function saveUser(u: User) {
 async function loadUser(): Promise<User> {
   const cached = cache.get("userData");
   if (cached) {
-    try { user = JSON.parse(cached); } catch { /* ignore */ }
+    try {
+      user = JSON.parse(cached);
+    } catch {
+      /* ignore */
+    }
   }
 
   const stored = await LocalStorage.getItem<string>("userData");
   if (stored) {
-    try { user = JSON.parse(stored); } catch { /* ignore */ }
+    try {
+      user = JSON.parse(stored);
+    } catch {
+      /* ignore */
+    }
   }
 
   if (!user) {
@@ -126,8 +142,14 @@ function createSuspense<T>(promise: Promise<T>): { read(): T } {
   let status: "pending" | "success" | "error" = "pending";
   let result: T;
   const suspender = promise.then(
-    (r) => { status = "success"; result = r; },
-    (e) => { status = "error"; result = e; },
+    (r) => {
+      status = "success";
+      result = r;
+    },
+    (e) => {
+      status = "error";
+      result = e;
+    },
   );
   return {
     read() {

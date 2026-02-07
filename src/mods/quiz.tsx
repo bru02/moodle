@@ -3,6 +3,7 @@ import { memo, useContext, useMemo, useState } from "react";
 import CompletionAction from "../components/CompletionAction";
 import DatesDetail from "../components/DatesDetail";
 import { OpenInBrowserAction, openInBrowserWithAuth } from "../components/OpenInBrowserAction";
+import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
 import { formatDurationSeconds, formatRelativeTime } from "../helpers/format";
 import { turndown } from "../helpers/markdown";
@@ -43,6 +44,7 @@ function QuizListItem({ module }: { module: Module }) {
           />
           <OpenInBrowserAction url={module.url!} />
           <CompletionAction module={module} course={course} />
+          <HiddenItemActionsSection item={module} />
         </ActionPanel>
       }
     />
@@ -87,7 +89,15 @@ function StartQuizAction({ module, quiz }: { module: Module; quiz: AddonModQuizQ
   );
 }
 
-function QuizListItemDetail({ quiz, isLoading, module }: { quiz: AddonModQuizQuizWSData; isLoading: boolean; module: Module }) {
+function QuizListItemDetail({
+  quiz,
+  isLoading,
+  module,
+}: {
+  quiz: AddonModQuizQuizWSData;
+  isLoading: boolean;
+  module: Module;
+}) {
   const { data: bestGradeData } = useWSQuery("mod_quiz_get_user_best_grade", { quizid: quiz.id });
 
   const { data: accessInfo } = useWSQuery("mod_quiz_get_quiz_access_information", { quizid: quiz.id });
@@ -112,7 +122,10 @@ function QuizListItemDetail({ quiz, isLoading, module }: { quiz: AddonModQuizQui
         <List.Item.Detail.Metadata>
           <List.Item.Detail.Metadata.Label title="Attempts" text={attemptsSummary} />
           {lastAttempt && (
-            <List.Item.Detail.Metadata.Label title="Last Attempt" text={getAttemptStatusLabelProps(lastAttempt.state)} />
+            <List.Item.Detail.Metadata.Label
+              title="Last Attempt"
+              text={getAttemptStatusLabelProps(lastAttempt.state)}
+            />
           )}
           {lastAttempt?.timefinish ? (
             <List.Item.Detail.Metadata.Label title="Finished" text={formatRelativeTime(lastAttempt.timefinish)} />
@@ -273,10 +286,15 @@ function getAttemptStatusLabelProps(state?: string) {
   }
 }
 
-function getAttemptAccessories(attempt: AddonModQuizAttemptWSData, quiz: AddonModQuizQuizWSData): List.Item.Accessory[] {
+function getAttemptAccessories(
+  attempt: AddonModQuizAttemptWSData,
+  quiz: AddonModQuizQuizWSData,
+): List.Item.Accessory[] {
   const accessories: List.Item.Accessory[] = [];
   if (typeof attempt.sumgrades === "number") {
-    accessories.push({ text: formatGradeWithTotal(attempt.sumgrades, quiz.sumgrades ?? quiz.grade, quiz.decimalpoints) });
+    accessories.push({
+      text: formatGradeWithTotal(attempt.sumgrades, quiz.sumgrades ?? quiz.grade, quiz.decimalpoints),
+    });
   }
   if (attempt.state) {
     accessories.push({ text: formatAttemptState(attempt.state) });
@@ -342,7 +360,8 @@ async function startQuizAttempt(quizId: number, password?: string) {
 
 function requiresPassword(accessInfo: AddonModQuizGetQuizAccessInformationWSResponse) {
   return (
-    accessInfo.accessrules?.includes("quizaccess_password") || accessInfo.activerulenames?.includes("quizaccess_password")
+    accessInfo.accessrules?.includes("quizaccess_password") ||
+    accessInfo.activerulenames?.includes("quizaccess_password")
   );
 }
 

@@ -1,4 +1,4 @@
-import { Action, ActionPanel, Icon, LocalStorage } from "@raycast/api";
+import { Action, ActionPanel, Icon, Keyboard } from "@raycast/api";
 
 import {
   createContext,
@@ -6,18 +6,17 @@ import {
   ReactNode,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useReducer,
-  useState,
 } from "react";
 import { shortcut } from "../helpers";
-
-type HiddenItemKey = string | number;
+import { EMPTY_HIDDEN_ITEMS, type HiddenItemKey, useHiddenItemsStore } from "../store";
 
 type HiddenItemsContextValue<T> = {
-  hiddenItems: Set<HiddenItemKey>;
+  hiddenItems: readonly HiddenItemKey[];
+  pinnedItems: readonly HiddenItemKey[];
   toggleItem: (item: T) => void;
+  togglePinnedItem: (item: T) => void;
   showingHidden: boolean;
   toggleShowingHidden: () => void;
   key: (item: T) => HiddenItemKey;
@@ -27,7 +26,7 @@ export const HiddenItemsContext = createContext<HiddenItemsContextValue<unknown>
 
 type WithHiddenItemsBaseProps<T> = {
   data: readonly T[];
-  children: (items: readonly T[]) => ReactNode;
+  children: (items: readonly T[], meta: WithHiddenItemsRenderMeta) => ReactNode;
   empty?: ReactNode;
   namespace: string;
 };
@@ -45,6 +44,11 @@ type WithHiddenItemsProps<T> =
   | (T extends { id: HiddenItemKey } ? WithHiddenItemsPropsWithDefaultKey<T> : never);
 
 const defaultGetItemKey = (x: { id: HiddenItemKey }) => x.id;
+type WithHiddenItemsRenderMeta = {
+  isPinnedSection: boolean;
+  hasPinnedItems: boolean;
+  hasOtherItems: boolean;
+};
 
 export default function WithHiddenItems<T extends { id: HiddenItemKey }>(
   props: WithHiddenItemsPropsWithDefaultKey<T>,
@@ -61,102 +65,115 @@ export default function WithHiddenItems<T>({
     item: T,
   ) => HiddenItemKey;
 
-  const [hiddenItems, setHiddenItems] = useState<Set<HiddenItemKey>>(() => new Set());
+  const storedItems = useHiddenItemsStore((state) => state.itemsByNamespace[namespace] ?? EMPTY_HIDDEN_ITEMS);
+  const toggleStoredItem = useHiddenItemsStore((state) => state.toggleItem);
   const [showingHidden, setShowingHidden] = useReducer((s) => !s, false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadHiddenItems = async () => {
-      try {
-        const serialized = await LocalStorage.getItem<string>(namespace);
-        if (cancelled) {
-          return;
-        }
-        const parsed = serialized ? JSON.parse(serialized) : [];
-        if (!Array.isArray(parsed)) {
-          return;
-        }
-        setHiddenItems((prev) => {
-          const next = new Set(prev);
-          parsed.forEach((value) => {
-            if (typeof value === "string" || typeof value === "number") {
-              next.add(value);
-            }
-          });
-          return next;
-        });
-      } catch {
-        // ignore invalid storage payloads
-      }
-    };
-
-    loadHiddenItems();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [namespace]);
+  const hiddenItems = storedItems.hidden;
+  const pinnedItems = storedItems.pinned;
 
   const toggleItem = useCallback(
-    (item: T) => {
-      const itemKey = resolvedGetItemKey(item);
-      setHiddenItems((prev) => {
-        const newHiddenItems = new Set(prev);
-        if (newHiddenItems.has(itemKey)) {
-          newHiddenItems.delete(itemKey);
-        } else {
-          newHiddenItems.add(itemKey);
-        }
-        LocalStorage.setItem(namespace, JSON.stringify(Array.from(newHiddenItems))).catch(() => {
-          // ignore persistence errors
-        });
-        return newHiddenItems;
-      });
-    },
-    [namespace, resolvedGetItemKey],
+    (item: T) => toggleStoredItem(namespace, resolvedGetItemKey(item), false),
+    [namespace, resolvedGetItemKey, toggleStoredItem],
+  );
+  const togglePinnedItem = useCallback(
+    (item: T) => toggleStoredItem(namespace, resolvedGetItemKey(item), true),
+    [namespace, resolvedGetItemKey, toggleStoredItem],
   );
 
-  const filteredData = useMemo<readonly T[]>(() => {
-    if (showingHidden) {
-      return data;
+  const { pinnedVisibleData, regularVisibleData, hasVisibleData } = useMemo(() => {
+    const nextPinned: T[] = [];
+    const nextRegular: T[] = [];
+
+    for (const item of data) {
+      const itemKey = resolvedGetItemKey(item);
+      const isHidden = hiddenItems.includes(itemKey);
+      if (!showingHidden && isHidden) {
+        continue;
+      }
+
+      if (pinnedItems.includes(itemKey)) {
+        nextPinned.push(item);
+      } else {
+        nextRegular.push(item);
+      }
     }
-    return data.filter((item) => !hiddenItems.has(resolvedGetItemKey(item)));
-  }, [data, hiddenItems, showingHidden, resolvedGetItemKey]);
+
+    return {
+      pinnedVisibleData: nextPinned as readonly T[],
+      regularVisibleData: nextRegular as readonly T[],
+      hasVisibleData: nextPinned.length + nextRegular.length > 0,
+    };
+  }, [data, hiddenItems, pinnedItems, showingHidden, resolvedGetItemKey]);
+
+  const hasPinnedItems = pinnedVisibleData.length > 0;
+  const hasOtherItems = regularVisibleData.length > 0;
+
+  const pinnedContent = hasPinnedItems
+    ? children(pinnedVisibleData, {
+        isPinnedSection: true,
+        hasPinnedItems,
+        hasOtherItems,
+      })
+    : null;
+  const regularContent = children(regularVisibleData, {
+    isPinnedSection: false,
+    hasPinnedItems,
+    hasOtherItems,
+  });
 
   const ctx = useMemo<HiddenItemsContextValue<T>>(
     () => ({
       hiddenItems,
+      pinnedItems,
       toggleItem,
+      togglePinnedItem,
       showingHidden,
       toggleShowingHidden: setShowingHidden,
       key: resolvedGetItemKey,
     }),
-    [hiddenItems, toggleItem, resolvedGetItemKey, showingHidden],
+    [hiddenItems, pinnedItems, toggleItem, togglePinnedItem, resolvedGetItemKey, showingHidden],
   );
 
   return (
     <HiddenItemsContext.Provider value={ctx as HiddenItemsContextValue<unknown>}>
-      {hiddenItems.size === data.length && !showingHidden && empty ? empty : children(filteredData)}
+      {!hasVisibleData && empty ? (
+        empty
+      ) : (
+        <>
+          {pinnedContent}
+          {regularContent}
+        </>
+      )}
     </HiddenItemsContext.Provider>
   );
 }
 
 function useHiddenItemsContext<T = unknown>() {
-  const ctx = useContext(HiddenItemsContext);
+  const ctx = useContext(HiddenItemsContext) as HiddenItemsContextValue<T> | null;
   if (!ctx) {
     throw new Error("Hidden item actions must be used within WithHiddenItems");
   }
-  return ctx as HiddenItemsContextValue<T>;
+  return ctx;
 }
 
 export function HiddenItemActionsSection<T>({ item }: { item: T }) {
-  const ctx = useHiddenItemsContext<T>();
+  const ctx = useContext(HiddenItemsContext) as HiddenItemsContextValue<T> | null;
+  if (!ctx) {
+    return null;
+  }
 
-  const isItemHidden = ctx.hiddenItems.has(ctx.key(item));
+  const itemKey = ctx.key(item);
+  const isItemHidden = ctx.hiddenItems.includes(itemKey);
+  const isItemPinned = ctx.pinnedItems.includes(itemKey);
 
   return (
     <ActionPanel.Section>
+      <Action
+        title={isItemPinned ? "Unpin Item" : "Pin Item"}
+        icon={isItemPinned ? Icon.TackDisabled : Icon.Tack}
+        onAction={() => ctx.togglePinnedItem(item)}
+        shortcut={Keyboard.Shortcut.Common.Pin}
+      />
       <Action
         title={isItemHidden ? "Unhide Item" : "Hide Item"}
         icon={isItemHidden ? Icon.Eye : Icon.EyeDisabled}

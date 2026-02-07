@@ -4,11 +4,23 @@ import { dirname, join } from "path";
 import { useEffect, useRef } from "react";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
+import { resourceLimits as workerResourceLimits } from "worker_threads";
 import { useUser } from "./client";
 import { canConvert, checkFileSize, convertToPdf, handleFileUrl, pdfify } from "./helpers/files";
 import { preferences } from "./helpers/preferences";
 import { useFileSyncExceptionsStore, useFileSyncProgressStore } from "./store";
 import type { CoreWSExternalFile } from "./types";
+
+const MB = 1024 * 1024;
+const DEFAULT_HEAP_LIMIT_MB = 100;
+const MAX_SYNC_CONCURRENCY = 4;
+const MID_SYNC_CONCURRENCY = 2;
+const MIN_SYNC_CONCURRENCY = 1;
+const HIGH_WATER_DOWN_RATIO = 0.8;
+const HIGH_WATER_UP_RATIO = 0.65;
+const CRITICAL_DOWN_RATIO = 0.9;
+const CRITICAL_UP_RATIO = 0.75;
+const MEMORY_LOG_INTERVAL_MS = 5_000;
 
 export function useSync(files: readonly (readonly [string, CoreWSExternalFile])[]) {
   const setDownloadProgress = useFileSyncProgressStore((state) => state.setDownloadProgress);
@@ -31,22 +43,14 @@ export function useSync(files: readonly (readonly [string, CoreWSExternalFile])[
         const dirs = Array.from(new Set(files.map(([path]) => dirname(path))));
         await ensureDirIndex(dirs, dirIndexRef.current, ctrl);
 
-        for (const [path, file] of files) {
-          if (shouldSkipSync(path, file, exceptions)) continue;
+        const syncQueue = files.filter(([path, file]) => !shouldSkipSync(path, file, exceptions));
 
-          try {
-            await syncFile({
-              ctrl,
-              path,
-              file,
-              setDownloadProgress,
-              setConvertProgress,
-              dirIndex: dirIndexRef.current,
-            });
-          } catch (err) {
-            console.error("sync: failed while processing file", { path, error: err });
-          }
-        }
+        await runSyncQueue(syncQueue, {
+          ctrl,
+          setDownloadProgress,
+          setConvertProgress,
+          dirIndex: dirIndexRef.current,
+        });
       })().catch((err) => {
         console.error("sync: background task aborted", err);
       });
@@ -194,14 +198,139 @@ function shouldSkipSync(path: string, file: CoreWSExternalFile, exceptions: read
   return false;
 }
 
-async function syncFile({
-  ctrl,
-  path,
-  file,
-  setDownloadProgress,
-  setConvertProgress,
-  dirIndex,
-}: SyncFileArgs) {
+function getHeapLimitMb() {
+  const limit = workerResourceLimits.maxOldGenerationSizeMb;
+  if (typeof limit === "number" && limit > 0) return limit;
+  return DEFAULT_HEAP_LIMIT_MB;
+}
+
+function toMb(bytes: number) {
+  return bytes / MB;
+}
+
+function resolveConcurrencyTarget(current: number, heapUsedMb: number, heapLimitMb: number) {
+  const highDown = heapLimitMb * HIGH_WATER_DOWN_RATIO;
+  const highUp = heapLimitMb * HIGH_WATER_UP_RATIO;
+  const criticalDown = heapLimitMb * CRITICAL_DOWN_RATIO;
+  const criticalUp = heapLimitMb * CRITICAL_UP_RATIO;
+
+  const nextCurrent = Math.min(MAX_SYNC_CONCURRENCY, Math.max(MIN_SYNC_CONCURRENCY, current));
+
+  if (nextCurrent === MAX_SYNC_CONCURRENCY) {
+    if (heapUsedMb >= criticalDown) {
+      return { target: MIN_SYNC_CONCURRENCY, reason: "critical-down" as const };
+    }
+    if (heapUsedMb >= highDown) {
+      return { target: MID_SYNC_CONCURRENCY, reason: "high-down" as const };
+    }
+    return { target: MAX_SYNC_CONCURRENCY, reason: "steady" as const };
+  }
+
+  if (nextCurrent === MID_SYNC_CONCURRENCY) {
+    if (heapUsedMb >= criticalDown) {
+      return { target: MIN_SYNC_CONCURRENCY, reason: "critical-down" as const };
+    }
+    if (heapUsedMb <= highUp) {
+      return { target: MAX_SYNC_CONCURRENCY, reason: "high-up" as const };
+    }
+    return { target: MID_SYNC_CONCURRENCY, reason: "steady" as const };
+  }
+
+  if (heapUsedMb <= criticalUp) {
+    return { target: MID_SYNC_CONCURRENCY, reason: "critical-up" as const };
+  }
+
+  return { target: MIN_SYNC_CONCURRENCY, reason: "steady" as const };
+}
+
+async function runSyncQueue(
+  queue: readonly (readonly [string, CoreWSExternalFile])[],
+  { ctrl, setDownloadProgress, setConvertProgress, dirIndex }: Omit<SyncFileArgs, "path" | "file">,
+) {
+  const heapLimitMb = getHeapLimitMb();
+  const inFlight = new Set<Promise<void>>();
+  let index = 0;
+  let targetConcurrency = MAX_SYNC_CONCURRENCY;
+  let lastMemoryLogAt = 0;
+
+  const logMemory = (phase: "tick" | "adjust") => {
+    const mem = process.memoryUsage();
+    console.debug("sync: memory", {
+      phase,
+      heapUsedMb: toMb(mem.heapUsed).toFixed(2),
+      heapTotalMb: toMb(mem.heapTotal).toFixed(2),
+      externalMb: toMb(mem.external).toFixed(2),
+      arrayBuffersMb: toMb(mem.arrayBuffers).toFixed(2),
+      heapLimitMb,
+      targetConcurrency,
+      inFlight: inFlight.size,
+      pending: queue.length - index,
+    });
+  };
+
+  const launch = () => {
+    const item = queue[index++];
+    if (!item) return;
+
+    const [path, file] = item;
+    const task = (async () => {
+      try {
+        await syncFile({
+          ctrl,
+          path,
+          file,
+          setDownloadProgress,
+          setConvertProgress,
+          dirIndex,
+        });
+      } catch (err) {
+        if (!ctrl.signal.aborted) {
+          console.error("sync: failed while processing file", { path, error: err });
+        }
+      }
+    })();
+
+    inFlight.add(task);
+    void task.finally(() => {
+      inFlight.delete(task);
+    });
+  };
+
+  while (!ctrl.signal.aborted && (index < queue.length || inFlight.size > 0)) {
+    const now = Date.now();
+    const mem = process.memoryUsage();
+    const heapUsedMb = toMb(mem.heapUsed);
+    const decision = resolveConcurrencyTarget(targetConcurrency, heapUsedMb, heapLimitMb);
+
+    if (decision.target !== targetConcurrency) {
+      const previous = targetConcurrency;
+      targetConcurrency = decision.target;
+      console.debug("sync: concurrency adjusted", {
+        from: previous,
+        to: targetConcurrency,
+        reason: decision.reason,
+        heapUsedMb: heapUsedMb.toFixed(2),
+        heapLimitMb,
+      });
+      logMemory("adjust");
+      lastMemoryLogAt = now;
+    } else if (now - lastMemoryLogAt >= MEMORY_LOG_INTERVAL_MS) {
+      logMemory("tick");
+      lastMemoryLogAt = now;
+    }
+
+    while (!ctrl.signal.aborted && index < queue.length && inFlight.size < targetConcurrency) {
+      launch();
+    }
+
+    if (inFlight.size === 0) break;
+    await Promise.race(inFlight);
+  }
+
+  await Promise.allSettled([...inFlight]);
+}
+
+async function syncFile({ ctrl, path, file, setDownloadProgress, setConvertProgress, dirIndex }: SyncFileArgs) {
   const { fileurl, mimetype } = file;
   const filesize = file.filesize ?? 0;
   const timemodified = file.timemodified ?? 0;
@@ -215,8 +344,8 @@ async function syncFile({
   const needsPdf = convertible ? await shouldGeneratePdf(pdfPath, effectiveTimemodified, dirIndex) : false;
 
   setDownloadProgress(fileId, needsFile ? 0 : 100);
-  if (convertible && !needsPdf) {
-    setConvertProgress(fileId, 100);
+  if (convertible) {
+    setConvertProgress(fileId, needsPdf ? 0 : 100);
   }
 
   if (!needsFile && !needsPdf) return;
@@ -480,11 +609,7 @@ async function streamToFile(
   return pipeline(nodeReadable, writer);
 }
 
-async function shouldDownload(
-  target: string,
-  timemodified: number,
-  index?: Map<string, DirIndexEntry>,
-) {
+async function shouldDownload(target: string, timemodified: number, index?: Map<string, DirIndexEntry>) {
   if (!timemodified) return true;
 
   if (index) {
@@ -506,11 +631,7 @@ async function shouldDownload(
   }
 }
 
-async function shouldGeneratePdf(
-  target: string,
-  timemodified: number,
-  index?: Map<string, DirIndexEntry>,
-) {
+async function shouldGeneratePdf(target: string, timemodified: number, index?: Map<string, DirIndexEntry>) {
   if (!timemodified) return true;
 
   if (index) {

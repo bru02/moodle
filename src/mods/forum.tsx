@@ -3,6 +3,7 @@ import { useContext } from "react";
 import CompletionAction from "../components/CompletionAction";
 import DatesDetail from "../components/DatesDetail";
 import { OpenInBrowserAction } from "../components/OpenInBrowserAction";
+import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
 import { formatRelativeTime } from "../helpers/format";
 import { turndown } from "../helpers/markdown";
@@ -47,6 +48,7 @@ export default function ForumListItem({ module }: { module: Module }) {
           />
           <OpenInBrowserAction url={module.url!} />
           <CompletionAction module={module} course={course} />
+          <HiddenItemActionsSection item={module} />
         </ActionPanel>
       }
     />
@@ -81,9 +83,7 @@ function ForumListItemDetail({
           {typeof forum.istracked === "boolean" && (
             <List.Item.Detail.Metadata.Label title="Tracking" text={forum.istracked ? "On" : "Off"} />
           )}
-          {forum.grade_forum > 0 && (
-            <List.Item.Detail.Metadata.Label title="Grade" text={String(forum.grade_forum)} />
-          )}
+          {forum.grade_forum > 0 && <List.Item.Detail.Metadata.Label title="Grade" text={String(forum.grade_forum)} />}
           <List.Item.Detail.Metadata.Label title="Last Updated" text={formatRelativeTime(forum.timemodified)} />
           <DatesDetail module={module} />
         </List.Item.Detail.Metadata>
@@ -159,7 +159,7 @@ function formatUnreadCount(unread: number) {
 function getDiscussionAccessories(discussion: AddonModForumDiscussion): List.Item.Accessory[] {
   const accessories: List.Item.Accessory[] = [{ text: `${discussion.numreplies} replies` }];
   if (discussion.numunread > 0) {
-    accessories.push({text: formatUnreadCount(discussion.numunread)});
+    accessories.push({ text: formatUnreadCount(discussion.numunread) });
   }
   if (discussion.pinned) {
     accessories.push({ icon: Icon.Pin });

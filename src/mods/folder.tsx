@@ -2,6 +2,7 @@ import { Action, ActionPanel, Icon, List, open } from "@raycast/api";
 import { mkdir } from "fs/promises";
 import { useContext } from "react";
 import { OpenInBrowserAction } from "../components/OpenInBrowserAction";
+import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
 import { getModuleFolder } from "../helpers/files";
 import { preferences } from "../helpers/preferences";
@@ -47,6 +48,7 @@ export default function FolderListItem({ module }: { module: Module }) {
             />
           )}
           <OpenInBrowserAction url={module.url!} applyShortcut />
+          <HiddenItemActionsSection item={module} />
         </ActionPanel>
       }
     />

@@ -3,10 +3,11 @@ import { memo, useContext, useMemo } from "react";
 import CompletionAction from "../components/CompletionAction";
 import DatesDetail from "../components/DatesDetail";
 import { OpenInBrowserAction } from "../components/OpenInBrowserAction";
+import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
-import { formatDurationBetween } from "../helpers/format";
 import { stripHTML } from "../helpers";
 import { getFilePath } from "../helpers/files";
+import { formatDurationBetween } from "../helpers/format";
 import { turndown } from "../helpers/markdown";
 import { useWSQuery } from "../hooks/useWSQuery";
 import { useSync } from "../sync";
@@ -44,6 +45,7 @@ function AssignListItem({ module }: { module: Module }) {
           ></Action.Push>
           <OpenInBrowserAction url={module.url!} />
           <CompletionAction module={module} course={course} />
+          <HiddenItemActionsSection item={module} />
         </ActionPanel>
       }
     />

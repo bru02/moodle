@@ -1,5 +1,6 @@
 import { Action, ActionPanel, Detail, Icon } from "@raycast/api";
 import { OpenInBrowserAction } from "../components/OpenInBrowserAction";
+import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import { useRemoteHTMLResource } from "../hooks/useRemoteHTMLService";
 import { Module } from "../types";
 import DefaultListItem from "./default";
@@ -29,6 +30,7 @@ export default function PageListItem({ module }: { module: Module }) {
         <ActionPanel>
           <Action.Push title="View Page" icon={Icon.Eye} target={<ViewPage module={module} />} />
           <OpenInBrowserAction url={module.url!} />
+          <HiddenItemActionsSection item={module} />
         </ActionPanel>
       }
     />

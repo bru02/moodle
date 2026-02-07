@@ -27,8 +27,8 @@ export default function ViewCourseGrades({ course }: { course: Course }) {
         data={data?.tables?.[0]?.tabledata?.filter((r) => "itemname" in r && ("grade" in r || "percentage" in r)) || []}
         getItemKey={(item) => item.itemname!.id}
       >
-        {(tableData) =>
-          tableData.map((row, i) => {
+        {(tableData, { isPinnedSection, hasPinnedItems }) => {
+          const gradeItems = tableData.map((row, i) => {
             const gradeHeader = domino.createDocument(row.itemname?.content || "").querySelector(".gradeitemheader");
             let linkedActivity = gradeHeader?.getAttribute("href");
             console.log("Original linkedActivity:", linkedActivity);
@@ -80,8 +80,22 @@ export default function ViewCourseGrades({ course }: { course: Course }) {
                 }
               />
             );
-          })
-        }
+          });
+
+          if (gradeItems.length === 0) {
+            return null;
+          }
+
+          if (isPinnedSection) {
+            return <List.Section title="Pinned">{gradeItems}</List.Section>;
+          }
+
+          if (hasPinnedItems) {
+            return <List.Section title="Others">{gradeItems}</List.Section>;
+          }
+
+          return gradeItems;
+        }}
       </WithHiddenItems>
     </List>
   );

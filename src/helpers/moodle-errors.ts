@@ -9,8 +9,8 @@ export type MoodleErrorPayload = Partial<CoreWSErrorData> & {
 export function isMoodleErrorPayload(payload: unknown): payload is MoodleErrorPayload {
   return Boolean(
     payload &&
-      typeof payload === "object" &&
-      ("exception" in payload || "errorcode" in payload || "error" in payload || "message" in payload),
+    typeof payload === "object" &&
+    ("exception" in payload || "errorcode" in payload || "error" in payload || "message" in payload),
   );
 }
 

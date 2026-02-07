@@ -21,7 +21,12 @@ type SearchCoursesLaunchContext = {
 type SearchCoursesLaunchProps = LaunchProps<{ launchContext?: SearchCoursesLaunchContext }>;
 
 export default function Command({ launchContext }: SearchCoursesLaunchProps) {
-  const { data: courses, isLoading, error, refetch } = useWSQuery("core_enrol_get_users_courses", {
+  const {
+    data: courses,
+    isLoading,
+    error,
+    refetch,
+  } = useWSQuery("core_enrol_get_users_courses", {
     userid: 0,
   });
 
@@ -69,9 +74,7 @@ export default function Command({ launchContext }: SearchCoursesLaunchProps) {
 
   const directLaunchCourseId = launchContext?.courseId;
   const courseToLaunch =
-    directLaunchCourseId && courses
-      ? courses.find((c) => String(c.id) === String(directLaunchCourseId))
-      : undefined;
+    directLaunchCourseId && courses ? courses.find((c) => String(c.id) === String(directLaunchCourseId)) : undefined;
   const hasVisitedDirectCourse = useRef(false);
 
   useEffect(() => {
@@ -102,11 +105,7 @@ export default function Command({ launchContext }: SearchCoursesLaunchProps) {
       fit={Grid.Fit.Fill}
       isLoading={isLoading}
       searchBarAccessory={
-        <Grid.Dropdown
-          tooltip="Filter by semester"
-          onChange={(s) => setSelectedSemester(s)}
-          value={effectiveSemester}
-        >
+        <Grid.Dropdown tooltip="Filter by semester" onChange={(s) => setSelectedSemester(s)} value={effectiveSemester}>
           {semesters.length > 0 && <Grid.Dropdown.Item title="All" value="all" />}
           {semesters.map((semester) => (
             <Grid.Dropdown.Item key={semester} title={semester} value={semester} />
@@ -115,8 +114,8 @@ export default function Command({ launchContext }: SearchCoursesLaunchProps) {
       }
     >
       <WithHiddenItems namespace="courses" data={filteredCourses}>
-        {(c) =>
-          c?.map((course) => (
+        {(courses, { isPinnedSection, hasPinnedItems }) => {
+          const courseItems = courses.map((course) => (
             <Grid.Item
               key={course.id}
               content={{ value: handleFileUrl(course.courseimage), tooltip: course.fullname }}
@@ -170,8 +169,22 @@ export default function Command({ launchContext }: SearchCoursesLaunchProps) {
                 </ActionPanel>
               }
             />
-          ))
-        }
+          ));
+
+          if (courseItems.length === 0) {
+            return null;
+          }
+
+          if (isPinnedSection) {
+            return <Grid.Section title="Pinned">{courseItems}</Grid.Section>;
+          }
+
+          if (hasPinnedItems) {
+            return <Grid.Section title="Others">{courseItems}</Grid.Section>;
+          }
+
+          return courseItems;
+        }}
       </WithHiddenItems>
     </Grid>
   );

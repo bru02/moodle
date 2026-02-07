@@ -60,18 +60,14 @@ export default function ViewCourse({ course, preselectItem }: { course: Course; 
 
   return (
     <CourseContext value={course}>
-      <WithHiddenItems namespace={`course-content-${courseId}`} data={content}>
-        {(c) => (
-          <CourseContentContainer
-            key={courseId}
-            displayName={displayName}
-            isLoading={isFetching}
-            content={c}
-            preselectItem={preselectItem}
-            courseId={courseId}
-          />
-        )}
-      </WithHiddenItems>
+      <CourseContentContainer
+        key={courseId}
+        displayName={displayName}
+        isLoading={isFetching}
+        content={content}
+        preselectItem={preselectItem}
+        courseId={courseId}
+      />
     </CourseContext>
   );
 }
@@ -84,7 +80,13 @@ type CourseContentContainerProps = {
   preselectItem?: number;
 };
 
-function CourseContentContainer({ displayName, isLoading, content, preselectItem, courseId }: CourseContentContainerProps) {
+function CourseContentContainer({
+  displayName,
+  isLoading,
+  content,
+  preselectItem,
+  courseId,
+}: CourseContentContainerProps) {
   const { push } = useNavigation();
 
   const preselectedModule = useMemo(() => {
@@ -129,20 +131,23 @@ function CourseContentContainer({ displayName, isLoading, content, preselectItem
       displayName={displayName}
       isLoading={isLoading}
       content={content}
+      courseId={courseId}
       preselectedItemId={preselectedItemId ?? undefined}
     />
   );
 }
 
 type CourseContentListProps = {
+  courseId: string;
   displayName: string;
   isLoading: boolean;
   content: readonly CoreCourseGetContentsWSSection[];
   preselectedItemId?: string | null;
 };
 
-function CourseContentList({ displayName, isLoading, content, preselectedItemId }: CourseContentListProps) {
+function CourseContentList({ courseId, displayName, isLoading, content, preselectedItemId }: CourseContentListProps) {
   const regroupedContent = useMemo(() => regroupCourseContent(content), [content]);
+  const allModules = useMemo(() => regroupedContent.flatMap((section) => section.modules), [regroupedContent]);
   const firstListItemId = getFirstListItemId(regroupedContent);
   const initialSelectedItemId = preselectedItemId ?? firstListItemId ?? null;
   const [forcedSelectedItemId, setForcedSelectedItemId] = useState<string | null>(initialSelectedItemId);
@@ -170,14 +175,29 @@ function CourseContentList({ displayName, isLoading, content, preselectedItemId 
         setIsShowingDetail(id.startsWith("D-"));
       }}
     >
-      {regroupedContent.map((section) => (
-        <List.Section key={section.id} title={section.name} subtitle={section.subtitle}>
-          {section.modules.map((module: Module) => {
-            const Component = ListItems[module.modname as Modname] ?? ListItems.default;
-            return <Component key={module.id} module={module} />;
-          })}
-        </List.Section>
-      ))}
+      <WithHiddenItems namespace={`course-content-${courseId}`} data={allModules}>
+        {(visibleModules, { isPinnedSection }) => {
+          if (isPinnedSection) {
+            const pinnableModules = visibleModules.filter((module) => module.modname !== "label");
+
+            if (pinnableModules.length === 0) {
+              return null;
+            }
+
+            return (
+              <List.Section title="Pinned">
+                <RenderedModuleItems modules={pinnableModules} />
+              </List.Section>
+            );
+          }
+
+          return regroupCourseContentByVisibleModules(regroupedContent, visibleModules).map((section) => (
+            <List.Section key={section.id} title={section.name} subtitle={section.subtitle}>
+              <RenderedModuleItems modules={section.modules} />
+            </List.Section>
+          ));
+        }}
+      </WithHiddenItems>
     </List>
   );
 }
@@ -241,4 +261,29 @@ function regroupCourseContent(content: readonly CoreCourseGetContentsWSSection[]
   }
 
   return res;
+}
+
+function regroupCourseContentByVisibleModules(
+  regroupedContent: readonly RenderedContent[],
+  visibleModules: readonly Module[],
+): RenderedContent[] {
+  const visibleIds = new Set(visibleModules.map((module) => module.id));
+  const nextContent = [] as RenderedContent[];
+
+  for (const section of regroupedContent) {
+    const modules = section.modules.filter((module) => visibleIds.has(module.id));
+    if (modules.length === 0) {
+      continue;
+    }
+    nextContent.push({ ...section, modules });
+  }
+
+  return nextContent;
+}
+
+function RenderedModuleItems({ modules }: { modules: readonly Module[] }) {
+  return modules.map((module: Module) => {
+    const Component = ListItems[module.modname as Modname] ?? ListItems.default;
+    return <Component key={module.id} module={module} />;
+  });
 }

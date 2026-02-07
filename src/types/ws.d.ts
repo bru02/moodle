@@ -31,12 +31,12 @@ import type {
   AddonModQuizGetQuizFeedbackForGradeWSResponse,
   AddonModQuizGetQuizzesByCoursesWSParams,
   AddonModQuizGetQuizzesByCoursesWSResponse,
-  AddonModQuizStartAttemptWSParams,
-  AddonModQuizStartAttemptWSResponse,
   AddonModQuizGetUserAttemptsWSParams,
   AddonModQuizGetUserAttemptsWSResponse,
   AddonModQuizGetUserBestGradeWSParams,
   AddonModQuizGetUserBestGradeWSResponse,
+  AddonModQuizStartAttemptWSParams,
+  AddonModQuizStartAttemptWSResponse,
 } from "./quiz";
 
 export type WSResponseMap = {
