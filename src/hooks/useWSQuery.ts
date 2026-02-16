@@ -9,7 +9,6 @@ import {
   type UseQueryOptions,
   type UseSuspenseQueryOptions,
 } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef } from "react";
 import { getUser, refreshUserTokens } from "../client";
 import { AuthError, isAuthError } from "../errors";
 import { getUrlForService } from "../helpers";
@@ -21,16 +20,40 @@ import {
 } from "../helpers/moodle-errors";
 import { WSParamsMap, WSResponseMap } from "../types/ws";
 
-const PERF_DEBUG = process.env.NODE_ENV === "development";
-
 type WSRequestResult<K extends keyof WSParamsMap> =
   | { ok: true; data: WSResponseMap[K] }
   | { ok: false; error: Error; payload?: unknown; shouldRefresh: boolean };
 
+type Primitive = string | number | boolean;
+type RequestParams = Record<string, Primitive>;
+
+function normalizeParams(input: Record<string, unknown>): RequestParams {
+  const out: RequestParams = {};
+
+  for (const [key, value] of Object.entries(input)) {
+    if (value == null) continue;
+    if (Array.isArray(value)) {
+      for (let i = 0; i < value.length; i++) {
+        const item = value[i];
+        if (item == null) continue;
+        if (typeof item === "string" || typeof item === "number" || typeof item === "boolean") {
+          out[`${key}[${i}]`] = item;
+        }
+      }
+      continue;
+    }
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      out[key] = value;
+    }
+  }
+
+  return out;
+}
+
 async function requestWSInternal<K extends keyof WSParamsMap>(
   key: K,
   token: string,
-  params: WSParamsMap[K],
+  params: RequestParams,
 ): Promise<WSRequestResult<K>> {
   let response: Response;
   try {
@@ -64,9 +87,9 @@ export async function requestWS<K extends keyof WSParamsMap>(
 ): Promise<WSResponseMap[K]> {
   const currentUser = await getUser();
   const { token, id } = currentUser;
-
-  const requestParams =
+  const requestParamsSource =
     "userid" in params && params.userid === 0 ? ({ ...params, userid: id } as WSParamsMap[K]) : params;
+  const requestParams = normalizeParams(requestParamsSource as Record<string, unknown>);
 
   let result = await requestWSInternal(key, token, requestParams);
   if (!result.ok && result.shouldRefresh) {
@@ -80,6 +103,7 @@ export async function requestWS<K extends keyof WSParamsMap>(
 }
 
 type WSQueryKey<K extends keyof WSParamsMap> = readonly [K, WSParamsMap[K]];
+type WSBatchQueryKey<K extends keyof WSParamsMap> = readonly [K, "batch", readonly WSParamsMap[K][]];
 
 type WSQueryOptions<K extends keyof WSParamsMap, TData = WSResponseMap[K]> = Omit<
   UseQueryOptions<WSResponseMap[K], Error, TData, WSQueryKey<K>>,
@@ -91,7 +115,10 @@ type WSSuspenseQueryOptions<K extends keyof WSParamsMap, TData = WSResponseMap[K
   "queryKey" | "queryFn"
 >;
 
-type AnyWSQueryKey = WSQueryKey<keyof WSParamsMap>;
+type WSBatchQueryOptions<K extends keyof WSParamsMap, TData = WSResponseMap[K][]> = Omit<
+  UseQueryOptions<WSResponseMap[K][], Error, TData, WSBatchQueryKey<K>>,
+  "queryKey" | "queryFn"
+>;
 
 const cache = new Cache({
   namespace: "ws-query-persist",
@@ -99,35 +126,10 @@ const cache = new Cache({
 
 const persister = experimental_createQueryPersister({
   storage: {
-    getItem: (key) => {
-      if (!PERF_DEBUG) {
-        return cache.get(key);
-      }
-      const label = `ws-cache:get:${key}`;
-      console.time(label);
-      const value = cache.get(key);
-      console.timeEnd(label);
-      return value;
-    },
-    setItem: (key, value) => {
-      if (!PERF_DEBUG) {
-        return cache.set(key, value);
-      }
-      const label = `ws-cache:set:${key}`;
-      console.time(label);
-      const result = cache.set(key, value);
-      console.timeEnd(label);
-      return result;
-    },
+    getItem: (key) => cache.get(key),
+    setItem: (key, value) => cache.set(key, value),
     removeItem: (key) => {
-      if (!PERF_DEBUG) {
-        cache.remove(key);
-        return;
-      }
-      const label = `ws-cache:remove:${key}`;
-      console.time(label);
       cache.remove(key);
-      console.timeEnd(label);
     },
   },
   maxAge: 1000 * 60 * 60 * 24 * 8,
@@ -164,70 +166,26 @@ export const queryClient = new QueryClient({
   }),
 });
 
-let fetchTimingId = 0;
-
 function getQueryOptions<K extends keyof WSParamsMap>(key: K, params: WSParamsMap[K]) {
   const queryParams = { ...params } as WSParamsMap[K];
   const queryKey: WSQueryKey<K> = [key, queryParams];
   return {
     queryKey,
     async queryFn() {
-      if (PERF_DEBUG) {
-        console.log("Fetching WS function", key, queryParams);
-      }
-      const fetchLabel = PERF_DEBUG ? `ws-fetch:${String(key)}#${++fetchTimingId}` : "";
-      if (PERF_DEBUG) {
-        console.time(fetchLabel);
-      }
-      try {
-        return await requestWS(key, queryParams);
-      } finally {
-        if (PERF_DEBUG) {
-          console.timeEnd(fetchLabel);
-        }
-      }
+      return await requestWS(key, queryParams);
     },
   };
 }
 
-const activeTimers = new Set<string>();
-let timingId = 0;
-
-function useQueryTiming(mode: "useQuery" | "useSuspenseQuery", queryKey: AnyWSQueryKey) {
-  const labelRef = useRef<string | undefined>(undefined);
-  const endedRef = useRef(false);
-  const cachedStateRef = useRef(queryClient.getQueryState(queryKey));
-
-  if (PERF_DEBUG && !labelRef.current) {
-    labelRef.current = `${mode}:${String(queryKey[0])}#${++timingId}`;
-    activeTimers.add(labelRef.current);
-    const hasCachedData = cachedStateRef.current?.data !== undefined;
-    console.time(labelRef.current);
-    console.timeLog(labelRef.current, hasCachedData ? "cache present before subscribe" : "no cached data yet", {
-      fetchStatus: cachedStateRef.current?.fetchStatus,
-      dataUpdatedAt: cachedStateRef.current?.dataUpdatedAt,
-    });
-  }
-
-  const endTiming = useCallback((note: string) => {
-    if (!PERF_DEBUG) return;
-    const label = labelRef.current;
-    if (!label || endedRef.current || !activeTimers.has(label)) return;
-    if (note) {
-      console.timeLog(label, note);
-    }
-    console.timeEnd(label);
-    activeTimers.delete(label);
-    endedRef.current = true;
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      endTiming("unmounted before resolve");
-    };
-  }, [endTiming]);
-
-  return { endTiming, hasCachedData: cachedStateRef.current?.data !== undefined };
+function getBatchQueryOptions<K extends keyof WSParamsMap>(key: K, paramsList: readonly WSParamsMap[K][]) {
+  const queryParams = paramsList.map((params) => ({ ...params })) as readonly WSParamsMap[K][];
+  const queryKey: WSBatchQueryKey<K> = [key, "batch", queryParams];
+  return {
+    queryKey,
+    async queryFn() {
+      return await Promise.all(queryParams.map((params) => requestWS(key, params)));
+    },
+  };
 }
 
 export function useWSQuery<K extends keyof WSParamsMap, TData = WSResponseMap[K]>(
@@ -236,23 +194,16 @@ export function useWSQuery<K extends keyof WSParamsMap, TData = WSResponseMap[K]
   options?: WSQueryOptions<K, TData>,
 ) {
   const baseOptions = getQueryOptions(key, params);
-  const { endTiming, hasCachedData } = useQueryTiming("useQuery", baseOptions.queryKey);
+  return useQuery<WSResponseMap[K], Error, TData, WSQueryKey<K>>({ ...baseOptions, ...options }, queryClient);
+}
 
-  const result = useQuery<WSResponseMap[K], Error, TData, WSQueryKey<K>>({ ...baseOptions, ...options }, queryClient);
-
-  useEffect(() => {
-    if (result.data !== undefined) {
-      endTiming(hasCachedData ? "resolved from cache" : "resolved after fetch");
-    }
-  }, [endTiming, hasCachedData, result.data]);
-
-  useEffect(() => {
-    if (result.error) {
-      endTiming(`errored: ${result.error.message}`);
-    }
-  }, [endTiming, result.error]);
-
-  return result;
+export function useWSBatchQuery<K extends keyof WSParamsMap, TData = WSResponseMap[K][]>(
+  key: K,
+  paramsList: readonly WSParamsMap[K][],
+  options?: WSBatchQueryOptions<K, TData>,
+) {
+  const baseOptions = getBatchQueryOptions(key, paramsList);
+  return useQuery<WSResponseMap[K][], Error, TData, WSBatchQueryKey<K>>({ ...baseOptions, ...options }, queryClient);
 }
 
 export function useSuspenseWSQuery<K extends keyof WSParamsMap, TData = WSResponseMap[K]>(
@@ -261,24 +212,5 @@ export function useSuspenseWSQuery<K extends keyof WSParamsMap, TData = WSRespon
   options?: WSSuspenseQueryOptions<K, TData>,
 ) {
   const baseOptions = getQueryOptions(key, params);
-  const { endTiming, hasCachedData } = useQueryTiming("useSuspenseQuery", baseOptions.queryKey);
-
-  const result = useSuspenseQuery<WSResponseMap[K], Error, TData, WSQueryKey<K>>(
-    { ...baseOptions, ...options },
-    queryClient,
-  );
-
-  useEffect(() => {
-    if (result.data !== undefined) {
-      endTiming(hasCachedData ? "resolved from cache" : "resolved after fetch/suspense");
-    }
-  }, [endTiming, hasCachedData, result.data]);
-
-  useEffect(() => {
-    if (result.error) {
-      endTiming("errored during suspense query");
-    }
-  }, [endTiming, result.error]);
-
-  return result;
+  return useSuspenseQuery<WSResponseMap[K], Error, TData, WSQueryKey<K>>({ ...baseOptions, ...options }, queryClient);
 }

@@ -21,7 +21,8 @@ export function ViewFolder({ module }: { module: Module }) {
 }
 
 export default function FolderListItem({ module }: { module: Module }) {
-  const course = useContext(CourseContext);
+  const ctx = useContext(CourseContext);
+  const course = ctx.activeCourse;
   return (
     <DefaultListItem
       module={module}
@@ -31,7 +32,7 @@ export default function FolderListItem({ module }: { module: Module }) {
             title="Open Folder"
             icon={Icon.Folder}
             target={
-              <CourseContext.Provider value={course}>
+              <CourseContext.Provider value={ctx}>
                 <ViewFolder module={module} />
               </CourseContext.Provider>
             }

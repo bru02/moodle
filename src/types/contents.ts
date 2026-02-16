@@ -193,7 +193,10 @@ export type CoreTagItem = {
 };
 
 export enum Modname {
+  Attendance = "attendance",
   Assign = "assign",
+  Choice = "choice",
+  Chat = "chat",
   Folder = "folder",
   Forum = "forum",
   H5Pactivity = "h5pactivity",

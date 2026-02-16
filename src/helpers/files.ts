@@ -3,7 +3,8 @@ import { ReadStream } from "fs";
 import { join } from "path";
 import { sanitize } from "sanitize-filename-ts";
 import { getUserSync } from "../client";
-import { CoreWSExternalFile, Course, FilePath, Module } from "../types";
+import { CoreWSExternalFile, FilePath, Module } from "../types";
+import { SimpleCourse } from "../types/simple-course";
 import { preferences } from "./preferences";
 
 export function handleFileUrl(url: string) {
@@ -26,7 +27,7 @@ export function pdfify(path: string) {
   return path.replace(/\.[^/.]+$/, ".pdf");
 }
 
-export function getCourseFolder(course: Course) {
+export function getCourseFolder(course: Pick<SimpleCourse, "displayname">) {
   const baseDir = preferences.sync_folder;
   const courseName = sanitize(course.displayname);
   if (!baseDir) {
@@ -35,13 +36,17 @@ export function getCourseFolder(course: Course) {
   return join(baseDir, courseName);
 }
 
-export function getModuleFolder(course: Course, module: Module) {
+export function getModuleFolder(course: Pick<SimpleCourse, "displayname">, module: Module) {
   const courseDir = getCourseFolder(course);
   const moduleDir = sanitize(module.name);
   return join(courseDir, moduleDir);
 }
 
-export function getFilePath(content: Pick<CoreWSExternalFile, "filename">, module: Module, course: Course): FilePath {
+export function getFilePath(
+  content: Pick<CoreWSExternalFile, "filename">,
+  module: Module,
+  course: Pick<SimpleCourse, "displayname">,
+): FilePath {
   const courseDir = ["folder", "assign"].includes(module.modname)
     ? getModuleFolder(course, module)
     : getCourseFolder(course);

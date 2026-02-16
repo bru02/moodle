@@ -6,8 +6,9 @@ import { OpenInBrowserAction, openInBrowserWithAuth } from "../components/OpenIn
 import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
 import { formatDurationSeconds, formatRelativeTime } from "../helpers/format";
+import { buildGradeAccessoryTextByModuleId } from "../helpers/grades";
 import { turndown } from "../helpers/markdown";
-import { requestWS, useWSQuery } from "../hooks/useWSQuery";
+import { requestWS, useWSBatchQuery, useWSQuery } from "../hooks/useWSQuery";
 import { Module } from "../types";
 import type {
   AddonModQuizAttemptWSData,
@@ -18,8 +19,19 @@ import type {
 import DefaultListItem from "./default";
 
 function QuizListItem({ module }: { module: Module }) {
-  const course = useContext(CourseContext);
-  const { data, isPending } = useWSQuery("mod_quiz_get_quizzes_by_courses", { "courseids[0]": Number(course.id) });
+  const ctx = useContext(CourseContext);
+  const { scope, activeCourse } = ctx;
+  const { data, isPending } = useWSQuery("mod_quiz_get_quizzes_by_courses", { courseids: scope.courseIds });
+  const { data: gradeTables } = useWSBatchQuery(
+    "gradereport_user_get_grades_table",
+    scope.courseIds.map((courseid) => ({ courseid, userid: 0 })),
+  );
+  const { data: attemptsData } = useWSQuery("mod_quiz_get_user_attempts", {
+    quizid: module.instance,
+    status: "all",
+  });
+  const gradeTextByModuleId = useMemo(() => buildGradeAccessoryTextByModuleId(gradeTables), [gradeTables]);
+  const gradeText = gradeTextByModuleId.get(module.id);
 
   const currentQuiz = data?.quizzes.find((quiz) => quiz.id === module.instance || quiz.coursemodule === module.id);
 
@@ -30,20 +42,28 @@ function QuizListItem({ module }: { module: Module }) {
   return (
     <DefaultListItem
       module={module}
-      detail={<QuizListItemDetail quiz={currentQuiz} isLoading={isPending} module={module} />}
+      detail={
+        <QuizListItemDetail
+          quiz={currentQuiz}
+          isLoading={isPending}
+          module={module}
+          attempts={attemptsData?.attempts}
+        />
+      }
+      accessories={getQuizAccessories({ gradeText, attempts: attemptsData?.attempts })}
       actions={
         <ActionPanel>
           <StartQuizAction module={module} quiz={currentQuiz} />
           <Action.Push
             title="View Attempts"
             target={
-              <CourseContext value={course}>
+              <CourseContext value={ctx}>
                 <QuizAttemptsList module={module} quiz={currentQuiz} />
               </CourseContext>
             }
           />
           <OpenInBrowserAction url={module.url!} />
-          <CompletionAction module={module} course={course} />
+          <CompletionAction module={module} course={activeCourse} />
           <HiddenItemActionsSection item={module} />
         </ActionPanel>
       }
@@ -93,28 +113,22 @@ function QuizListItemDetail({
   quiz,
   isLoading,
   module,
+  attempts,
 }: {
   quiz: AddonModQuizQuizWSData;
   isLoading: boolean;
   module: Module;
+  attempts: AddonModQuizAttemptWSData[] | undefined;
 }) {
   const { data: bestGradeData } = useWSQuery("mod_quiz_get_user_best_grade", { quizid: quiz.id });
-
   const { data: accessInfo } = useWSQuery("mod_quiz_get_quiz_access_information", { quizid: quiz.id });
 
-  const { data: attemptsData } = useWSQuery("mod_quiz_get_user_attempts", {
-    quizid: quiz.id,
-    status: "all",
-  });
-
-  const attempts = attemptsData?.attempts;
-  const lastAttempt = useMemo(() => pickLastAttempt(attempts ?? []), [attempts]);
-
+  const lastAttempt = useMemo(() => getLastAttempt(attempts), [attempts]);
   const attemptsLimit = formatAttemptsLimit(quiz.attempts);
   const attemptCount = attempts?.length ?? 0;
   const attemptsSummary = attemptsLimit ? `${attemptCount} / ${attemptsLimit}` : String(attemptCount);
 
-  const detail = (
+  return (
     <List.Item.Detail
       isLoading={isLoading}
       markdown={turndown(quiz.intro || "")}
@@ -159,8 +173,6 @@ function QuizListItemDetail({
       }
     />
   );
-
-  return detail;
 }
 
 function StartQuizForm({ module, quiz }: { module: Module; quiz: AddonModQuizQuizWSData }) {
@@ -248,20 +260,6 @@ function QuizAttemptDetail({ attempt, quiz }: { attempt: AddonModQuizAttemptWSDa
   return detail;
 }
 
-function formatTimeLimit(seconds: number) {
-  return formatDurationSeconds(seconds);
-}
-
-function formatAttemptsLimit(limit?: number) {
-  if (limit === undefined || limit === null) {
-    return undefined;
-  }
-  if (limit === 0 || limit === -1) {
-    return "∞";
-  }
-  return String(limit);
-}
-
 function formatAttemptTitle(attempt: AddonModQuizAttemptWSData, index: number) {
   const attemptNumber = attempt.attempt ?? index + 1;
   return `Attempt ${attemptNumber}`;
@@ -302,6 +300,39 @@ function getAttemptAccessories(
   return accessories;
 }
 
+function getQuizAccessories({
+  gradeText,
+  attempts,
+}: {
+  gradeText?: string;
+  attempts: AddonModQuizAttemptWSData[] | undefined;
+}): List.Item.Accessory[] {
+  if (gradeText) {
+    return [{ text: gradeText, tooltip: "Grade" }];
+  }
+
+  const lastAttempt = getLastAttempt(attempts);
+  if (!lastAttempt?.state) {
+    return [{ text: "Open", tooltip: "No attempts yet" }];
+  }
+
+  return [{ text: getCompactAttemptState(lastAttempt.state), tooltip: "Attempt status" }];
+}
+
+function formatTimeLimit(seconds: number) {
+  return formatDurationSeconds(seconds);
+}
+
+function formatAttemptsLimit(limit?: number) {
+  if (limit === undefined || limit === null) {
+    return undefined;
+  }
+  if (limit === 0 || limit === -1) {
+    return "∞";
+  }
+  return String(limit);
+}
+
 function formatGradeWithTotal(grade: number, total?: number | null, decimals?: number) {
   const formattedGrade = formatGrade(grade, decimals);
   if (typeof total !== "number") {
@@ -320,9 +351,26 @@ function formatGrade(grade: number, decimals?: number) {
   return grade.toString();
 }
 
-function pickLastAttempt(attempts: AddonModQuizAttemptWSData[]) {
-  if (!attempts.length) return undefined;
-  return [...attempts].sort((a, b) => (b.timemodified ?? b.timestart ?? 0) - (a.timemodified ?? a.timestart ?? 0))[0];
+function getLastAttempt(attempts: AddonModQuizAttemptWSData[] | undefined) {
+  const list = attempts ?? [];
+  if (list.length === 0) return undefined;
+
+  return [...list].sort((a, b) => (b.timemodified ?? b.timestart ?? 0) - (a.timemodified ?? a.timestart ?? 0))[0];
+}
+
+function getCompactAttemptState(state: string) {
+  switch (state) {
+    case "finished":
+      return { value: "Done", color: Color.Green };
+    case "inprogress":
+      return { value: "Live", color: Color.Blue };
+    case "overdue":
+      return { value: "Late", color: Color.Orange };
+    case "abandoned":
+      return { value: "Drop", color: Color.Red };
+    default:
+      return { value: "Open" };
+  }
 }
 
 async function startAttemptAndOpen(module: Module, quiz: AddonModQuizQuizWSData, password?: string) {

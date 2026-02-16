@@ -1,7 +1,6 @@
 import { Action, ActionPanel, Color, Icon, List } from "@raycast/api";
 import { useContext } from "react";
 import CompletionAction from "../components/CompletionAction";
-import DatesDetail from "../components/DatesDetail";
 import { OpenInBrowserAction } from "../components/OpenInBrowserAction";
 import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
@@ -9,22 +8,13 @@ import { formatRelativeTime } from "../helpers/format";
 import { turndown } from "../helpers/markdown";
 import { useWSQuery } from "../hooks/useWSQuery";
 import { Module } from "../types";
-import type { AddonModForumData, AddonModForumDiscussion, AddonModForumType } from "../types/forum";
+import type { AddonModForumData, AddonModForumDiscussion } from "../types/forum";
 import DefaultListItem from "./default";
 
-const forumTypeLabels: Record<AddonModForumType, string> = {
-  news: "Announcements",
-  social: "Social",
-  general: "Standard Forum",
-  eachuser: "Each Person Posts One",
-  single: "Single Simple Discussion",
-  qanda: "Q & A",
-  blog: "Blog",
-} as const;
-
 export default function ForumListItem({ module }: { module: Module }) {
-  const course = useContext(CourseContext);
-  const { data, isPending } = useWSQuery("mod_forum_get_forums_by_courses", { "courseids[0]": Number(course.id) });
+  const ctx = useContext(CourseContext);
+  const { scope, activeCourse } = ctx;
+  const { data, isPending } = useWSQuery("mod_forum_get_forums_by_courses", { courseids: scope.courseIds });
 
   const currentForum = data?.find((forum) => forum.id === module.instance || forum.cmid === module.id);
 
@@ -35,19 +25,20 @@ export default function ForumListItem({ module }: { module: Module }) {
   return (
     <DefaultListItem
       module={module}
-      detail={<ForumListItemDetail forum={currentForum} isLoading={isPending} module={module} />}
+      detail={<ForumListItemDetail forum={currentForum} isLoading={isPending} />}
+      accessories={getForumAccessories(currentForum)}
       actions={
         <ActionPanel>
           <Action.Push
             title="View Discussions"
             target={
-              <CourseContext value={course}>
+              <CourseContext value={ctx}>
                 <ForumDiscussionsList forum={currentForum} module={module} />
               </CourseContext>
             }
           />
           <OpenInBrowserAction url={module.url!} />
-          <CompletionAction module={module} course={course} />
+          <CompletionAction module={module} course={activeCourse} />
           <HiddenItemActionsSection item={module} />
         </ActionPanel>
       }
@@ -55,43 +46,8 @@ export default function ForumListItem({ module }: { module: Module }) {
   );
 }
 
-function ForumListItemDetail({
-  forum,
-  isLoading,
-  module,
-}: {
-  forum: AddonModForumData;
-  isLoading: boolean;
-  module: Module;
-}) {
-  const detail = (
-    <List.Item.Detail
-      isLoading={isLoading}
-      markdown={turndown(forum.intro || "")}
-      metadata={
-        <List.Item.Detail.Metadata>
-          <List.Item.Detail.Metadata.Label title="Type" text={forumTypeLabels[forum.type] ?? forum.type} />
-          {typeof forum.numdiscussions === "number" && (
-            <List.Item.Detail.Metadata.Label title="Discussions" text={String(forum.numdiscussions)} />
-          )}
-          {typeof forum.unreadpostscount === "number" && (
-            <List.Item.Detail.Metadata.Label title="Unread" text={formatUnreadCount(forum.unreadpostscount)} />
-          )}
-          {typeof forum.cancreatediscussions === "boolean" && (
-            <List.Item.Detail.Metadata.Label title="Can Post" text={forum.cancreatediscussions ? "Yes" : "No"} />
-          )}
-          {typeof forum.istracked === "boolean" && (
-            <List.Item.Detail.Metadata.Label title="Tracking" text={forum.istracked ? "On" : "Off"} />
-          )}
-          {forum.grade_forum > 0 && <List.Item.Detail.Metadata.Label title="Grade" text={String(forum.grade_forum)} />}
-          <List.Item.Detail.Metadata.Label title="Last Updated" text={formatRelativeTime(forum.timemodified)} />
-          <DatesDetail module={module} />
-        </List.Item.Detail.Metadata>
-      }
-    />
-  );
-
-  return detail;
+function ForumListItemDetail({ forum, isLoading }: { forum: AddonModForumData; isLoading: boolean }) {
+  return <List.Item.Detail isLoading={isLoading} markdown={turndown(forum.intro || "")} />;
 }
 
 function ForumDiscussionsList({ forum, module }: { forum: AddonModForumData; module: Module }) {
@@ -154,6 +110,14 @@ function formatUnreadCount(unread: number) {
     return { value: String(unread), color: Color.Orange };
   }
   return "0";
+}
+
+function getForumAccessories(forum: AddonModForumData): List.Item.Accessory[] {
+  if (typeof forum.unreadpostscount !== "number") {
+    return [];
+  }
+
+  return [{ text: formatUnreadCount(forum.unreadpostscount), tooltip: "Unread posts" }];
 }
 
 function getDiscussionAccessories(discussion: AddonModForumDiscussion): List.Item.Accessory[] {

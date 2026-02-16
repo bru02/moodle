@@ -10,7 +10,7 @@ let timestamp: string | undefined;
 export async function openInBrowserWithAuth(url: string, onOpen?: () => void) {
   const user = await getUser();
   const { token, privateToken, id } = user;
-  const direct = async (u = url) => (console.log("Opening URL:", u), await open(u), onOpen?.());
+  const direct = async (u = url) => (await open(u), onOpen?.());
 
   if (new URL(url).origin !== siteOrigin) return direct();
 

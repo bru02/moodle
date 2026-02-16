@@ -8,12 +8,14 @@ import CourseContext from "../course-context";
 import { stripHTML } from "../helpers";
 import { getFilePath } from "../helpers/files";
 import { formatDurationBetween } from "../helpers/format";
+import { buildGradeAccessoryTextByModuleId } from "../helpers/grades";
 import { turndown } from "../helpers/markdown";
-import { useWSQuery } from "../hooks/useWSQuery";
+import { useWSBatchQuery, useWSQuery } from "../hooks/useWSQuery";
 import { useSync } from "../sync";
 import { Module } from "../types";
 import type {
   AddonModAssignAssign,
+  AddonModAssignGetSubmissionStatusWSResponse,
   AddonModAssignGradingStates,
   AddonModAssignSubmissionStatusValues,
 } from "../types/assign";
@@ -21,9 +23,18 @@ import DefaultListItem from "./default";
 import ResourceListItem from "./resource";
 
 function AssignListItem({ module }: { module: Module }) {
-  const course = useContext(CourseContext);
-  const { data, isPending } = useWSQuery("mod_assign_get_assignments", { "courseids[0]": Number(course.id) });
+  const ctx = useContext(CourseContext);
+  const { scope, activeCourse } = ctx;
+  const { data, isPending } = useWSQuery("mod_assign_get_assignments", { courseids: scope.courseIds });
+  const { data: gradeTables } = useWSBatchQuery(
+    "gradereport_user_get_grades_table",
+    scope.courseIds.map((courseid) => ({ courseid, userid: 0 })),
+  );
+  const { data: submissionsData } = useWSQuery("mod_assign_get_submission_status", { assignid: module.instance });
   const currentAssignment = data?.courses.flatMap((c) => c.assignments).find((a) => a.id === module.instance);
+  const submission = submissionsData?.lastattempt?.teamsubmission ?? submissionsData?.lastattempt?.submission;
+  const gradeTextByModuleId = useMemo(() => buildGradeAccessoryTextByModuleId(gradeTables), [gradeTables]);
+  const gradeText = gradeTextByModuleId.get(module.id);
 
   if (!currentAssignment) {
     return <DefaultListItem module={module} />;
@@ -32,19 +43,32 @@ function AssignListItem({ module }: { module: Module }) {
   return (
     <DefaultListItem
       module={module}
-      detail={<AssignListItemDetail assignment={currentAssignment} isLoading={isPending} module={module} />}
+      detail={
+        <AssignListItemDetail
+          assignment={currentAssignment}
+          isLoading={isPending}
+          module={module}
+          submissionsData={submissionsData}
+        />
+      }
+      accessories={getAssignmentAccessories({
+        status: submission?.status,
+        gradingStatus: submissionsData?.lastattempt?.gradingstatus,
+        gradeText,
+        dueAt: getAssignmentSubmissionDeadline(currentAssignment),
+      })}
       actions={
         <ActionPanel>
           <Action.Push
             title="View Related Files"
             target={
-              <CourseContext value={course}>
+              <CourseContext value={ctx}>
                 <AssignmentFilesList module={module} assignment={currentAssignment} />
               </CourseContext>
             }
           ></Action.Push>
           <OpenInBrowserAction url={module.url!} />
-          <CompletionAction module={module} course={course} />
+          <CompletionAction module={module} course={activeCourse} />
           <HiddenItemActionsSection item={module} />
         </ActionPanel>
       }
@@ -58,38 +82,34 @@ function AssignListItemDetail({
   assignment,
   isLoading,
   module,
+  submissionsData,
 }: {
   assignment: AddonModAssignAssign;
   isLoading: boolean;
   module: Module;
+  submissionsData: AddonModAssignGetSubmissionStatusWSResponse | undefined;
 }) {
-  const { data: submissionsData } = useWSQuery("mod_assign_get_submission_status", { assignid: module.instance });
-
   const submission = submissionsData?.lastattempt?.teamsubmission ?? submissionsData?.lastattempt?.submission;
 
-  const detail = (
+  return (
     <List.Item.Detail
       isLoading={isLoading}
       markdown={turndown(assignment.intro || "")}
       metadata={
         <List.Item.Detail.Metadata>
-          {submissionsData?.feedback && submissionsData?.feedback.gradefordisplay && (
-            <List.Item.Detail.Metadata.Label
-              title="Grade"
-              text={stripHTML(submissionsData?.feedback.gradefordisplay)}
-            />
+          {submissionsData?.feedback?.gradefordisplay && (
+            <List.Item.Detail.Metadata.Label title="Grade" text={stripHTML(submissionsData.feedback.gradefordisplay)} />
           )}
-          {submission && <FeedbackComment cmid={assignment.cmid} itemid={submission.id} />}{" "}
           {submission && (
             <List.Item.Detail.Metadata.Label
-              title="Submission Status"
-              text={getSubmissionStatusLabelProps(submission?.status)}
+              title="Submission"
+              text={getSubmissionStatusDetailText(submission.status)}
             />
           )}
           {submissionsData?.lastattempt && (
             <List.Item.Detail.Metadata.Label
-              title="Grading Status"
-              text={getGradeStatusLabelProps(submissionsData.lastattempt.gradingstatus)}
+              title="Grading"
+              text={getGradingStatusDetailText(submissionsData.lastattempt.gradingstatus)}
             />
           )}
           <DatesDetail module={module} />
@@ -109,12 +129,10 @@ function AssignListItemDetail({
       }
     />
   );
-
-  return detail;
 }
 
 function AssignmentFilesList({ module, assignment }: { module: Module; assignment: AddonModAssignAssign }) {
-  const course = useContext(CourseContext);
+  const { activeCourse: course } = useContext(CourseContext);
   const { data: submissionsData } = useWSQuery("mod_assign_get_submission_status", { assignid: module.instance });
 
   const submissions = submissionsData?.lastattempt?.teamsubmission ?? submissionsData?.lastattempt?.submission;
@@ -154,22 +172,58 @@ function AssignmentFilesList({ module, assignment }: { module: Module; assignmen
   );
 }
 
-function FeedbackComment({ cmid, itemid }: { cmid: number; itemid: number }) {
-  const { data: comments } = useWSQuery("core_comment_get_comments", {
-    contextlevel: "module",
-    instanceid: cmid,
-    component: "assignsubmission_comments",
-    itemid,
-    area: "submission_comments",
-    page: 0,
-  });
+function getAssignmentAccessories({
+  status,
+  gradingStatus,
+  gradeText,
+  dueAt,
+}: {
+  status?: AddonModAssignSubmissionStatusValues;
+  gradingStatus?: AddonModAssignGradingStates;
+  gradeText?: string;
+  dueAt?: number;
+}): List.Item.Accessory[] {
+  if (gradeText) {
+    return [{ text: gradeText, tooltip: "Grade" }];
+  }
 
-  if (comments?.comments.length || 0 > 0) {
-    return <List.Item.Detail.Metadata.Label title="Feedback" text={turndown(comments!.comments[0].content)} />;
+  const hasUpcomingOrPastDeadline = typeof dueAt === "number" && dueAt > 0;
+  if (hasUpcomingOrPastDeadline && status && ["new", "draft", "reopened"].includes(status)) {
+    return [{ date: new Date(dueAt * 1000), tooltip: "Time left to submit" }];
+  }
+
+  if (status === "submitted") {
+    if (gradingStatus === "notgraded") {
+      return [{ text: { value: "Review", color: Color.Orange }, tooltip: "Awaiting grading" }];
+    }
+    if (gradingStatus === "graded" || gradingStatus === "released") {
+      return [{ text: { value: "Graded", color: Color.Green }, tooltip: "Graded" }];
+    }
+  }
+
+  if (!status) {
+    return [];
+  }
+
+  return [{ text: getSubmissionStatusAccessoryText(status), tooltip: "Submission status" }];
+}
+
+function getSubmissionStatusAccessoryText(status: AddonModAssignSubmissionStatusValues) {
+  switch (status) {
+    case "draft":
+      return { value: "Draft", color: Color.Yellow };
+    case "new":
+      return { value: "None", color: Color.Orange };
+    case "reopened":
+      return { value: "Reopen", color: Color.Blue };
+    case "submitted":
+      return { value: "Done", color: Color.Green };
+    default:
+      return { value: status };
   }
 }
 
-function getSubmissionStatusLabelProps(status: AddonModAssignSubmissionStatusValues) {
+function getSubmissionStatusDetailText(status: AddonModAssignSubmissionStatusValues) {
   switch (status) {
     case "draft":
       return { value: "Draft (not submitted)" };
@@ -184,8 +238,8 @@ function getSubmissionStatusLabelProps(status: AddonModAssignSubmissionStatusVal
   }
 }
 
-function getGradeStatusLabelProps(gradeStatus: AddonModAssignGradingStates) {
-  switch (gradeStatus) {
+function getGradingStatusDetailText(status: AddonModAssignGradingStates) {
+  switch (status) {
     case "graded":
       return { value: "Graded", color: Color.Green };
     case "notgraded":
@@ -195,6 +249,16 @@ function getGradeStatusLabelProps(gradeStatus: AddonModAssignGradingStates) {
     case "released":
       return { value: "Released", color: Color.Green };
     default:
-      return { value: gradeStatus };
+      return { value: status };
   }
+}
+
+function getAssignmentSubmissionDeadline(assignment: AddonModAssignAssign) {
+  if (assignment.cutoffdate > 0) {
+    return assignment.cutoffdate;
+  }
+  if (assignment.duedate > 0) {
+    return assignment.duedate;
+  }
+  return undefined;
 }

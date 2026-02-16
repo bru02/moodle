@@ -3,7 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useUser } from "../client";
 import { getUrlForService } from "../helpers";
 import { queryClient } from "../hooks/useWSQuery";
-import { Course, Module } from "../types";
+import { Module } from "../types";
 import { CoreCompletionUpdateActivityCompletionStatusManuallyWSParams } from "../types/completion";
 import {
   CoreCourseModuleCompletionStatus,
@@ -11,10 +11,11 @@ import {
   type CoreCourseGetContentsWSSection,
   type CoreCourseModuleWSCompletionData,
 } from "../types/contents";
+import { SimpleCourse } from "../types/simple-course";
 
 type MutationContext = { previousData?: CoreCourseGetContentsWSSection[] };
 
-export default function CompletionAction({ module, course }: { module: Module; course: Course }) {
+export default function CompletionAction({ module, course }: { module: Module; course: SimpleCourse }) {
   const { token } = useUser();
   const completionData = module.completiondata;
   const courseQueryKey = ["core_course_get_contents", { courseid: String(course.id) }] as const;

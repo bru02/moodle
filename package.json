@@ -113,6 +113,14 @@
       ],
       "required": false,
       "default": "50"
+    },
+    {
+      "name": "merge_similar_courses",
+      "label": "Merge Lecture & Seminar",
+      "description": "Shows courses with similar names as one",
+      "type": "checkbox",
+      "default": false,
+      "required": false
     }
   ]
 }

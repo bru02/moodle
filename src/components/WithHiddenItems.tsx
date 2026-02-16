@@ -1,14 +1,6 @@
 import { Action, ActionPanel, Icon, Keyboard } from "@raycast/api";
 
-import {
-  createContext,
-  ReactElement,
-  ReactNode,
-  useCallback,
-  useContext,
-  useMemo,
-  useReducer,
-} from "react";
+import { createContext, ReactElement, ReactNode, useCallback, useContext, useMemo, useReducer } from "react";
 import { shortcut } from "../helpers";
 import { EMPTY_HIDDEN_ITEMS, type HiddenItemKey, useHiddenItemsStore } from "../store";
 

@@ -7,14 +7,14 @@ import { formatBytes, shortcut } from "../helpers";
 import { canConvert, checkFileSize, getFilePath, handleFileUrl, pdfify } from "../helpers/files";
 import { preferences } from "../helpers/preferences";
 import { useFileSyncExceptionsStore, useFileSyncProgressStore } from "../store";
-import { CoreWSExternalFile, Course, Module } from "../types";
+import { CoreWSExternalFile, Module } from "../types";
 import DefaultListItem from "./default";
 
 const syncEnabled = Boolean(preferences.sync_folder);
 
 export default function ResourceListItem({ module, content }: { module: Module; content?: CoreWSExternalFile }) {
   const fileContent: CoreWSExternalFile | undefined = content ?? module.contents?.[0];
-  const course = useContext(CourseContext) as Course;
+  const { activeCourse: course } = useContext(CourseContext);
   const path = useMemo(
     () => (fileContent ? getFilePath(fileContent, module, course) : ""),
     [fileContent, module, course],

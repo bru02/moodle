@@ -1,6 +1,5 @@
 import { ActionPanel, Color, Icon, List } from "@raycast/api";
 import { getFavicon } from "@raycast/utils";
-import { decode } from "html-entities";
 import { memo, useContext } from "react";
 import CompletionAction from "../components/CompletionAction";
 import { OpenInBrowserAction } from "../components/OpenInBrowserAction";
@@ -21,14 +20,15 @@ function DefaultListItem({ module, detail: customDetail, contentFilename, ...pro
     suffix: contentFilename,
     hasDetail: customDetail != null ? true : undefined,
   });
+  const title = turndown(module.name).trim() || module.name;
   const fallbackDetail = module.description ? <List.Item.Detail markdown={turndown(module.description)} /> : undefined;
   const detail = customDetail ?? fallbackDetail;
-  const course = useContext(CourseContext);
+  const { activeCourse } = useContext(CourseContext);
 
   return (
     <List.Item
       id={itemId}
-      title={decode(module.name)}
+      title={title}
       icon={getIcon(module)}
       actions={
         <ActionPanel>
@@ -37,7 +37,7 @@ function DefaultListItem({ module, detail: customDetail, contentFilename, ...pro
               url={module.modname === "url" && module.contents?.[0] ? module.contents[0].fileurl : module.url}
             />
           )}
-          <CompletionAction module={module} course={course} />
+          <CompletionAction module={module} course={activeCourse} />
           <HiddenItemActionsSection item={module} />
         </ActionPanel>
       }

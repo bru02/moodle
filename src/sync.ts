@@ -253,21 +253,6 @@ async function runSyncQueue(
   let targetConcurrency = MAX_SYNC_CONCURRENCY;
   let lastMemoryLogAt = 0;
 
-  const logMemory = (phase: "tick" | "adjust") => {
-    const mem = process.memoryUsage();
-    console.debug("sync: memory", {
-      phase,
-      heapUsedMb: toMb(mem.heapUsed).toFixed(2),
-      heapTotalMb: toMb(mem.heapTotal).toFixed(2),
-      externalMb: toMb(mem.external).toFixed(2),
-      arrayBuffersMb: toMb(mem.arrayBuffers).toFixed(2),
-      heapLimitMb,
-      targetConcurrency,
-      inFlight: inFlight.size,
-      pending: queue.length - index,
-    });
-  };
-
   const launch = () => {
     const item = queue[index++];
     if (!item) return;
@@ -303,19 +288,9 @@ async function runSyncQueue(
     const decision = resolveConcurrencyTarget(targetConcurrency, heapUsedMb, heapLimitMb);
 
     if (decision.target !== targetConcurrency) {
-      const previous = targetConcurrency;
       targetConcurrency = decision.target;
-      console.debug("sync: concurrency adjusted", {
-        from: previous,
-        to: targetConcurrency,
-        reason: decision.reason,
-        heapUsedMb: heapUsedMb.toFixed(2),
-        heapLimitMb,
-      });
-      logMemory("adjust");
       lastMemoryLogAt = now;
     } else if (now - lastMemoryLogAt >= MEMORY_LOG_INTERVAL_MS) {
-      logMemory("tick");
       lastMemoryLogAt = now;
     }
 

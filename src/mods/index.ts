@@ -2,7 +2,10 @@ import { FC } from "react";
 import { Module } from "../types";
 import { Modname } from "../types/contents";
 import AssignListItem from "./assign";
+import AttendanceListItem from "./attendance";
 import BookListItem, { ViewBook } from "./book";
+import ChatListItem from "./chat";
+import ChoiceListItem from "./choice";
 import DefaultListItem from "./default";
 import FolderListItem, { ViewFolder } from "./folder";
 import ForumListItem from "./forum";
@@ -18,7 +21,10 @@ const ModuleListItems: Partial<Record<Modname, ModuleFC>> & { default: ModuleFC 
   book: BookListItem,
   page: PageListItem,
   default: DefaultListItem,
+  attendance: AttendanceListItem,
   assign: AssignListItem,
+  choice: ChoiceListItem,
+  chat: ChatListItem,
   forum: ForumListItem,
   quiz: QuizListItem,
 } as const;
