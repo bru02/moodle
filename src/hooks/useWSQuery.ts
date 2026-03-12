@@ -12,6 +12,7 @@ import {
 import { getUser, refreshUserTokens } from "../client";
 import { AuthError, isAuthError } from "../errors";
 import { getUrlForService } from "../helpers";
+import { maybeWriteHeapSnapshot } from "../helpers/heap-snapshot";
 import {
   getMoodleErrorCode,
   getMoodleErrorMessage,
@@ -26,6 +27,38 @@ type WSRequestResult<K extends keyof WSParamsMap> =
 
 type Primitive = string | number | boolean;
 type RequestParams = Record<string, Primitive>;
+const MAX_CONCURRENT_WS_REQUESTS = 4;
+let activeWSRequests = 0;
+const pendingWSRequestResumes: Array<() => void> = [];
+
+async function acquireWSRequestSlot() {
+  if (activeWSRequests < MAX_CONCURRENT_WS_REQUESTS) {
+    activeWSRequests++;
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    pendingWSRequestResumes.push(() => {
+      activeWSRequests++;
+      resolve();
+    });
+  });
+}
+
+function releaseWSRequestSlot() {
+  activeWSRequests = Math.max(0, activeWSRequests - 1);
+  const resume = pendingWSRequestResumes.shift();
+  resume?.();
+}
+
+async function withWSRequestSlot<T>(fn: () => Promise<T>) {
+  await acquireWSRequestSlot();
+  try {
+    return await fn();
+  } finally {
+    releaseWSRequestSlot();
+  }
+}
 
 function normalizeParams(input: Record<string, unknown>): RequestParams {
   const out: RequestParams = {};
@@ -50,35 +83,58 @@ function normalizeParams(input: Record<string, unknown>): RequestParams {
   return out;
 }
 
+function shouldForceSnapshotForWS(key: keyof WSParamsMap) {
+  return (
+    key === "core_course_get_contents" ||
+    key === "mod_assign_get_submission_status" ||
+    key === "mod_assign_get_assignments"
+  );
+}
+
 async function requestWSInternal<K extends keyof WSParamsMap>(
   key: K,
   token: string,
   params: RequestParams,
 ): Promise<WSRequestResult<K>> {
-  let response: Response;
-  try {
-    response = await fetch(getUrlForService(key, token, params));
-  } catch (e) {
-    const error = e instanceof Error ? e : new Error("Network request failed");
-    return { ok: false, error, shouldRefresh: false };
-  }
+  return withWSRequestSlot(async () => {
+    maybeWriteHeapSnapshot(`ws-before-${String(key)}`, {
+      activeWSRequests,
+      pendingWSRequests: pendingWSRequestResumes.length,
+    });
+    let response: Response;
+    try {
+      response = await fetch(getUrlForService(key, token, params));
+    } catch (e) {
+      const error = e instanceof Error ? e : new Error("Network request failed");
+      return { ok: false, error, shouldRefresh: false };
+    }
 
-  let payload: unknown;
-  try {
-    payload = await response.json();
-  } catch {
-    payload = undefined;
-  }
+    let payload: unknown;
+    try {
+      payload = await response.json();
+      maybeWriteHeapSnapshot(
+        `ws-after-json-${String(key)}`,
+        {
+          activeWSRequests,
+          pendingWSRequests: pendingWSRequestResumes.length,
+          responseStatus: response.status,
+        },
+        shouldForceSnapshotForWS(key) ? { force: true, key: `ws-after-json-${String(key)}` } : undefined,
+      );
+    } catch {
+      payload = undefined;
+    }
 
-  if (!response.ok || isMoodleErrorPayload(payload)) {
-    const message = getMoodleErrorMessage(payload) ?? response.statusText ?? "Request failed";
-    const code = getMoodleErrorCode(payload);
-    const shouldRefresh = isExpiredTokenError(payload) || response.status === 401 || response.status === 403;
-    const error = shouldRefresh ? new AuthError(message, { code, status: response.status }) : new Error(message);
-    return { ok: false, error, payload, shouldRefresh };
-  }
+    if (!response.ok || isMoodleErrorPayload(payload)) {
+      const message = getMoodleErrorMessage(payload) ?? response.statusText ?? "Request failed";
+      const code = getMoodleErrorCode(payload);
+      const shouldRefresh = isExpiredTokenError(payload) || response.status === 401 || response.status === 403;
+      const error = shouldRefresh ? new AuthError(message, { code, status: response.status }) : new Error(message);
+      return { ok: false, error, payload, shouldRefresh };
+    }
 
-  return { ok: true, data: payload as WSResponseMap[K] };
+    return { ok: true, data: payload as WSResponseMap[K] };
+  });
 }
 
 export async function requestWS<K extends keyof WSParamsMap>(

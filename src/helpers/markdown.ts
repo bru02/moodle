@@ -1,6 +1,7 @@
 import { gfm } from "@bwat47/turndown-plugin-gfm";
 import TurndownService from "turndown";
 import { handleFileUrl } from "./files";
+import { maybeWriteHeapSnapshot } from "./heap-snapshot";
 
 type MarkdownLoader = (content: string) => string;
 
@@ -22,6 +23,7 @@ const multilang2TagPattern = /{\s*mlang\s+((?:[a-z0-9_-]+)(?:\s*,\s*[a-z0-9_-]+\
 const leadingPunctuationOrWhitespace = /^[\p{P}\s]+/u;
 const trailingPunctuationOrWhitespace = /[\p{P}\s]+$/u;
 const wordCharacter = /[\p{L}\p{N}]/u;
+const inlineDataImagePattern = /<img\b[^>]*\bsrc=(["'])data:[^"']+\1[^>]*>/gi;
 
 function isStrongLike(node: NodeWithSiblings | null | undefined): boolean {
   if (!node?.nodeName) return false;
@@ -135,14 +137,29 @@ turndownService.addRule("img", {
   },
 });
 
-const htmlLoaders: MarkdownLoader[] = [multilang2Loader];
+const htmlLoaders: MarkdownLoader[] = [stripInlineDataImagesLoader, multilang2Loader];
 const markdownLoaders: MarkdownLoader[] = [mathjaxNotationLoader];
 
 export function turndown(html: string) {
+  if (html.length > 250_000) {
+    maybeWriteHeapSnapshot(
+      "turndown-large-html",
+      { htmlLength: html.length },
+      { force: true, key: `turndown-large-html-${html.length}` },
+    );
+  }
   const normalizedHtml = htmlLoaders.reduce((content, loader) => loader(content), html);
   const markdown = turndownService.turndown(normalizedHtml);
   const result = markdownLoaders.reduce((content, loader) => loader(content), markdown);
   return result;
+}
+
+function stripInlineDataImagesLoader(content: string): string {
+  if (!content || !content.includes("data:")) {
+    return content;
+  }
+
+  return content.replace(inlineDataImagePattern, "");
 }
 
 function multilang2Loader(content: string): string {

@@ -9,6 +9,8 @@ interface User {
   privateToken?: string;
   accessKey: string;
   id: number;
+  username?: string;
+  fullname?: string;
 }
 
 const cache = new Cache({ namespace: "user" });
@@ -59,7 +61,13 @@ async function login(): Promise<{ token: string; privatetoken?: string }> {
   return { token: data.token, privatetoken: data.privatetoken };
 }
 
-type SiteInfoResponse = { userid?: number; userprivateaccesskey?: string; message?: string };
+type SiteInfoResponse = {
+  userid?: number;
+  userprivateaccesskey?: string;
+  username?: string;
+  fullname?: string;
+  message?: string;
+};
 
 async function fetchSiteInfo(token: string): Promise<SiteInfoResponse> {
   const resp = await fetch(getUrlForService("core_webservice_get_site_info", token));
@@ -76,6 +84,8 @@ async function authenticate(): Promise<User> {
     privateToken: privatetoken,
     id: siteInfo.userid ?? 0,
     accessKey: siteInfo.userprivateaccesskey ?? "",
+    username: siteInfo.username,
+    fullname: siteInfo.fullname,
   };
 }
 

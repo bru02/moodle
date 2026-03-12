@@ -69,7 +69,11 @@ const conversionUrls = {
   "application/vnd.ms-powerpoint": ppt,
 };
 
-export function convertToPdf(format: keyof typeof conversionUrls, body: ReadStream | ReadableStream) {
+export function convertToPdf(
+  format: keyof typeof conversionUrls,
+  body: ReadStream | ReadableStream,
+  signal?: AbortSignal,
+) {
   return fetch(conversionUrls[format](), {
     method: "POST",
     headers: {
@@ -82,6 +86,7 @@ export function convertToPdf(format: keyof typeof conversionUrls, body: ReadStre
     },
     body,
     duplex: "half",
+    signal,
   });
 }
 

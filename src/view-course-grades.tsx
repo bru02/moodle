@@ -1,90 +1,158 @@
-import { ActionPanel, Icon, List } from "@raycast/api";
-import { createDeeplink } from "@raycast/utils";
-// @ts-expect-error no types
-import domino from "@mixmark-io/domino";
+import { Action, ActionPanel, Icon, List } from "@raycast/api";
+import { useMemo } from "react";
 import AuthErrorDetail from "./components/AuthErrorDetail";
 import { OpenInBrowserAction } from "./components/OpenInBrowserAction";
-import WithHiddenItems, { HiddenItemActionsSection } from "./components/WithHiddenItems";
+import { buildScopedSections } from "./course-content";
 import { CourseScope } from "./course-scope";
-import { stripHTML } from "./helpers";
-import { preferences, siteOrigin } from "./helpers/preferences";
+import { preferences } from "./helpers/preferences";
 import { useWSBatchQuery } from "./hooks/useWSQuery";
-import { CoreGradesTableRow } from "./types/grade";
+import { useCourseSyllabusAnalysis } from "./syllabus-analysis";
 
-type GradeRow = { id: string; row: CoreGradesTableRow; courseId: number };
-
-export default function ViewCourseGrades({ scope }: { scope: CourseScope }) {
-  const { data, isLoading, error, refetch } = useWSBatchQuery(
+export default function ViewCourseGrades({
+  scope,
+  forceRefresh = false,
+}: {
+  scope: CourseScope;
+  forceRefresh?: boolean;
+}) {
+  const gradesQuery = useWSBatchQuery(
     "gradereport_user_get_grades_table",
     scope.courseIds.map((courseid) => ({ courseid, userid: 0 })),
   );
+  const contentsQuery = useWSBatchQuery(
+    "core_course_get_contents",
+    scope.courseIds.map((courseid) => ({ courseid })),
+    {
+      staleTime: 0,
+    },
+  );
 
-  const rows: GradeRow[] =
-    data?.flatMap((courseData, index) => {
-      const courseId = scope.courseIds[index];
-      if (courseId == null) return [];
-      return (courseData.tables?.[0]?.tabledata ?? [])
-        .filter((r) => "itemname" in r && ("grade" in r || "percentage" in r))
-        .map((row, i) => ({ id: `${courseId}:${row.itemname?.id ?? i}`, row, courseId }));
-    }) ?? [];
+  const sections = useMemo(() => buildScopedSections(scope, contentsQuery.data), [contentsQuery.data, scope]);
+  const analysis = useCourseSyllabusAnalysis({
+    scope,
+    sections,
+    gradeData: gradesQuery.data,
+    forceRefresh,
+  });
 
-  if (error) return <AuthErrorDetail error={error} onRetry={() => refetch()} />;
+  if (gradesQuery.error) return <AuthErrorDetail error={gradesQuery.error} onRetry={() => gradesQuery.refetch()} />;
+  if (contentsQuery.error)
+    return <AuthErrorDetail error={contentsQuery.error} onRetry={() => contentsQuery.refetch()} />;
+
+  const payload = analysis.payload;
 
   return (
-    <List isLoading={isLoading} navigationTitle={scope.title ? `${scope.title} Grades` : "Course Grades"}>
-      <WithHiddenItems namespace={`course-grades-${scope.id}`} data={rows} getItemKey={(item) => item.id}>
-        {(tableData, { isPinnedSection, hasPinnedItems }) => {
-          const items = tableData.map(({ row, courseId, id }) => {
-            const gradeHeader = domino.createDocument(row.itemname?.content || "").querySelector(".gradeitemheader");
-            let linkedActivity = gradeHeader?.getAttribute("href");
-
-            if (linkedActivity) {
-              const url = new URL(linkedActivity);
-              if (url.origin === siteOrigin) {
-                const moduleId = url.searchParams.get("id");
-                if (moduleId) {
-                  linkedActivity = createDeeplink({
-                    command: "search-courses",
-                    context: { courseId, preselectItem: moduleId },
-                  });
-                }
+    <List
+      isLoading={gradesQuery.isLoading || contentsQuery.isLoading || analysis.isLoading}
+      navigationTitle={scope.title ? `${scope.title} Grades` : "Course Grades"}
+      searchBarPlaceholder="Filter syllabus components"
+    >
+      {payload?.sections.map((section) => (
+        <List.Section key={section.id} title={`${section.label}${formatSectionRollup(section)}`}>
+          {section.rows.map((row) => (
+            <List.Item
+              key={row.id}
+              title={row.label}
+              subtitle={row.effective?.label && row.effective.label !== row.label ? row.effective.label : undefined}
+              accessories={buildRowAccessories(row)}
+              actions={
+                <ActionPanel>
+                  <Action title="Refresh Syllabus Analysis" icon={Icon.ArrowClockwise} onAction={analysis.refresh} />
+                  <OpenInBrowserAction
+                    url={buildGradebookUrl(scope, row.moodle?.courseId ?? row.effective?.courseId)}
+                  />
+                </ActionPanel>
               }
-            }
+            />
+          ))}
+        </List.Section>
+      ))}
 
-            let accessoryText = stripHTML(row.percentage?.content || "");
-            const grade = stripHTML(row.grade?.content || "")
-              .split("\n")
-              .shift()!;
-            const range = stripHTML(row.range?.content || "");
-            if (grade && range) {
-              const hi = range.split("–")[1]?.trim() ?? "∞";
-              accessoryText = `${grade.replace(".00", "")} / ${hi}`;
-            }
+      {payload && payload.unassignedMoodleRows.length > 0 && (
+        <List.Section title="Unassigned Moodle Items">
+          {payload.unassignedMoodleRows.map((row) => (
+            <List.Item
+              key={row.id}
+              title={row.label}
+              accessories={[
+                ...(row.raw != null && row.max != null
+                  ? [{ text: `${trimNumber(row.raw)} / ${trimNumber(row.max)}` }]
+                  : []),
+                { tag: "Moodle" },
+              ]}
+              actions={
+                <ActionPanel>
+                  <Action title="Refresh Syllabus Analysis" icon={Icon.ArrowClockwise} onAction={analysis.refresh} />
+                  <OpenInBrowserAction url={buildGradebookUrl(scope, row.courseId)} />
+                </ActionPanel>
+              }
+            />
+          ))}
+        </List.Section>
+      )}
 
-            return (
-              <List.Item
-                key={id}
-                title={gradeHeader?.innerText || "Grade Item"}
-                accessories={[{ text: accessoryText }]}
-                actions={
-                  <ActionPanel>
-                    {linkedActivity && (
-                      <OpenInBrowserAction title="View Activity" icon={Icon.Link} url={linkedActivity} />
-                    )}
-                    <OpenInBrowserAction url={`${preferences.site_url}/grade/report/user/index.php?id=${courseId}`} />
-                    <HiddenItemActionsSection item={{ id, row, courseId }} />
-                  </ActionPanel>
-                }
-              />
-            );
-          });
+      {!payload && !analysis.isLoading && (
+        <List.EmptyView
+          title="No Syllabus Analysis Yet"
+          description="Open a synced syllabus artifact or refresh the analysis after your course files finish syncing."
+          actions={
+            <ActionPanel>
+              <Action title="Refresh Syllabus Analysis" icon={Icon.ArrowClockwise} onAction={analysis.refresh} />
+            </ActionPanel>
+          }
+        />
+      )}
 
-          if (items.length === 0) return null;
-          if (isPinnedSection) return <List.Section title="Pinned">{items}</List.Section>;
-          if (hasPinnedItems) return <List.Section title="Others">{items}</List.Section>;
-          return items;
-        }}
-      </WithHiddenItems>
+      {payload?.status === "failed" && (
+        <List.EmptyView
+          title="Syllabus Analysis Failed"
+          description={payload.error ?? "Gemini could not parse the selected syllabus artifact."}
+          actions={
+            <ActionPanel>
+              <Action title="Refresh Syllabus Analysis" icon={Icon.ArrowClockwise} onAction={analysis.refresh} />
+            </ActionPanel>
+          }
+        />
+      )}
     </List>
   );
+}
+
+function buildRowAccessories(
+  row: NonNullable<ReturnType<typeof useCourseSyllabusAnalysis>["payload"]>["sections"][number]["rows"][number],
+) {
+  const accessories: List.Item.Accessory[] = [];
+  if (row.effective?.raw != null && row.effective.max != null) {
+    accessories.push({ text: `${trimNumber(row.effective.raw)} / ${trimNumber(row.effective.max)}` });
+  } else {
+    accessories.push({ tag: "Unposted" });
+  }
+
+  accessories.push({
+    tag:
+      row.source === "both"
+        ? "Both"
+        : row.source === "xlsx"
+          ? "Excel"
+          : row.source === "moodle"
+            ? "Moodle"
+            : "Unposted",
+  });
+  return accessories;
+}
+
+function formatSectionRollup(
+  section: NonNullable<ReturnType<typeof useCourseSyllabusAnalysis>["payload"]>["sections"][number],
+) {
+  if (section.postedPoints == null || section.totalPoints == null) return "";
+  const percentText = section.effectivePercent != null ? ` • ${trimNumber(section.effectivePercent)}%` : "";
+  return ` • ${trimNumber(section.postedPoints)} / ${trimNumber(section.totalPoints)}${percentText}`;
+}
+
+function trimNumber(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, "");
+}
+
+function buildGradebookUrl(scope: CourseScope, courseId?: number) {
+  return `${preferences.site_url}/grade/report/user/index.php?id=${courseId ?? scope.mergedCourse.id}`;
 }

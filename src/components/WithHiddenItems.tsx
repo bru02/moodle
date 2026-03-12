@@ -1,6 +1,6 @@
 import { Action, ActionPanel, Icon, Keyboard } from "@raycast/api";
 
-import { createContext, ReactElement, ReactNode, useContext, useMemo } from "react";
+import { createContext, ReactElement, ReactNode, useContext, useEffect, useMemo } from "react";
 import { shortcut } from "../helpers";
 import { useHiddenItems } from "../hooks/useHiddenItems";
 import { type HiddenItemKey } from "../store";
@@ -138,8 +138,21 @@ function useHiddenItemsContext<T = unknown>() {
   return ctx;
 }
 
+function useOptionalHiddenItemsContext<T = unknown>() {
+  return useContext(HiddenItemsContext) as HiddenItemsContextValue<T> | null;
+}
+
 export function HiddenItemActionsSection<T>({ item }: { item: T }) {
-  const ctx = useHiddenItemsContext<T>();
+  const ctx = useOptionalHiddenItemsContext<T>();
+  useEffect(() => {
+    if (!ctx) {
+      console.warn("HiddenItemActionsSection rendered outside WithHiddenItems; actions will be omitted.");
+    }
+  }, [ctx]);
+
+  if (!ctx) {
+    return null;
+  }
   const isItemHidden = ctx.isItemHidden(item);
   const isItemPinned = ctx.isItemPinned(item);
 

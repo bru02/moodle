@@ -1,12 +1,13 @@
 import { Action, ActionPanel, Color, Detail, Icon, List } from "@raycast/api";
 import { getFavicon } from "@raycast/utils";
-import { memo, useContext } from "react";
+import { memo, useContext, useMemo } from "react";
 import CompletionAction from "../components/CompletionAction";
 import { OpenInBrowserAction } from "../components/OpenInBrowserAction";
 import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
 import { turndown } from "../helpers/markdown";
 import { getModuleListItemId } from "../helpers/modules";
+import { useSyllabusAnalysisContext } from "../syllabus-analysis/context";
 import { Module } from "../types";
 import { CoreCourseModuleCompletionStatus } from "../types/contents";
 
@@ -15,24 +16,54 @@ type DefaultListItemProps = {
   contentFilename?: string;
 } & Partial<List.Item.Props>;
 
-function DefaultListItem({ module, detail: customDetail, contentFilename, ...props }: DefaultListItemProps) {
+function DefaultListItem({
+  module,
+  detail: customDetail,
+  contentFilename,
+  accessories,
+  ...props
+}: DefaultListItemProps) {
   const itemId = getModuleListItemId(module, {
     suffix: contentFilename,
     hasDetail: customDetail != null ? true : undefined,
   });
   const title = turndown(module.name).trim() || module.name;
-  const descriptionMarkdown = module.description ? turndown(module.description) : "";
-  const fallbackDetail = descriptionMarkdown ? <List.Item.Detail markdown={descriptionMarkdown} /> : undefined;
-  const detail = customDetail ?? fallbackDetail;
+  const hasDedicatedModuleDetail =
+    module.modname === "assign" || module.modname === "forum" || module.modname === "quiz";
+  const needsDescriptionMarkdown =
+    (customDetail == null && !hasDedicatedModuleDetail) || (module.modname === "label" && module.id < 0);
+  const descriptionMarkdown = useMemo(
+    () => (needsDescriptionMarkdown && module.description ? turndown(module.description) : ""),
+    [needsDescriptionMarkdown, module.description],
+  );
+  const detail =
+    customDetail ?? (descriptionMarkdown ? <List.Item.Detail markdown={descriptionMarkdown} /> : undefined);
   const { activeCourse } = useContext(CourseContext);
+  const syllabus = useSyllabusAnalysisContext();
   const canViewGeneratedSectionDescription =
     module.modname === "label" && module.id < 0 && Boolean(descriptionMarkdown);
+  const isSelectedSyllabus =
+    syllabus.selectedArtifact?.courseId === activeCourse.id && syllabus.selectedArtifact?.moduleId === module.id;
+  const syllabusAccessories = isSelectedSyllabus
+    ? [
+        { tag: "Syllabus" },
+        ...(syllabus.cacheState === "missing"
+          ? []
+          : [
+              {
+                tag: syllabus.cacheState === "parsed" ? "Parsed" : syllabus.cacheState === "stale" ? "Stale" : "Failed",
+              },
+            ]),
+      ]
+    : [];
+  const existingAccessories = accessories ?? [];
 
   return (
     <List.Item
       id={itemId}
       title={title}
       icon={getIcon(module)}
+      accessories={[...syllabusAccessories, ...existingAccessories]}
       actions={
         <ActionPanel>
           {canViewGeneratedSectionDescription && (

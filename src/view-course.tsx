@@ -2,23 +2,26 @@ import { List, useNavigation } from "@raycast/api";
 import { useEffect, useMemo, useRef, useState } from "react";
 import AuthErrorDetail from "./components/AuthErrorDetail";
 import WithHiddenItems from "./components/WithHiddenItems";
+import {
+  buildScopedSections,
+  regroupCourseContentByVisibleModules,
+  ScopedModule,
+  ScopedRenderedSection,
+} from "./course-content";
 import CourseContext from "./course-context";
 import { CourseScope } from "./course-scope";
-import { stripHTML } from "./helpers";
 import { getFilePath } from "./helpers/files";
 import { getModuleListItemId } from "./helpers/modules";
 import { useWSBatchQuery } from "./hooks/useWSQuery";
+import LazyViewCourseGrades from "./lazy-view-course-grades";
 import ListItems, { ModuleViewComponents } from "./mods";
+import { getSyllabusCacheState, useSyllabusAnalysisCache } from "./syllabus-analysis/cache";
+import SyllabusAnalysisContext from "./syllabus-analysis/context";
+import { selectSyllabusArtifact } from "./syllabus-analysis/selector";
+import { SyllabusArtifactIdentity } from "./syllabus-analysis/types";
 import { useSync } from "./sync";
 import { Module } from "./types";
-import { CoreCourseGetContentsWSSection, Modname } from "./types/contents";
-import { SimpleCourse } from "./types/simple-course";
-
-type RawRenderedSection = CoreCourseGetContentsWSSection & { subtitle: string };
-type ScopedModule = { id: string; module: Module; course: SimpleCourse };
-type ScopedRenderedSection = Omit<RawRenderedSection, "id" | "modules"> & { id: string; modules: ScopedModule[] };
-
-const EMPTY_CONTENT: CoreCourseGetContentsWSSection[] = [];
+import { Modname } from "./types/contents";
 
 export default function ViewCourse({ scope, preselectItem }: { scope: CourseScope; preselectItem?: number }) {
   const {
@@ -34,43 +37,7 @@ export default function ViewCourse({ scope, preselectItem }: { scope: CourseScop
     },
   );
 
-  const coursesById = useMemo(() => {
-    const map = new Map<number, SimpleCourse>();
-    for (const c of scope.courses) map.set(c.id, c);
-    for (const id of scope.courseIds) if (!map.has(id)) map.set(id, { ...scope.mergedCourse, id });
-    return map;
-  }, [scope]);
-
-  const scopedSections = useMemo(() => {
-    const sections = (contentRows ?? []).flatMap((content, index) => {
-      const courseId = scope.courseIds[index];
-      if (courseId == null) return [];
-      const course = coursesById.get(courseId) ?? { ...scope.mergedCourse, id: courseId };
-      return regroupCourseContent(content || EMPTY_CONTENT).map((section) => ({
-        ...section,
-        id: `${courseId}:${section.id}`,
-        modules: section.modules.map((module) => ({ id: `${courseId}:${module.id}`, module, course })),
-      }));
-    });
-
-    const byName = new Map<string, ScopedRenderedSection>();
-    for (const section of sections) {
-      const key = section.name.trim().toLowerCase();
-      const prev = byName.get(key);
-      if (!prev) {
-        byName.set(key, { ...section, id: key });
-        continue;
-      }
-
-      byName.set(key, {
-        ...prev,
-        section: Math.max(prev.section ?? -1, section.section ?? -1),
-        modules: [...prev.modules, ...section.modules],
-      });
-    }
-
-    return [...byName.values()].sort((a, b) => (b.section ?? -1) - (a.section ?? -1));
-  }, [contentRows, coursesById, scope.courseIds, scope.mergedCourse]);
+  const scopedSections = useMemo(() => buildScopedSections(scope, contentRows), [contentRows, scope]);
 
   const files = useMemo(
     () =>
@@ -121,6 +88,9 @@ type CourseContentContainerProps = {
 
 function CourseContentContainer({ scope, isLoading, content, preselectItem }: CourseContentContainerProps) {
   const { push } = useNavigation();
+  const cache = useSyllabusAnalysisCache();
+  const selectedArtifact = useMemo(() => selectSyllabusArtifact(content), [content]);
+  const cacheState = getSyllabusCacheState(cache.get(scope.id), selectedArtifact?.identity);
 
   const preselectedModule = useMemo(() => {
     if (preselectItem == null) return;
@@ -155,6 +125,12 @@ function CourseContentContainer({ scope, isLoading, content, preselectItem }: Co
       scope={scope}
       isLoading={isLoading}
       content={content}
+      selectedArtifact={selectedArtifact?.identity}
+      cacheState={cacheState}
+      onRefreshAnalysis={() => {
+        cache.remove(scope.id);
+        push(<LazyViewCourseGrades scope={scope} forceRefresh />);
+      }}
       preselectedItemId={preselectedItemId ?? undefined}
     />
   );
@@ -164,10 +140,21 @@ type CourseContentListProps = {
   scope: CourseScope;
   isLoading: boolean;
   content: readonly ScopedRenderedSection[];
+  selectedArtifact?: SyllabusArtifactIdentity;
+  cacheState: ReturnType<typeof getSyllabusCacheState>;
+  onRefreshAnalysis: () => void;
   preselectedItemId?: string | null;
 };
 
-function CourseContentList({ scope, isLoading, content, preselectedItemId }: CourseContentListProps) {
+function CourseContentList({
+  scope,
+  isLoading,
+  content,
+  selectedArtifact,
+  cacheState,
+  onRefreshAnalysis,
+  preselectedItemId,
+}: CourseContentListProps) {
   const allModules = useMemo(() => content.flatMap((section) => section.modules), [content]);
   const scopedItemIdsByModuleRef = useMemo(() => {
     const map = new WeakMap<Module, string>();
@@ -238,14 +225,26 @@ function CourseContentList({ scope, isLoading, content, preselectedItemId }: Cou
             if (pinnableModules.length === 0) return null;
             return (
               <List.Section title="Pinned">
-                <RenderedModuleItems modules={pinnableModules} scope={scope} />
+                <RenderedModuleItems
+                  modules={pinnableModules}
+                  scope={scope}
+                  selectedArtifact={selectedArtifact}
+                  cacheState={cacheState}
+                  onRefreshAnalysis={onRefreshAnalysis}
+                />
               </List.Section>
             );
           }
 
           return regroupCourseContentByVisibleModules(content, visibleModules).map((section) => (
             <List.Section key={section.id} title={section.name}>
-              <RenderedModuleItems modules={section.modules} scope={scope} />
+              <RenderedModuleItems
+                modules={section.modules}
+                scope={scope}
+                selectedArtifact={selectedArtifact}
+                cacheState={cacheState}
+                onRefreshAnalysis={onRefreshAnalysis}
+              />
             </List.Section>
           ));
         }}
@@ -261,66 +260,6 @@ function getFirstListItemId(content: readonly ScopedRenderedSection[]) {
   }
 }
 
-function regroupCourseContent(content: readonly CoreCourseGetContentsWSSection[]) {
-  const res = [] as RawRenderedSection[];
-  for (const section of content.toReversed()) {
-    const carry = { ...section, modules: [] as Module[], subtitle: "" };
-    let { modules } = section;
-
-    if (section.summary) {
-      const txt = stripHTML(section.summary);
-      const dummyModule: Module = {
-        id: -section.id,
-        name: txt,
-        description: section.summary,
-        instance: 0,
-        visible: 1,
-        uservisible: true,
-        visibleoncoursepage: 1,
-        modicon: "",
-        modname: "label",
-        modplural: "labels",
-        indent: 0,
-      };
-      if (txt.length > 0) modules = [dummyModule, ...modules];
-    }
-
-    for (const module of modules) {
-      if (module.modname === "label") {
-        const txt = stripHTML(module.description || "");
-        if (txt.length < 50) {
-          res.push({ ...carry });
-          carry.modules = [];
-          carry.id = module.id;
-          carry.name = txt.length > 50 ? txt.slice(0, 50).trimEnd() + "..." : txt;
-          carry.subtitle = section.name;
-          continue;
-        }
-      }
-      carry.modules.push(module);
-    }
-
-    if (carry.modules.length > 0) res.push(carry);
-  }
-  return res;
-}
-
-function regroupCourseContentByVisibleModules(
-  regroupedContent: readonly ScopedRenderedSection[],
-  visibleModules: readonly ScopedModule[],
-): ScopedRenderedSection[] {
-  const visibleIds = new Set(visibleModules.map((module) => module.id));
-  const nextContent: ScopedRenderedSection[] = [];
-
-  for (const section of regroupedContent) {
-    const modules = section.modules.filter((module) => visibleIds.has(module.id));
-    if (modules.length === 0) continue;
-    nextContent.push({ ...section, modules });
-  }
-
-  return nextContent;
-}
-
 function getHiddenItemKey(item: ScopedModule | Module, scopedItemIdsByModuleRef: WeakMap<Module, string>) {
   if ("module" in item) {
     return item.id;
@@ -328,13 +267,34 @@ function getHiddenItemKey(item: ScopedModule | Module, scopedItemIdsByModuleRef:
   return scopedItemIdsByModuleRef.get(item) ?? item.id;
 }
 
-function RenderedModuleItems({ modules, scope }: { modules: readonly ScopedModule[]; scope: CourseScope }) {
+function RenderedModuleItems({
+  modules,
+  scope,
+  selectedArtifact,
+  cacheState,
+  onRefreshAnalysis,
+}: {
+  modules: readonly ScopedModule[];
+  scope: CourseScope;
+  selectedArtifact?: SyllabusArtifactIdentity;
+  cacheState: ReturnType<typeof getSyllabusCacheState>;
+  onRefreshAnalysis: () => void;
+}) {
   return modules.map(({ id, module, course }) => {
     const Component = ListItems[module.modname as Modname] ?? ListItems.default;
     return (
-      <CourseContext key={id} value={{ scope, activeCourse: course }}>
-        <Component module={module} />
-      </CourseContext>
+      <SyllabusAnalysisContext
+        key={id}
+        value={{
+          selectedArtifact,
+          cacheState,
+          onRefresh: onRefreshAnalysis,
+        }}
+      >
+        <CourseContext value={{ scope, activeCourse: course }}>
+          <Component module={module} />
+        </CourseContext>
+      </SyllabusAnalysisContext>
     );
   });
 }

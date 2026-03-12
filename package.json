@@ -23,33 +23,40 @@
     }
   ],
   "dependencies": {
+    "@ai-sdk/google": "3.0.43",
     "@bwat47/turndown-plugin-gfm": "^1.0.5",
+    "@google/genai": "1.44.0",
     "@mixmark-io/domino": "^2.2.0",
-    "@raycast/api": "^1.104.4",
-    "@raycast/utils": "^2.2.2",
-    "@tanstack/react-query": "^5.90.20",
-    "@tanstack/react-query-persist-client": "^5.90.22",
+    "@raycast/api": "^1.104.9",
+    "@raycast/utils": "^2.2.3",
+    "@tanstack/react-query": "^5.90.21",
+    "@tanstack/react-query-persist-client": "^5.90.24",
+    "ai": "6.0.116",
     "date-fns": "^4.1.0",
+    "exceljs": "^4.4.0",
     "html-entities": "^2.6.0",
     "os-proxy-config": "^1.1.2",
     "prettier-plugin-organize-imports": "^4.3.0",
+    "react": "19.2.4",
     "react-devtools": "6.1.1",
-    "react-error-boundary": "^6.1.0",
+    "react-error-boundary": "^6.1.1",
     "sanitize-filename-ts": "^1.0.2",
     "turndown": "^7.2.2",
-    "undici": "^7.16.0",
-    "zustand": "^5.0.11",
-    "react": "19.0.10"
+    "undici": "^7.23.0",
+    "xlsx": "0.18.5",
+    "zod": "4.3.6",
+    "zustand": "^5.0.11"
   },
   "devDependencies": {
     "@raycast/eslint-config": "^2.1.1",
     "@tanstack/eslint-plugin-query": "^5.91.4",
     "@types/node": "22.13.10",
-    "@types/react": "19.0.10",
+    "@types/react": "19.2.14",
     "@types/turndown": "^5.0.6",
     "eslint": "^9.39.2",
     "eslint-plugin-react-hooks": "^7.0.1",
     "prettier": "^3.8.1",
+    "tsx": "4.21.0",
     "typescript": "^5.9.3"
   },
   "scripts": {
@@ -58,7 +65,8 @@
     "fix-lint": "ray lint --fix",
     "lint": "ray lint",
     "prepublishOnly": "echo \"\\n\\nIt seems like you are trying to publish the Raycast extension to npm.\\n\\nIf you did intend to publish it to npm, remove the \\`prepublishOnly\\` script and rerun \\`npm publish\\` again.\\nIf you wanted to publish it to the Raycast Store instead, use \\`npm run publish\\` instead.\\n\\n\" && exit 1",
-    "publish": "ray publish"
+    "publish": "ray publish",
+    "test": "tsx --test src/**/*.test.ts"
   },
   "preferences": [
     {
@@ -121,6 +129,13 @@
       "description": "Shows courses with similar names as one",
       "type": "checkbox",
       "default": false,
+      "required": false
+    },
+    {
+      "name": "gemini_api_key",
+      "title": "Gemini API Key",
+      "description": "Used for syllabus parsing through Gemini",
+      "type": "password",
       "required": false
     }
   ]

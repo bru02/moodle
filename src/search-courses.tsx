@@ -11,11 +11,10 @@ import { logCourseAccess, type CourseAccessMethod } from "./helpers/course-acces
 import { handleFileUrl } from "./helpers/files";
 import { preferences } from "./helpers/preferences";
 import "./helpers/proxy";
-import { useHiddenItemsState } from "./hooks/useHiddenItems";
 import { useWSQuery } from "./hooks/useWSQuery";
+import LazyViewCourseGrades from "./lazy-view-course-grades";
 import { toSimpleCourse } from "./types/simple-course";
 import ViewCourse from "./view-course";
-import ViewCourseGrades from "./view-course-grades";
 
 type SearchCoursesLaunchContext = { courseId?: string; preselectItem?: number };
 type SearchCoursesLaunchProps = LaunchProps<{ launchContext?: SearchCoursesLaunchContext }>;
@@ -49,20 +48,10 @@ export default function Command({ launchContext }: SearchCoursesLaunchProps) {
     return sortedCourses.filter((course) => course.semester === effectiveSemester);
   }, [sortedCourses, effectiveSemester]);
 
-  const courseVisibility = useHiddenItemsState(COURSE_VISIBILITY_NAMESPACE);
   const scopes = useMemo(
     () => buildCourseScopes(filteredCourses, preferences.merge_similar_courses),
     [filteredCourses],
   );
-  const scopeIdsByCourseId = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const scope of scopes) {
-      for (const courseId of scope.courseIds) {
-        map.set(String(courseId), scope.id);
-      }
-    }
-    return map;
-  }, [scopes]);
 
   const directLaunchCourseId = launchContext?.courseId ? Number(launchContext.courseId) : undefined;
   const scopeToLaunch = useMemo(() => {
@@ -91,14 +80,6 @@ export default function Command({ launchContext }: SearchCoursesLaunchProps) {
     visitItem(c);
     trackCourseAccess(c.id, "deeplink", null);
   }, [courses, directLaunchCourseId, trackCourseAccess, visitItem]);
-
-  useEffect(() => {
-    migrateLegacyCourseKeys(courseVisibility.hiddenItems, scopeIdsByCourseId, courseVisibility.setHiddenKeys);
-  }, [courseVisibility.hiddenItems, courseVisibility.setHiddenKeys, scopeIdsByCourseId]);
-
-  useEffect(() => {
-    migrateLegacyCourseKeys(courseVisibility.pinnedItems, scopeIdsByCourseId, courseVisibility.setPinnedKeys);
-  }, [courseVisibility.pinnedItems, courseVisibility.setPinnedKeys, scopeIdsByCourseId]);
 
   if (error) return <AuthErrorDetail error={error} onRetry={() => refetch()} />;
 
@@ -177,7 +158,7 @@ function renderScopeItems(
             )}
             <Action.Push
               title="View Grades"
-              target={<ViewCourseGrades scope={scope} />}
+              target={<LazyViewCourseGrades scope={scope} />}
               icon={Icon.BarChart}
               onPush={() => {
                 visitItem(course);
@@ -208,27 +189,4 @@ function renderScopeItems(
       />
     );
   });
-}
-
-function migrateLegacyCourseKeys(
-  itemKeys: readonly (string | number)[],
-  scopeIdsByCourseId: ReadonlyMap<string, string>,
-  setKeys: (itemKeys: readonly (string | number)[], value: boolean) => void,
-) {
-  const keysToRemove = itemKeys.filter((itemKey) => {
-    const normalizedKey = String(itemKey);
-    const scopeId = scopeIdsByCourseId.get(normalizedKey);
-    return scopeId != null && scopeId !== normalizedKey;
-  });
-  if (keysToRemove.length === 0) {
-    return;
-  }
-
-  const scopeIdsToAdd = keysToRemove.flatMap((itemKey) => {
-    const scopeId = scopeIdsByCourseId.get(String(itemKey));
-    return scopeId ? [scopeId] : [];
-  });
-
-  setKeys(scopeIdsToAdd, true);
-  setKeys(keysToRemove, false);
 }

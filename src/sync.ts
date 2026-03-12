@@ -7,14 +7,15 @@ import { pipeline } from "stream/promises";
 import { resourceLimits as workerResourceLimits } from "worker_threads";
 import { useUser } from "./client";
 import { canConvert, checkFileSize, convertToPdf, handleFileUrl, pdfify } from "./helpers/files";
+import { maybeWriteHeapSnapshot } from "./helpers/heap-snapshot";
 import { preferences } from "./helpers/preferences";
 import { useFileSyncExceptionsStore, useFileSyncProgressStore } from "./store";
 import type { CoreWSExternalFile } from "./types";
 
 const MB = 1024 * 1024;
 const DEFAULT_HEAP_LIMIT_MB = 100;
-const MAX_SYNC_CONCURRENCY = 4;
-const MID_SYNC_CONCURRENCY = 2;
+const MAX_SYNC_CONCURRENCY = 2;
+const MID_SYNC_CONCURRENCY = 1;
 const MIN_SYNC_CONCURRENCY = 1;
 const HIGH_WATER_DOWN_RATIO = 0.8;
 const HIGH_WATER_UP_RATIO = 0.65;
@@ -31,9 +32,9 @@ export function useSync(files: readonly (readonly [string, CoreWSExternalFile])[
   const { accessKey } = useUser();
 
   useEffect(() => {
-    const ctrl = new AbortController();
-
     if (!preferences.sync_folder) return;
+
+    const ctrl = new AbortController();
 
     let cancelled = false;
 
@@ -41,7 +42,9 @@ export function useSync(files: readonly (readonly [string, CoreWSExternalFile])[
       if (cancelled) return;
       (async () => {
         const dirs = Array.from(new Set(files.map(([path]) => dirname(path))));
+        throwIfAborted(ctrl.signal);
         await ensureDirIndex(dirs, dirIndexRef.current, ctrl);
+        throwIfAborted(ctrl.signal);
 
         const syncQueue = files.filter(([path, file]) => !shouldSkipSync(path, file, exceptions));
 
@@ -52,7 +55,9 @@ export function useSync(files: readonly (readonly [string, CoreWSExternalFile])[
           dirIndex: dirIndexRef.current,
         });
       })().catch((err) => {
-        console.error("sync: background task aborted", err);
+        if (!isAbortError(err) && !ctrl.signal.aborted) {
+          console.error("sync: background task aborted", err);
+        }
       });
     });
 
@@ -94,8 +99,6 @@ interface DownloadContext {
   fileId: string;
   setDownloadProgress: ProgressSetter;
 }
-
-type TeeContext = DownloadContext & { pdf: PdfContext };
 
 const DIR_INDEX_TTL_MS = 20_000;
 
@@ -148,6 +151,14 @@ function isDirIndexFresh(entry: DirIndexEntry) {
   return Date.now() - entry.builtAt <= DIR_INDEX_TTL_MS;
 }
 
+function isAbortError(err: unknown) {
+  return err instanceof Error && err.name === "AbortError";
+}
+
+function throwIfAborted(signal: AbortSignal) {
+  signal.throwIfAborted();
+}
+
 function getIndexedStat(index: Map<string, DirIndexEntry>, target: string) {
   const dir = dirname(target);
   const entry = index.get(dir);
@@ -157,6 +168,7 @@ function getIndexedStat(index: Map<string, DirIndexEntry>, target: string) {
 
 async function ensureDirIndex(dirs: string[], index: Map<string, DirIndexEntry>, ctrl: AbortController) {
   for (const dir of dirs) {
+    throwIfAborted(ctrl.signal);
     const existing = index.get(dir);
     if (existing && isDirIndexFresh(existing)) continue;
     const entries = await scanDir(dir, ctrl);
@@ -175,7 +187,7 @@ async function scanDir(dir: string, ctrl: AbortController) {
 
   let seen = 0;
   for (const dirent of dirents) {
-    if (ctrl.signal.aborted) break;
+    throwIfAborted(ctrl.signal);
     if (!dirent.isFile()) continue;
     const fullPath = join(dir, dirent.name);
     try {
@@ -282,9 +294,15 @@ async function runSyncQueue(
   };
 
   while (!ctrl.signal.aborted && (index < queue.length || inFlight.size > 0)) {
+    throwIfAborted(ctrl.signal);
     const now = Date.now();
     const mem = process.memoryUsage();
     const heapUsedMb = toMb(mem.heapUsed);
+    maybeWriteHeapSnapshot("sync-queue", {
+      heapUsedMb: Math.round(heapUsedMb),
+      inFlight: inFlight.size,
+      remaining: queue.length - index,
+    });
     const decision = resolveConcurrencyTarget(targetConcurrency, heapUsedMb, heapLimitMb);
 
     if (decision.target !== targetConcurrency) {
@@ -306,6 +324,7 @@ async function runSyncQueue(
 }
 
 async function syncFile({ ctrl, path, file, setDownloadProgress, setConvertProgress, dirIndex }: SyncFileArgs) {
+  throwIfAborted(ctrl.signal);
   const { fileurl, mimetype } = file;
   const filesize = file.filesize ?? 0;
   const timemodified = file.timemodified ?? 0;
@@ -317,6 +336,7 @@ async function syncFile({ ctrl, path, file, setDownloadProgress, setConvertProgr
 
   const needsFile = await shouldDownload(path, effectiveTimemodified, dirIndex);
   const needsPdf = convertible ? await shouldGeneratePdf(pdfPath, effectiveTimemodified, dirIndex) : false;
+  throwIfAborted(ctrl.signal);
 
   setDownloadProgress(fileId, needsFile ? 0 : 100);
   if (convertible) {
@@ -326,6 +346,7 @@ async function syncFile({ ctrl, path, file, setDownloadProgress, setConvertProgr
   if (!needsFile && !needsPdf) return;
 
   await mkdir(dirname(path), { recursive: true });
+  throwIfAborted(ctrl.signal);
 
   const pdfContext: PdfContext | undefined =
     needsPdf && mimetype
@@ -333,7 +354,7 @@ async function syncFile({ ctrl, path, file, setDownloadProgress, setConvertProgr
       : undefined;
 
   if (!needsFile && pdfContext) {
-    await convertFromDisk(pdfContext, path);
+    await convertFromDisk(pdfContext, path, ctrl.signal);
     return;
   }
 
@@ -353,24 +374,20 @@ async function syncFile({ ctrl, path, file, setDownloadProgress, setConvertProgr
 
   if (await finalizeCompletePart(downloadContext)) {
     if (pdfContext) {
-      await convertFromDisk(pdfContext, path);
+      await convertFromDisk(pdfContext, path, ctrl.signal);
     }
     return;
   }
 
-  const preferTee = Boolean(pdfContext) && partSize === 0;
-  const downloadOk =
-    preferTee && pdfContext
-      ? await downloadWithTee({ ...downloadContext, pdf: pdfContext })
-      : await downloadWithResume(downloadContext);
+  const downloadOk = await downloadWithResume(downloadContext);
 
   if (!downloadOk) {
     setDownloadProgress(fileId, 0);
     return;
   }
 
-  if (pdfContext && !preferTee) {
-    await convertFromDisk(pdfContext, path);
+  if (pdfContext) {
+    await convertFromDisk(pdfContext, path, ctrl.signal);
   }
 }
 
@@ -386,47 +403,10 @@ async function preparePartFile(path: string, filesize: number) {
   return { partPath, partSize };
 }
 
-async function downloadWithTee(ctx: TeeContext) {
-  const { ctrl, url, partPath, filesize, fileId, pdf, setDownloadProgress } = ctx;
-
-  const response = await fetch(url, { signal: ctrl.signal });
-  if (!response.ok || !response.body) {
-    console.error("sync: download request failed", {
-      fileId,
-      url,
-      status: response.status,
-      statusText: response.statusText,
-      stage: "initial tee fetch",
-    });
-    return false;
-  }
-
-  const [fileStream, pdfStream] = response.body.tee();
-
-  const [downloadResult] = await Promise.allSettled([
-    streamToFile(response, partPath, (pct) => setDownloadProgress(fileId, pct), fileStream, {
-      append: false,
-      downloadedOffset: 0,
-      totalSize: filesize || undefined,
-    }),
-    convertAndStorePdf(pdf, pdfStream),
-  ]);
-
-  if (downloadResult.status === "rejected") {
-    console.error("sync: download stream failed", {
-      fileId,
-      url,
-      reason: downloadResult.reason,
-    });
-    return false;
-  }
-
-  return validateAndFinalize(ctx, "TEE DOWNLOAD");
-}
-
 async function downloadWithResume(ctx: DownloadContext, mode: "resume" | "retry" = "resume"): Promise<boolean> {
   const { ctrl, url, partPath, partSize, filesize, fileId, setDownloadProgress } = ctx;
 
+  throwIfAborted(ctrl.signal);
   const wantsResume = mode === "resume" && partSize > 0;
   let append = wantsResume;
   let downloadedOffset = wantsResume ? partSize : 0;
@@ -469,19 +449,25 @@ async function downloadWithResume(ctx: DownloadContext, mode: "resume" | "retry"
     append,
     downloadedOffset,
     totalSize: filesize || undefined,
+    signal: ctrl.signal,
   });
 
   const label = mode === "resume" ? "RESUME" : "RETRY";
   return validateAndFinalize(ctx, label, mode === "resume");
 }
 
-async function convertFromDisk(pdf: PdfContext, sourcePath: string) {
-  await convertAndStorePdf(pdf, createReadStream(sourcePath));
+async function convertFromDisk(pdf: PdfContext, sourcePath: string, signal: AbortSignal) {
+  throwIfAborted(signal);
+  await convertAndStorePdf(pdf, createReadStream(sourcePath), signal);
 }
 
-async function convertAndStorePdf(pdf: PdfContext, body: ReadableStream | NodeJS.ReadableStream) {
+async function convertAndStorePdf(pdf: PdfContext, body: ReadableStream | NodeJS.ReadableStream, signal: AbortSignal) {
+  throwIfAborted(signal);
+  if ("destroy" in body) {
+    signal.addEventListener("abort", () => body.destroy(signal.reason), { once: true });
+  }
   // @ts-expect-error we validated the mimetype via canConvert
-  const response = await convertToPdf(pdf.mimetype, body);
+  const response = await convertToPdf(pdf.mimetype, body, signal);
   if (!response.ok || !response.body) {
     console.error("sync: pdf conversion request failed", {
       status: response.status,
@@ -491,7 +477,7 @@ async function convertAndStorePdf(pdf: PdfContext, body: ReadableStream | NodeJS
     return false;
   }
 
-  await streamToFile(response, pdf.pdfPath, (pct) => pdf.setConvertProgress(pdf.fileId, pct));
+  await streamToFile(response, pdf.pdfPath, (pct) => pdf.setConvertProgress(pdf.fileId, pct), undefined, { signal });
   const ok = await validatePositiveSize(pdf.pdfPath);
   if (!ok) {
     await safeUnlink(pdf.pdfPath);
@@ -541,12 +527,13 @@ async function streamToFile(
   path: string,
   onProgress: (pct: number) => unknown,
   stream?: ReadableStream,
-  opts?: { append?: boolean; downloadedOffset?: number; totalSize?: number },
+  opts?: { append?: boolean; downloadedOffset?: number; totalSize?: number; signal?: AbortSignal },
 ) {
   const downloadedOffset = opts?.downloadedOffset ?? 0;
   let downloadedSize = downloadedOffset;
   const nodeReadable = Readable.fromWeb(stream ?? response.body!);
   const writer = createWriteStream(path, { flags: opts?.append ? "a" : "w" });
+  const abortSignal = opts?.signal;
 
   const headerLength = Number(response.headers.get("Content-Length")) || 0;
   let totalSize = opts?.totalSize ?? 0;
@@ -581,7 +568,27 @@ async function streamToFile(
     }
   });
 
-  return pipeline(nodeReadable, writer);
+  if (!abortSignal) {
+    return pipeline(nodeReadable, writer);
+  }
+
+  if (abortSignal.aborted) {
+    nodeReadable.destroy(abortSignal.reason);
+    writer.destroy(abortSignal.reason);
+    throw abortSignal.reason;
+  }
+
+  const onAbort = () => {
+    nodeReadable.destroy(abortSignal.reason);
+    writer.destroy(abortSignal.reason);
+  };
+  abortSignal.addEventListener("abort", onAbort, { once: true });
+
+  try {
+    return await pipeline(nodeReadable, writer);
+  } finally {
+    abortSignal.removeEventListener("abort", onAbort);
+  }
 }
 
 async function shouldDownload(target: string, timemodified: number, index?: Map<string, DirIndexEntry>) {
