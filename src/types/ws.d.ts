@@ -62,6 +62,14 @@ import type {
   CoreGradesGetUserGradesTableWSResponse,
 } from "./grade";
 import type {
+  AddonModH5pactivityGetAttemptsWSParams,
+  AddonModH5pactivityGetAttemptsWSResponse,
+  AddonModH5pactivityGetByCoursesWSParams,
+  AddonModH5pactivityGetByCoursesWSResponse,
+  AddonModH5pactivityGetH5pactivityAccessInformationWSParams,
+  AddonModH5pactivityGetH5pactivityAccessInformationWSResponse,
+} from "./h5pactivity";
+import type {
   AddonModQuizGetQuizAccessInformationWSParams,
   AddonModQuizGetQuizAccessInformationWSResponse,
   AddonModQuizGetQuizFeedbackForGradeWSParams,
@@ -103,6 +111,9 @@ export type WSResponseMap = {
   mod_forum_get_forums_by_courses: AddonModForumGetForumsByCoursesWSResponse;
   mod_forum_get_forum_discussions: AddonModForumGetForumDiscussionsWSResponse;
   mod_forum_get_discussion_posts: AddonModForumGetDiscussionPostsWSResponse;
+  mod_h5pactivity_get_h5pactivities_by_courses: AddonModH5pactivityGetByCoursesWSResponse;
+  mod_h5pactivity_get_h5pactivity_access_information: AddonModH5pactivityGetH5pactivityAccessInformationWSResponse;
+  mod_h5pactivity_get_attempts: AddonModH5pactivityGetAttemptsWSResponse;
   mod_quiz_get_quizzes_by_courses: AddonModQuizGetQuizzesByCoursesWSResponse;
   mod_quiz_get_quiz_access_information: AddonModQuizGetQuizAccessInformationWSResponse;
   mod_quiz_start_attempt: AddonModQuizStartAttemptWSResponse;
@@ -139,6 +150,9 @@ export type WSParamsMap = {
   mod_forum_get_forums_by_courses: AddonModForumGetForumsByCoursesWSParams;
   mod_forum_get_forum_discussions: AddonModForumGetForumDiscussionsWSParams;
   mod_forum_get_discussion_posts: AddonModForumGetDiscussionPostsWSParams;
+  mod_h5pactivity_get_h5pactivities_by_courses: AddonModH5pactivityGetByCoursesWSParams;
+  mod_h5pactivity_get_h5pactivity_access_information: AddonModH5pactivityGetH5pactivityAccessInformationWSParams;
+  mod_h5pactivity_get_attempts: AddonModH5pactivityGetAttemptsWSParams;
   mod_quiz_get_quizzes_by_courses: AddonModQuizGetQuizzesByCoursesWSParams;
   mod_quiz_get_quiz_access_information: AddonModQuizGetQuizAccessInformationWSParams;
   mod_quiz_start_attempt: AddonModQuizStartAttemptWSParams;

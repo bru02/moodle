@@ -53,9 +53,10 @@ function QuizListItem({ module }: { module: Module }) {
       accessories={getQuizAccessories({ gradeText, attempts: attemptsData?.attempts })}
       actions={
         <ActionPanel>
-          <StartQuizAction module={module} quiz={currentQuiz} />
+          <StartQuizAction module={module} quiz={currentQuiz} attempts={attemptsData?.attempts} />
           <Action.Push
             title="View Attempts"
+            icon={Icon.List}
             target={
               <CourseContext value={ctx}>
                 <QuizAttemptsList module={module} quiz={currentQuiz} />
@@ -73,19 +74,41 @@ function QuizListItem({ module }: { module: Module }) {
 
 export default memo(QuizListItem);
 
-function StartQuizAction({ module, quiz }: { module: Module; quiz: AddonModQuizQuizWSData }) {
+function StartQuizAction({
+  module,
+  quiz,
+  attempts,
+}: {
+  module: Module;
+  quiz: AddonModQuizQuizWSData;
+  attempts: AddonModQuizAttemptWSData[] | undefined;
+}) {
   const { push } = useNavigation();
   const { data: accessInfo } = useWSQuery("mod_quiz_get_quiz_access_information", { quizid: quiz.id });
+  const lastAttempt = useMemo(() => getLastAttempt(attempts), [attempts]);
+  const shouldContinueAttempt = isAttemptInProgress(lastAttempt);
 
   return (
     <Action
-      title="Start Quiz"
+      title={shouldContinueAttempt ? "Continue Attempt" : "Start Quiz"}
       icon={Icon.Play}
       onAction={async () => {
+        if (shouldContinueAttempt && lastAttempt) {
+          await openAttempt(
+            module,
+            lastAttempt,
+            "Opening existing attempt",
+            "Attempt opened",
+            "Failed to continue attempt",
+          );
+          return;
+        }
+
         if (!accessInfo) {
           await showToast({ style: Toast.Style.Failure, title: "Quiz access not loaded" });
           return;
         }
+
         const toast = await showToast({ style: Toast.Style.Animated, title: "Checking quiz access" });
 
         if (!accessInfo.canattempt && !accessInfo.canpreview) {
@@ -153,9 +176,9 @@ function QuizListItemDetail({
           {accessInfo && (
             <List.Item.Detail.Metadata.Label title="Can Attempt" text={accessInfo.canattempt ? "Yes" : "No"} />
           )}
-          {!accessInfo?.canattempt && accessInfo?.preventaccessreasons?.[0] && (
+          {!accessInfo?.canattempt && accessInfo?.preventaccessreasons?.[0] ? (
             <List.Item.Detail.Metadata.Label title="Restriction" text={accessInfo.preventaccessreasons[0]} />
-          )}
+          ) : null}
           {accessInfo?.activerulenames?.includes("quizaccess_safeexambrowser") && (
             <List.Item.Detail.Metadata.Label title="Safe Exam Browser" text="Required" />
           )}
@@ -165,9 +188,9 @@ function QuizListItemDetail({
               text={formatGrade(bestGradeData.gradetopass, quiz.decimalpoints)}
             />
           )}
-          {quiz.timelimit && quiz.timelimit > 0 && (
+          {typeof quiz.timelimit === "number" && quiz.timelimit > 0 ? (
             <List.Item.Detail.Metadata.Label title="Time Limit" text={formatTimeLimit(quiz.timelimit)} />
-          )}
+          ) : null}
           <DatesDetail module={module} />
         </List.Item.Detail.Metadata>
       }
@@ -358,6 +381,10 @@ function getLastAttempt(attempts: AddonModQuizAttemptWSData[] | undefined) {
   return [...list].sort((a, b) => (b.timemodified ?? b.timestart ?? 0) - (a.timemodified ?? a.timestart ?? 0))[0];
 }
 
+function isAttemptInProgress(attempt: AddonModQuizAttemptWSData | undefined) {
+  return attempt?.state === "inprogress";
+}
+
 function getCompactAttemptState(state: string) {
   switch (state) {
     case "finished":
@@ -374,24 +401,11 @@ function getCompactAttemptState(state: string) {
 }
 
 async function startAttemptAndOpen(module: Module, quiz: AddonModQuizQuizWSData, password?: string) {
-  const toast = await showToast({ style: Toast.Style.Animated, title: "Starting quiz attempt" });
-
   try {
-    if (!module.url) {
-      throw new Error("Quiz URL not available");
-    }
     const attempt = await startQuizAttempt(quiz.id, password);
-    const attemptUrl = buildAttemptUrl(module.url, module.id, attempt.id);
-    if (!attemptUrl) {
-      throw new Error("Quiz URL not available");
-    }
-    await openInBrowserWithAuth(attemptUrl);
-    toast.style = Toast.Style.Success;
-    toast.title = "Quiz started";
+    await openAttempt(module, attempt, "Starting quiz attempt", "Quiz started", "Failed to start quiz");
   } catch (error) {
-    toast.style = Toast.Style.Failure;
-    toast.title = "Failed to start quiz";
-    toast.message = getErrorMessage(error);
+    await showToast({ style: Toast.Style.Failure, title: "Failed to start quiz", message: getErrorMessage(error) });
   }
 }
 
@@ -404,6 +418,35 @@ async function startQuizAttempt(quizId: number, password?: string) {
 
   const response = await requestWS("mod_quiz_start_attempt", params);
   return response.attempt;
+}
+
+async function openAttempt(
+  module: Module,
+  attempt: AddonModQuizAttemptWSData,
+  loadingTitle: string,
+  successTitle: string,
+  failureTitle: string,
+) {
+  const toast = await showToast({ style: Toast.Style.Animated, title: loadingTitle });
+
+  try {
+    if (!module.url) {
+      throw new Error("Quiz URL not available");
+    }
+
+    const attemptUrl = buildAttemptUrl(module.url, module.id, attempt.id);
+    if (!attemptUrl) {
+      throw new Error("Quiz URL not available");
+    }
+
+    await openInBrowserWithAuth(attemptUrl);
+    toast.style = Toast.Style.Success;
+    toast.title = successTitle;
+  } catch (error) {
+    toast.style = Toast.Style.Failure;
+    toast.title = failureTitle;
+    toast.message = getErrorMessage(error);
+  }
 }
 
 function requiresPassword(accessInfo: AddonModQuizGetQuizAccessInformationWSResponse) {

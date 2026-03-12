@@ -10,7 +10,7 @@ import { stripHTML } from "../helpers";
 import { turndown } from "../helpers/markdown";
 import { getMoodleErrorMessage, isMoodleErrorPayload } from "../helpers/moodle-errors";
 import { siteOrigin } from "../helpers/preferences";
-import { queryClient, requestWS } from "../hooks/useWSQuery";
+import { queryClient } from "../hooks/useWSQuery";
 import { Module } from "../types";
 import type { AddonModAttendanceMobileViewActivityWSResponse } from "../types/attendance";
 import DefaultListItem from "./default";
@@ -201,21 +201,28 @@ function MarkAsAttendedAction({
             cmid: module.id,
             courseid,
             method: "mobile_user_form",
-            extraArgs: [["sessid", sessionid]],
+            extraArgs: [
+              ["sessid", sessionid],
+              ["userid", user.id],
+            ],
           });
 
-          const statusid = extractFirstStatusIdFromMobileUserForm(mobileUserForm);
+          const statusid = extractFirstAvailableStatusIdFromMobileUserForm(mobileUserForm);
           if (!statusid) {
             throw new Error("No available attendance status for this session.");
           }
 
-          await requestWS("mod_attendance_update_user_status", {
-            sessionid,
-            studentid: user.id,
-            takenbyid: user.id,
-            statusid,
-            statusset: "0",
+          const updatedMobileViewData = await requestAttendanceMobileViaToolMobileGetContent({
+            cmid: module.id,
+            courseid,
+            method: "mobile_view_activity",
+            extraArgs: [
+              ["sessid", sessionid],
+              ["status", statusid],
+              ["userid", user.id],
+            ],
           });
+          queryClient.setQueryData(mobileViewQueryKey, updatedMobileViewData);
 
           await Promise.all([
             queryClient.invalidateQueries({
@@ -305,11 +312,15 @@ function extractFirstOpenSessionId(data: AddonModAttendanceMobileViewActivityWSR
   return extractMobileSessions(data).find((item) => item.sessionid != null)?.sessionid ?? null;
 }
 
-function extractFirstStatusIdFromMobileUserForm(data: AddonModAttendanceMobileViewActivityWSResponse | undefined) {
+function extractFirstAvailableStatusIdFromMobileUserForm(
+  data: AddonModAttendanceMobileViewActivityWSResponse | undefined,
+) {
   const html = getMobileTemplatesHtml(data);
   if (!html) return null;
 
-  const match = html.match(/<ion-radio[^>]*value=(['"])(\d+)\1/i);
+  // Moodle mobile user form renders available statuses in grade-desc order.
+  // Picking the first radio value matches the plugin's "highest available status" behavior.
+  const match = html.match(/<ion-radio[^>]*\bvalue=(['"])(\d+)\1/i);
   const statusid = match?.[2];
   return statusid ? Number(statusid) : null;
 }

@@ -169,6 +169,13 @@ type CourseContentListProps = {
 
 function CourseContentList({ scope, isLoading, content, preselectedItemId }: CourseContentListProps) {
   const allModules = useMemo(() => content.flatMap((section) => section.modules), [content]);
+  const scopedItemIdsByModuleRef = useMemo(() => {
+    const map = new WeakMap<Module, string>();
+    for (const scopedModule of allModules) {
+      map.set(scopedModule.module, scopedModule.id);
+    }
+    return map;
+  }, [allModules]);
   const firstListItemId = getFirstListItemId(content);
   const initialSelectedItemId = preselectedItemId ?? firstListItemId ?? null;
   const [forcedSelectedItemId, setForcedSelectedItemId] = useState<string | null>(initialSelectedItemId);
@@ -220,7 +227,11 @@ function CourseContentList({ scope, isLoading, content, preselectedItemId }: Cou
         setIsShowingDetail(id.startsWith("D-"));
       }}
     >
-      <WithHiddenItems namespace={`course-content-${scope.id}`} data={allModules} getItemKey={(item) => item.id}>
+      <WithHiddenItems
+        namespace={`course-content-${scope.id}`}
+        data={allModules}
+        getItemKey={(item) => getHiddenItemKey(item, scopedItemIdsByModuleRef)}
+      >
         {(visibleModules, { isPinnedSection }) => {
           if (isPinnedSection) {
             const pinnableModules = visibleModules.filter(({ module }) => module.modname !== "label");
@@ -308,6 +319,13 @@ function regroupCourseContentByVisibleModules(
   }
 
   return nextContent;
+}
+
+function getHiddenItemKey(item: ScopedModule | Module, scopedItemIdsByModuleRef: WeakMap<Module, string>) {
+  if ("module" in item) {
+    return item.id;
+  }
+  return scopedItemIdsByModuleRef.get(item) ?? item.id;
 }
 
 function RenderedModuleItems({ modules, scope }: { modules: readonly ScopedModule[]; scope: CourseScope }) {

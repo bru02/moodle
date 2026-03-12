@@ -34,6 +34,7 @@ type FileSyncExceptionsState = {
 type HiddenItemsState = {
   itemsByNamespace: Record<string, HiddenItemsEntry>;
   toggleItem: (namespace: string, itemKey: HiddenItemKey, pinned: boolean) => void;
+  setItems: (namespace: string, itemKeys: readonly HiddenItemKey[], pinned: boolean, value: boolean) => void;
 };
 
 const persistedStorage = createJSONStorage(() => ({
@@ -123,6 +124,41 @@ export const useHiddenItemsStore = create<HiddenItemsState>()(
             },
           };
         }),
+      setItems: (namespace, itemKeys, pinned, value) =>
+        set((state) => {
+          if (itemKeys.length === 0) {
+            return state;
+          }
+
+          const existing = state.itemsByNamespace[namespace] ?? EMPTY_HIDDEN_ITEMS;
+          const nextValues = setItemsInList(pinned ? existing.pinned : existing.hidden, itemKeys, value);
+          const nextItems = pinned
+            ? {
+                hidden: existing.hidden,
+                pinned: nextValues,
+              }
+            : {
+                hidden: nextValues,
+                pinned: existing.pinned,
+              };
+          const isEmptyPayload = nextItems.hidden.length === 0 && nextItems.pinned.length === 0;
+          if (isEmptyPayload) {
+            if (!(namespace in state.itemsByNamespace)) {
+              return state;
+            }
+
+            const itemsByNamespace = { ...state.itemsByNamespace };
+            delete itemsByNamespace[namespace];
+            return { itemsByNamespace };
+          }
+
+          return {
+            itemsByNamespace: {
+              ...state.itemsByNamespace,
+              [namespace]: nextItems,
+            },
+          };
+        }),
     }),
     {
       name: "hidden-items",
@@ -133,4 +169,23 @@ export const useHiddenItemsStore = create<HiddenItemsState>()(
 
 function toggleItemInList(list: readonly HiddenItemKey[], itemKey: HiddenItemKey): HiddenItemKey[] {
   return list.includes(itemKey) ? list.filter((item) => item !== itemKey) : [...list, itemKey];
+}
+
+function setItemsInList(
+  list: readonly HiddenItemKey[],
+  itemKeys: readonly HiddenItemKey[],
+  value: boolean,
+): HiddenItemKey[] {
+  const itemKeySet = new Set(itemKeys);
+  if (!value) {
+    return list.filter((item) => !itemKeySet.has(item));
+  }
+
+  const res = [...list];
+  for (const itemKey of itemKeys) {
+    if (!res.includes(itemKey)) {
+      res.push(itemKey);
+    }
+  }
+  return res;
 }

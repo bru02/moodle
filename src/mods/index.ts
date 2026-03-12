@@ -9,6 +9,7 @@ import ChoiceListItem from "./choice";
 import DefaultListItem from "./default";
 import FolderListItem, { ViewFolder } from "./folder";
 import ForumListItem from "./forum";
+import H5PActivityListItem from "./h5pactivity";
 import PageListItem, { ViewPage } from "./page";
 import QuizListItem from "./quiz";
 import ResourceListItem from "./resource";
@@ -26,6 +27,7 @@ const ModuleListItems: Partial<Record<Modname, ModuleFC>> & { default: ModuleFC 
   choice: ChoiceListItem,
   chat: ChatListItem,
   forum: ForumListItem,
+  h5pactivity: H5PActivityListItem,
   quiz: QuizListItem,
 } as const;
 

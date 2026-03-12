@@ -158,6 +158,10 @@ function ChoiceResponseForm({
   const { pop } = useNavigation();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const sortedOptions = useMemo(
+    () => [...options].sort((a, b) => getChoiceOptionLabel(a).localeCompare(getChoiceOptionLabel(b))),
+    [options],
+  );
   const initialResponses = useMemo(
     () => options.filter((option) => option.checked).map((option) => String(option.id)),
     [options],
@@ -193,11 +197,13 @@ function ChoiceResponseForm({
               setIsSubmitting(true);
               try {
                 await submitChoiceResponse(choice.id, responses);
-                await invalidateChoiceQueries();
-                await showToast({
-                  style: Toast.Style.Success,
-                  title: hasAnswered ? "Response updated" : "Response submitted",
-                });
+                await Promise.all([
+                  invalidateChoiceQueries(),
+                  showToast({
+                    style: Toast.Style.Success,
+                    title: hasAnswered ? "Response updated" : "Response submitted",
+                  }),
+                ]);
                 pop();
               } catch (error) {
                 await showToast({
@@ -215,7 +221,7 @@ function ChoiceResponseForm({
     >
       {allowsMultiple ? (
         <>
-          {options.map((option) => (
+          {sortedOptions.map((option) => (
             <Form.Checkbox
               key={option.id}
               id={`response-${option.id}`}
@@ -232,7 +238,7 @@ function ChoiceResponseForm({
         </>
       ) : (
         <Form.Dropdown id="response" title="Option" value={selectedResponse} onChange={setSelectedResponse}>
-          {options.map((option) => (
+          {sortedOptions.map((option) => (
             <Form.Dropdown.Item key={option.id} value={String(option.id)} title={getChoiceOptionLabel(option)} />
           ))}
         </Form.Dropdown>
@@ -242,9 +248,10 @@ function ChoiceResponseForm({
 }
 
 function ChoiceOptionsList({ module, options }: { module: Module; options: AddonModChoiceOption[] }) {
+  const sortedOptions = useMemo(() => [...options].sort((a, b) => b.countanswers - a.countanswers), [options]);
   return (
     <List navigationTitle={`${module.name} Options`} isShowingDetail={true}>
-      {options.map((option) => (
+      {sortedOptions.map((option) => (
         <List.Item
           key={option.id}
           icon={option.checked ? Icon.CheckCircle : Icon.Circle}

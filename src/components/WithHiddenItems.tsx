@@ -1,20 +1,26 @@
 import { Action, ActionPanel, Icon, Keyboard } from "@raycast/api";
 
-import { createContext, ReactElement, ReactNode, useCallback, useContext, useMemo, useReducer } from "react";
+import { createContext, ReactElement, ReactNode, useContext, useMemo } from "react";
 import { shortcut } from "../helpers";
-import { EMPTY_HIDDEN_ITEMS, type HiddenItemKey, useHiddenItemsStore } from "../store";
+import { useHiddenItems } from "../hooks/useHiddenItems";
+import { type HiddenItemKey } from "../store";
 
-type HiddenItemsContextValue<T> = {
+export type HiddenItemsContextValue<T> = {
   hiddenItems: readonly HiddenItemKey[];
   pinnedItems: readonly HiddenItemKey[];
   toggleItem: (item: T) => void;
   togglePinnedItem: (item: T) => void;
   showingHidden: boolean;
   toggleShowingHidden: () => void;
-  key: (item: T) => HiddenItemKey;
+  isItemHidden: (item: T) => boolean;
+  isItemPinned: (item: T) => boolean;
 };
 
-export const HiddenItemsContext = createContext<HiddenItemsContextValue<unknown> | null>(null);
+export type WithHiddenItemsRenderMeta = {
+  isPinnedSection: boolean;
+  hasPinnedItems: boolean;
+  hasOtherItems: boolean;
+};
 
 type WithHiddenItemsBaseProps<T> = {
   data: readonly T[];
@@ -36,11 +42,8 @@ type WithHiddenItemsProps<T> =
   | (T extends { id: HiddenItemKey } ? WithHiddenItemsPropsWithDefaultKey<T> : never);
 
 const defaultGetItemKey = (x: { id: HiddenItemKey }) => x.id;
-type WithHiddenItemsRenderMeta = {
-  isPinnedSection: boolean;
-  hasPinnedItems: boolean;
-  hasOtherItems: boolean;
-};
+
+export const HiddenItemsContext = createContext<HiddenItemsContextValue<unknown> | null>(null);
 
 export default function WithHiddenItems<T extends { id: HiddenItemKey }>(
   props: WithHiddenItemsPropsWithDefaultKey<T>,
@@ -56,46 +59,23 @@ export default function WithHiddenItems<T>({
   const resolvedGetItemKey: (item: T) => HiddenItemKey = (getItemKey ?? defaultGetItemKey) as (
     item: T,
   ) => HiddenItemKey;
-
-  const storedItems = useHiddenItemsStore((state) => state.itemsByNamespace[namespace] ?? EMPTY_HIDDEN_ITEMS);
-  const toggleStoredItem = useHiddenItemsStore((state) => state.toggleItem);
-  const [showingHidden, setShowingHidden] = useReducer((s) => !s, false);
-  const hiddenItems = storedItems.hidden;
-  const pinnedItems = storedItems.pinned;
-
-  const toggleItem = useCallback(
-    (item: T) => toggleStoredItem(namespace, resolvedGetItemKey(item), false),
-    [namespace, resolvedGetItemKey, toggleStoredItem],
-  );
-  const togglePinnedItem = useCallback(
-    (item: T) => toggleStoredItem(namespace, resolvedGetItemKey(item), true),
-    [namespace, resolvedGetItemKey, toggleStoredItem],
-  );
-
-  const { pinnedVisibleData, regularVisibleData, hasVisibleData } = useMemo(() => {
-    const nextPinned: T[] = [];
-    const nextRegular: T[] = [];
-
-    for (const item of data) {
-      const itemKey = resolvedGetItemKey(item);
-      const isHidden = hiddenItems.includes(itemKey);
-      if (!showingHidden && isHidden) {
-        continue;
-      }
-
-      if (pinnedItems.includes(itemKey)) {
-        nextPinned.push(item);
-      } else {
-        nextRegular.push(item);
-      }
-    }
-
-    return {
-      pinnedVisibleData: nextPinned as readonly T[],
-      regularVisibleData: nextRegular as readonly T[],
-      hasVisibleData: nextPinned.length + nextRegular.length > 0,
-    };
-  }, [data, hiddenItems, pinnedItems, showingHidden, resolvedGetItemKey]);
+  const {
+    hiddenItems,
+    pinnedItems,
+    pinnedVisibleData,
+    regularVisibleData,
+    hasVisibleData,
+    showingHidden,
+    toggleShowingHidden,
+    toggleItem,
+    togglePinnedItem,
+    isItemHidden,
+    isItemPinned,
+  } = useHiddenItems({
+    data,
+    namespace,
+    getItemKey: resolvedGetItemKey,
+  });
 
   const hasPinnedItems = pinnedVisibleData.length > 0;
   const hasOtherItems = regularVisibleData.length > 0;
@@ -120,10 +100,20 @@ export default function WithHiddenItems<T>({
       toggleItem,
       togglePinnedItem,
       showingHidden,
-      toggleShowingHidden: setShowingHidden,
-      key: resolvedGetItemKey,
+      toggleShowingHidden,
+      isItemHidden,
+      isItemPinned,
     }),
-    [hiddenItems, pinnedItems, toggleItem, togglePinnedItem, resolvedGetItemKey, showingHidden],
+    [
+      hiddenItems,
+      pinnedItems,
+      toggleItem,
+      togglePinnedItem,
+      showingHidden,
+      toggleShowingHidden,
+      isItemHidden,
+      isItemPinned,
+    ],
   );
 
   return (
@@ -149,14 +139,9 @@ function useHiddenItemsContext<T = unknown>() {
 }
 
 export function HiddenItemActionsSection<T>({ item }: { item: T }) {
-  const ctx = useContext(HiddenItemsContext) as HiddenItemsContextValue<T> | null;
-  if (!ctx) {
-    return null;
-  }
-
-  const itemKey = ctx.key(item);
-  const isItemHidden = ctx.hiddenItems.includes(itemKey);
-  const isItemPinned = ctx.pinnedItems.includes(itemKey);
+  const ctx = useHiddenItemsContext<T>();
+  const isItemHidden = ctx.isItemHidden(item);
+  const isItemPinned = ctx.isItemPinned(item);
 
   return (
     <ActionPanel.Section>

@@ -1,4 +1,4 @@
-import { Action, ActionPanel, Color, List } from "@raycast/api";
+import { Action, ActionPanel, Color, Icon, List } from "@raycast/api";
 import { memo, useContext, useMemo } from "react";
 import CompletionAction from "../components/CompletionAction";
 import DatesDetail from "../components/DatesDetail";
@@ -61,6 +61,7 @@ function AssignListItem({ module }: { module: Module }) {
         <ActionPanel>
           <Action.Push
             title="View Related Files"
+            icon={Icon.Document}
             target={
               <CourseContext value={ctx}>
                 <AssignmentFilesList module={module} assignment={currentAssignment} />
@@ -97,9 +98,9 @@ function AssignListItemDetail({
       markdown={turndown(assignment.intro || "")}
       metadata={
         <List.Item.Detail.Metadata>
-          {submissionsData?.feedback?.gradefordisplay && (
+          {submissionsData?.feedback?.gradefordisplay ? (
             <List.Item.Detail.Metadata.Label title="Grade" text={stripHTML(submissionsData.feedback.gradefordisplay)} />
-          )}
+          ) : null}
           {submission && (
             <List.Item.Detail.Metadata.Label
               title="Submission"

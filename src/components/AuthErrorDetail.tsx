@@ -1,4 +1,4 @@
-import { Action, ActionPanel, Detail, openExtensionPreferences } from "@raycast/api";
+import { Action, ActionPanel, Detail, Icon, openExtensionPreferences } from "@raycast/api";
 import { AuthError, isAuthError } from "../errors";
 import { isQrAuth } from "../helpers/preferences";
 
@@ -46,8 +46,8 @@ export default function AuthErrorDetail({ error, onRetry }: AuthErrorDetailProps
       markdown={markdown}
       actions={
         <ActionPanel>
-          <Action title="Open Extension Preferences" onAction={openExtensionPreferences} />
-          <Action title="Retry" onAction={() => onRetry?.()} />
+          <Action title="Open Extension Preferences" icon={Icon.Gear} onAction={openExtensionPreferences} />
+          <Action title="Retry" icon={Icon.ArrowClockwise} onAction={() => onRetry?.()} />
         </ActionPanel>
       }
     />

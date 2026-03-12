@@ -48,7 +48,7 @@ export default function FolderListItem({ module }: { module: Module }) {
               }}
             />
           )}
-          <OpenInBrowserAction url={module.url!} applyShortcut />
+          <OpenInBrowserAction url={module.url!} />
           <HiddenItemActionsSection item={module} />
         </ActionPanel>
       }

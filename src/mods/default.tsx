@@ -1,4 +1,4 @@
-import { ActionPanel, Color, Icon, List } from "@raycast/api";
+import { Action, ActionPanel, Color, Detail, Icon, List } from "@raycast/api";
 import { getFavicon } from "@raycast/utils";
 import { memo, useContext } from "react";
 import CompletionAction from "../components/CompletionAction";
@@ -21,9 +21,12 @@ function DefaultListItem({ module, detail: customDetail, contentFilename, ...pro
     hasDetail: customDetail != null ? true : undefined,
   });
   const title = turndown(module.name).trim() || module.name;
-  const fallbackDetail = module.description ? <List.Item.Detail markdown={turndown(module.description)} /> : undefined;
+  const descriptionMarkdown = module.description ? turndown(module.description) : "";
+  const fallbackDetail = descriptionMarkdown ? <List.Item.Detail markdown={descriptionMarkdown} /> : undefined;
   const detail = customDetail ?? fallbackDetail;
   const { activeCourse } = useContext(CourseContext);
+  const canViewGeneratedSectionDescription =
+    module.modname === "label" && module.id < 0 && Boolean(descriptionMarkdown);
 
   return (
     <List.Item
@@ -32,6 +35,13 @@ function DefaultListItem({ module, detail: customDetail, contentFilename, ...pro
       icon={getIcon(module)}
       actions={
         <ActionPanel>
+          {canViewGeneratedSectionDescription && (
+            <Action.Push
+              title="View Description"
+              icon={Icon.Eye}
+              target={<Detail navigationTitle={title} markdown={descriptionMarkdown} />}
+            />
+          )}
           {module.url && (
             <OpenInBrowserAction
               url={module.modname === "url" && module.contents?.[0] ? module.contents[0].fileurl : module.url}

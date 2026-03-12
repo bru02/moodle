@@ -47,7 +47,7 @@ export function getFilePath(
   module: Module,
   course: Pick<SimpleCourse, "displayname">,
 ): FilePath {
-  const courseDir = ["folder", "assign"].includes(module.modname)
+  const courseDir = ["folder", "assign", "book"].includes(module.modname)
     ? getModuleFolder(course, module)
     : getCourseFolder(course);
   const fileName = sanitize(content.filename ?? module.name);

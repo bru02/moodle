@@ -40,13 +40,11 @@ export async function openInBrowserWithAuth(url: string, onOpen?: () => void) {
 }
 
 export function OpenInBrowserAction({
-  applyShortcut = false,
   url,
   onOpen,
   title = "Open in Browser",
   icon = Icon.Globe,
 }: {
-  applyShortcut?: boolean;
   url: string;
   onOpen?: () => void;
   title?: string;
@@ -58,7 +56,7 @@ export function OpenInBrowserAction({
       onAction={async () => {
         return openInBrowserWithAuth(url, onOpen);
       }}
-      shortcut={applyShortcut ? shortcut("b") : undefined}
+      shortcut={shortcut("b")}
       icon={icon}
     />
   );

@@ -17,6 +17,7 @@ type NodeWithSiblings = {
 };
 
 const textNodeType = 3;
+const youtubeVideoIdPattern = /^[\w-]{11}$/;
 const multilang2TagPattern = /{\s*mlang\s+((?:[a-z0-9_-]+)(?:\s*,\s*[a-z0-9_-]+\s*)*)\s*}([\s\S]*?){\s*mlang\s*}/gim;
 const leadingPunctuationOrWhitespace = /^[\p{P}\s]+/u;
 const trailingPunctuationOrWhitespace = /[\p{P}\s]+$/u;
@@ -109,8 +110,15 @@ turndownService.addRule("iframe", {
   replacement: (content, node) => {
     // @ts-expect-error no types
     const src = node.getAttribute("src");
+    if (!src) return "";
     // @ts-expect-error no types
     const title = node.getAttribute("title") || src;
+    const thumbnail = getYouTubeThumbnail(src);
+
+    if (thumbnail) {
+      return `[![${title}](${thumbnail})](${src})\n[${title}](${src})`;
+    }
+
     return `[${title}](${src})`;
   },
 });
@@ -216,4 +224,46 @@ function mathjaxNotationLoader(content: string): string {
     .replace(inlineMathRegex, (_, prefix, expression) => {
       return `${prefix}\\(${normalize(expression)}\\)`;
     });
+}
+
+function getYouTubeThumbnail(src: string): string | null {
+  const videoId = getYouTubeVideoId(src);
+  if (!videoId) return null;
+  return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+}
+
+function getYouTubeVideoId(src: string): string | null {
+  try {
+    const url = new URL(src);
+    const hostname = url.hostname.replace(/^www\./, "");
+
+    if (hostname === "youtu.be") {
+      return normalizeYouTubeVideoId(url.pathname.slice(1));
+    }
+
+    if (!["youtube.com", "m.youtube.com", "youtube-nocookie.com"].includes(hostname)) {
+      return null;
+    }
+
+    if (url.pathname.startsWith("/embed/")) {
+      return normalizeYouTubeVideoId(url.pathname.split("/")[2]);
+    }
+
+    if (url.pathname === "/watch") {
+      return normalizeYouTubeVideoId(url.searchParams.get("v"));
+    }
+
+    if (url.pathname.startsWith("/shorts/") || url.pathname.startsWith("/live/")) {
+      return normalizeYouTubeVideoId(url.pathname.split("/")[2]);
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function normalizeYouTubeVideoId(videoId: string | null | undefined): string | null {
+  if (!videoId) return null;
+  return youtubeVideoIdPattern.test(videoId) ? videoId : null;
 }

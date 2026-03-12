@@ -68,7 +68,7 @@ function ChatSessionsList({ module, chat }: { module: Module; chat: AddonModChat
     <List navigationTitle={`${module.name} Sessions`} isLoading={isPending} isShowingDetail={true}>
       {sessions.map((session, index) => (
         <List.Item
-          key={`${session.sessionstart}:${session.sessionend}:${index}`}
+          key={`${session.sessionstart}:${session.sessionend}`}
           title={getSessionTitle(session, index)}
           subtitle={getSessionSubtitle(session)}
           accessories={getSessionAccessories(session)}
@@ -100,7 +100,7 @@ function ChatSessionDetail({ session }: { session: AddonModChatSession }) {
         <List.Item.Detail.Metadata>
           <List.Item.Detail.Metadata.Label title="Start" text={formatRelativeTime(session.sessionstart)} />
           <List.Item.Detail.Metadata.Label title="End" text={formatRelativeTime(session.sessionend)} />
-          {duration && <List.Item.Detail.Metadata.Label title="Duration" text={duration} />}
+          {duration ? <List.Item.Detail.Metadata.Label title="Duration" text={duration} /> : null}
           <List.Item.Detail.Metadata.Label title="Participants" text={String(users.length)} />
           <List.Item.Detail.Metadata.Label title="Status" text={getSessionStatusLabelProps(session.iscomplete)} />
           {users.slice(0, 8).map((user) => (

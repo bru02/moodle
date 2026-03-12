@@ -31,6 +31,7 @@ export default function ForumListItem({ module }: { module: Module }) {
         <ActionPanel>
           <Action.Push
             title="View Discussions"
+            icon={Icon.Bubble}
             target={
               <CourseContext value={ctx}>
                 <ForumDiscussionsList forum={currentForum} module={module} />
@@ -95,8 +96,8 @@ function ForumDiscussionDetail({ discussion }: { discussion: AddonModForumDiscus
           )}
           <List.Item.Detail.Metadata.Label title="Created" text={formatRelativeTime(discussion.created)} />
           <List.Item.Detail.Metadata.Label title="Last Updated" text={formatRelativeTime(discussion.timemodified)} />
-          {discussion.pinned && <List.Item.Detail.Metadata.Label title="Pinned" text="Yes" />}
-          {discussion.locked && <List.Item.Detail.Metadata.Label title="Locked" text="Yes" />}
+          {discussion.pinned ? <List.Item.Detail.Metadata.Label title="Pinned" text="Yes" /> : null}
+          {discussion.locked ? <List.Item.Detail.Metadata.Label title="Locked" text="Yes" /> : null}
         </List.Item.Detail.Metadata>
       }
     />
