@@ -1,0 +1,163 @@
+import type {
+  AddonModAssignGetAssignmentsWSParams,
+  AddonModAssignGetAssignmentsWSResponse,
+  AddonModAssignGetSubmissionStatusWSParams,
+  AddonModAssignGetSubmissionStatusWSResponse,
+} from "./assign";
+import type {
+  AddonModAttendanceGetCoursesWithTodaySessionsWSParams,
+  AddonModAttendanceGetCoursesWithTodaySessionsWSResponse,
+  AddonModAttendanceGetSessionWSParams,
+  AddonModAttendanceGetSessionWSResponse,
+  AddonModAttendanceGetSessionsWSParams,
+  AddonModAttendanceGetSessionsWSResponse,
+  AddonModAttendanceMobileViewActivityWSParams,
+  AddonModAttendanceMobileViewActivityWSResponse,
+  AddonModAttendanceUpdateUserStatusWSParams,
+  AddonModAttendanceUpdateUserStatusWSResponse,
+} from "./attendance";
+import type {
+  AddonModChatGetChatLatestMessagesWSParams,
+  AddonModChatGetChatLatestMessagesWSResponse,
+  AddonModChatGetChatsByCoursesWSParams,
+  AddonModChatGetChatsByCoursesWSResponse,
+  AddonModChatGetSessionMessagesWSParams,
+  AddonModChatGetSessionMessagesWSResponse,
+  AddonModChatGetSessionsWSParams,
+  AddonModChatGetSessionsWSResponse,
+  AddonModChatLoginUserWSParams,
+  AddonModChatLoginUserWSResponse,
+  AddonModChatSendChatMessageWSParams,
+  AddonModChatSendChatMessageWSResponse,
+} from "./chat";
+import type {
+  AddonModChoiceDeleteChoiceResponsesWSParams,
+  AddonModChoiceDeleteChoiceResponsesWSResponse,
+  AddonModChoiceGetChoiceOptionsWSParams,
+  AddonModChoiceGetChoiceOptionsWSResponse,
+  AddonModChoiceGetChoiceResultsWSParams,
+  AddonModChoiceGetChoiceResultsWSResponse,
+  AddonModChoiceGetChoicesByCoursesWSParams,
+  AddonModChoiceGetChoicesByCoursesWSResponse,
+  AddonModChoiceSubmitChoiceResponseWSParams,
+  AddonModChoiceSubmitChoiceResponseWSResponse,
+} from "./choice";
+import type { CoreCommentsGetCommentsWSParams, CoreCommentsGetCommentsWSResponse } from "./comment";
+import { CoreCourseGetContentsParams, CoreCourseGetContentsWSResponse } from "./contents";
+import type { CoreEnrolGetUsersCoursesWSParams, CoreEnrolGetUsersCoursesWSResponse } from "./course";
+import type {
+  AddonModForumGetDiscussionPostsWSParams,
+  AddonModForumGetDiscussionPostsWSResponse,
+  AddonModForumGetForumDiscussionsWSParams,
+  AddonModForumGetForumDiscussionsWSResponse,
+  AddonModForumGetForumsByCoursesWSParams,
+  AddonModForumGetForumsByCoursesWSResponse,
+} from "./forum";
+import type {
+  CoreGradesGetOverviewCourseGradesWSParams,
+  CoreGradesGetOverviewCourseGradesWSResponse,
+  CoreGradesGetUserAccessInformationWSParams,
+  CoreGradesGetUserAccessInformationWSResponse,
+  CoreGradesGetUserGradesTableWSParams,
+  CoreGradesGetUserGradesTableWSResponse,
+} from "./grade";
+import type {
+  AddonModH5pactivityGetAttemptsWSParams,
+  AddonModH5pactivityGetAttemptsWSResponse,
+  AddonModH5pactivityGetByCoursesWSParams,
+  AddonModH5pactivityGetByCoursesWSResponse,
+  AddonModH5pactivityGetH5pactivityAccessInformationWSParams,
+  AddonModH5pactivityGetH5pactivityAccessInformationWSResponse,
+} from "./h5pactivity";
+import type {
+  AddonModQuizGetQuizAccessInformationWSParams,
+  AddonModQuizGetQuizAccessInformationWSResponse,
+  AddonModQuizGetQuizFeedbackForGradeWSParams,
+  AddonModQuizGetQuizFeedbackForGradeWSResponse,
+  AddonModQuizGetQuizzesByCoursesWSParams,
+  AddonModQuizGetQuizzesByCoursesWSResponse,
+  AddonModQuizGetUserAttemptsWSParams,
+  AddonModQuizGetUserAttemptsWSResponse,
+  AddonModQuizGetUserBestGradeWSParams,
+  AddonModQuizGetUserBestGradeWSResponse,
+  AddonModQuizStartAttemptWSParams,
+  AddonModQuizStartAttemptWSResponse,
+} from "./quiz";
+
+export type WSResponseMap = {
+  core_enrol_get_users_courses: CoreEnrolGetUsersCoursesWSResponse;
+  core_comment_get_comments: CoreCommentsGetCommentsWSResponse;
+  gradereport_user_get_grades_table: CoreGradesGetUserGradesTableWSResponse;
+  gradereport_overview_get_course_grades: CoreGradesGetOverviewCourseGradesWSResponse;
+  gradereport_user_get_access_information: CoreGradesGetUserAccessInformationWSResponse;
+  mod_attendance_get_courses_with_today_sessions: AddonModAttendanceGetCoursesWithTodaySessionsWSResponse;
+  mod_attendance_mobile_view_activity: AddonModAttendanceMobileViewActivityWSResponse;
+  mod_attendance_get_session: AddonModAttendanceGetSessionWSResponse;
+  mod_attendance_get_sessions: AddonModAttendanceGetSessionsWSResponse;
+  mod_attendance_update_user_status: AddonModAttendanceUpdateUserStatusWSResponse;
+  mod_assign_get_submission_status: AddonModAssignGetSubmissionStatusWSResponse;
+  mod_assign_get_assignments: AddonModAssignGetAssignmentsWSResponse;
+  mod_chat_get_chats_by_courses: AddonModChatGetChatsByCoursesWSResponse;
+  mod_chat_login_user: AddonModChatLoginUserWSResponse;
+  mod_chat_get_chat_latest_messages: AddonModChatGetChatLatestMessagesWSResponse;
+  mod_chat_send_chat_message: AddonModChatSendChatMessageWSResponse;
+  mod_chat_get_sessions: AddonModChatGetSessionsWSResponse;
+  mod_chat_get_session_messages: AddonModChatGetSessionMessagesWSResponse;
+  mod_choice_get_choices_by_courses: AddonModChoiceGetChoicesByCoursesWSResponse;
+  mod_choice_get_choice_options: AddonModChoiceGetChoiceOptionsWSResponse;
+  mod_choice_get_choice_results: AddonModChoiceGetChoiceResultsWSResponse;
+  mod_choice_submit_choice_response: AddonModChoiceSubmitChoiceResponseWSResponse;
+  mod_choice_delete_choice_responses: AddonModChoiceDeleteChoiceResponsesWSResponse;
+  mod_forum_get_forums_by_courses: AddonModForumGetForumsByCoursesWSResponse;
+  mod_forum_get_forum_discussions: AddonModForumGetForumDiscussionsWSResponse;
+  mod_forum_get_discussion_posts: AddonModForumGetDiscussionPostsWSResponse;
+  mod_h5pactivity_get_h5pactivities_by_courses: AddonModH5pactivityGetByCoursesWSResponse;
+  mod_h5pactivity_get_h5pactivity_access_information: AddonModH5pactivityGetH5pactivityAccessInformationWSResponse;
+  mod_h5pactivity_get_attempts: AddonModH5pactivityGetAttemptsWSResponse;
+  mod_quiz_get_quizzes_by_courses: AddonModQuizGetQuizzesByCoursesWSResponse;
+  mod_quiz_get_quiz_access_information: AddonModQuizGetQuizAccessInformationWSResponse;
+  mod_quiz_start_attempt: AddonModQuizStartAttemptWSResponse;
+  mod_quiz_get_user_best_grade: AddonModQuizGetUserBestGradeWSResponse;
+  mod_quiz_get_user_attempts: AddonModQuizGetUserAttemptsWSResponse;
+  mod_quiz_get_quiz_feedback_for_grade: AddonModQuizGetQuizFeedbackForGradeWSResponse;
+  core_course_get_contents: CoreCourseGetContentsWSResponse;
+};
+
+export type WSParamsMap = {
+  core_enrol_get_users_courses: CoreEnrolGetUsersCoursesWSParams;
+  core_comment_get_comments: CoreCommentsGetCommentsWSParams;
+  gradereport_user_get_grades_table: CoreGradesGetUserGradesTableWSParams;
+  gradereport_overview_get_course_grades: CoreGradesGetOverviewCourseGradesWSParams;
+  gradereport_user_get_access_information: CoreGradesGetUserAccessInformationWSParams;
+  mod_attendance_get_courses_with_today_sessions: AddonModAttendanceGetCoursesWithTodaySessionsWSParams;
+  mod_attendance_mobile_view_activity: AddonModAttendanceMobileViewActivityWSParams;
+  mod_attendance_get_session: AddonModAttendanceGetSessionWSParams;
+  mod_attendance_get_sessions: AddonModAttendanceGetSessionsWSParams;
+  mod_attendance_update_user_status: AddonModAttendanceUpdateUserStatusWSParams;
+  mod_assign_get_submission_status: AddonModAssignGetSubmissionStatusWSParams;
+  mod_assign_get_assignments: AddonModAssignGetAssignmentsWSParams;
+  mod_chat_get_chats_by_courses: AddonModChatGetChatsByCoursesWSParams;
+  mod_chat_login_user: AddonModChatLoginUserWSParams;
+  mod_chat_get_chat_latest_messages: AddonModChatGetChatLatestMessagesWSParams;
+  mod_chat_send_chat_message: AddonModChatSendChatMessageWSParams;
+  mod_chat_get_sessions: AddonModChatGetSessionsWSParams;
+  mod_chat_get_session_messages: AddonModChatGetSessionMessagesWSParams;
+  mod_choice_get_choices_by_courses: AddonModChoiceGetChoicesByCoursesWSParams;
+  mod_choice_get_choice_options: AddonModChoiceGetChoiceOptionsWSParams;
+  mod_choice_get_choice_results: AddonModChoiceGetChoiceResultsWSParams;
+  mod_choice_submit_choice_response: AddonModChoiceSubmitChoiceResponseWSParams;
+  mod_choice_delete_choice_responses: AddonModChoiceDeleteChoiceResponsesWSParams;
+  mod_forum_get_forums_by_courses: AddonModForumGetForumsByCoursesWSParams;
+  mod_forum_get_forum_discussions: AddonModForumGetForumDiscussionsWSParams;
+  mod_forum_get_discussion_posts: AddonModForumGetDiscussionPostsWSParams;
+  mod_h5pactivity_get_h5pactivities_by_courses: AddonModH5pactivityGetByCoursesWSParams;
+  mod_h5pactivity_get_h5pactivity_access_information: AddonModH5pactivityGetH5pactivityAccessInformationWSParams;
+  mod_h5pactivity_get_attempts: AddonModH5pactivityGetAttemptsWSParams;
+  mod_quiz_get_quizzes_by_courses: AddonModQuizGetQuizzesByCoursesWSParams;
+  mod_quiz_get_quiz_access_information: AddonModQuizGetQuizAccessInformationWSParams;
+  mod_quiz_start_attempt: AddonModQuizStartAttemptWSParams;
+  mod_quiz_get_user_best_grade: AddonModQuizGetUserBestGradeWSParams;
+  mod_quiz_get_user_attempts: AddonModQuizGetUserAttemptsWSParams;
+  mod_quiz_get_quiz_feedback_for_grade: AddonModQuizGetQuizFeedbackForGradeWSParams;
+  core_course_get_contents: CoreCourseGetContentsParams;
+};

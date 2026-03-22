@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+/.expo
+*.tsbuildinfo
 
 # Raycast specific files
 raycast-env.d.ts
@@ -14,3 +16,4 @@ compiled_raycast_swift
 tmp
 .idea
 bun.lock
+tests

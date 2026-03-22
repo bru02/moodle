@@ -1,0 +1,148 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "moodle",
+  "title": "Moodle",
+  "description": "Quickly access resources on Moodle",
+  "icon": "assets/icon.png",
+  "author": "slmnbruno",
+  "categories": [
+    "Productivity"
+  ],
+  "platforms": [
+    "macOS",
+    "Windows"
+  ],
+  "owner": "bce",
+  "license": "MIT",
+  "commands": [
+    {
+      "name": "search-courses",
+      "title": "Search Courses",
+      "description": "Browse your courses by semester",
+      "mode": "view"
+    }
+  ],
+  "external": [
+    "@llamaindex/liteparse"
+  ],
+  "dependencies": {
+    "@moodle/core": "workspace:*",
+    "@ai-sdk/google": "3.0.43",
+    "@bwat47/turndown-plugin-gfm": "^1.0.5",
+    "@llamaindex/liteparse": "^1.0.1",
+    "@mixmark-io/domino": "^2.2.0",
+    "@raycast/api": "^1.104.9",
+    "@raycast/utils": "^2.2.3",
+    "@tanstack/query-persist-client-core": "5.92.1",
+    "@tanstack/react-query": "^5.90.21",
+    "ai": "6.0.116",
+    "ai-sdk-provider-gemini-cli": "^2.0.1",
+    "date-fns": "^4.1.0",
+    "exceljs": "4.4.0",
+    "html-entities": "^2.6.0",
+    "mac-system-proxy": "1.0.4",
+    "react": "19.2.4",
+    "sanitize-filename-ts": "^1.0.2",
+    "turndown": "^7.2.2",
+    "zod": "4.3.6",
+    "zustand": "^5.0.11"
+  },
+  "devDependencies": {
+    "@raycast/eslint-plugin": "^2.1.1",
+    "@tanstack/eslint-plugin-query": "^5.91.4",
+    "@types/node": "22.13.10",
+    "@types/react": "19.2.14",
+    "@types/turndown": "^5.0.6",
+    "oxfmt": "^0.40.0",
+    "oxlint": "^1.55.0",
+    "tsx": "4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "build": "ray build",
+    "check": "bun run lint && bun run format:check && bun run test",
+    "dev": "ray develop | grep -vF '[0m'",
+    "fix-lint": "oxlint src tests --config ../../.oxlintrc.json --fix --fix-suggestions && oxfmt --write package.json tsconfig.json src tests",
+    "format": "oxfmt --write package.json tsconfig.json src tests",
+    "format:check": "oxfmt --check package.json tsconfig.json src tests",
+    "lint": "oxlint src tests --config ../../.oxlintrc.json --deny-warnings",
+    "prettier": "bun run format",
+    "prepublishOnly": "echo \"\\n\\nIt seems like you are trying to publish the Raycast extension to npm.\\n\\nIf you did intend to publish it to npm, remove the \\`prepublishOnly\\` script and rerun \\`npm publish\\` again.\\nIf you wanted to publish it to the Raycast Store instead, use \\`npm run publish\\` instead.\\n\\n\" && exit 1",
+    "publish": "ray publish",
+    "syllabus:analyze": "tsx src/syllabus-analysis/cli.ts",
+    "syllabus:audit": "tsx src/syllabus-analysis/audit.ts",
+    "test": "tsx --test src/**/*.test.ts tests/**/*.test.ts",
+    "test:grade-pipeline": "tsx tests/grade-view/grade-view-pipeline.ts"
+  },
+  "preferences": [
+    {
+      "name": "site_url",
+      "title": "Moodle site url",
+      "description": "eg. https://moodle.uni-corvinus.hu",
+      "type": "textfield",
+      "required": true
+    },
+    {
+      "name": "username",
+      "title": "Username",
+      "description": "eg. sigma",
+      "type": "textfield",
+      "required": false
+    },
+    {
+      "name": "password",
+      "title": "Password",
+      "description": "eg. sigma",
+      "type": "password",
+      "required": false
+    },
+    {
+      "name": "sync_folder",
+      "title": "Sync Folder",
+      "description": "Leave empty to disable sync",
+      "type": "directory",
+      "required": false
+    },
+    {
+      "name": "sync_max_size",
+      "title": "Maximum Sync Filesize",
+      "description": "Files larger than the selected option will not be downloaded",
+      "type": "dropdown",
+      "data": [
+        {
+          "title": "50 Mb",
+          "value": "50"
+        },
+        {
+          "title": "100 Mb",
+          "value": "100"
+        },
+        {
+          "title": "200 Mb",
+          "value": "200"
+        },
+        {
+          "title": "No limit",
+          "value": "0"
+        }
+      ],
+      "required": false,
+      "default": "50"
+    },
+    {
+      "name": "merge_similar_courses",
+      "label": "Merge Lecture & Seminar",
+      "description": "Shows courses with similar names as one",
+      "type": "checkbox",
+      "default": false,
+      "required": false
+    },
+    {
+      "name": "gemini_api_key",
+      "title": "Gemini API Key",
+      "description": "Used for syllabus parsing through Gemini",
+      "type": "password",
+      "required": false
+    }
+  ]
+}
