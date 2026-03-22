@@ -1,5 +1,6 @@
 import { Action, ActionPanel, Color, Form, Icon, List, Toast, showToast, useNavigation } from "@raycast/api";
 import { memo, useContext, useMemo, useState } from "react";
+
 import CompletionAction from "../components/CompletionAction";
 import DatesDetail from "../components/DatesDetail";
 import { OpenInBrowserAction, openInBrowserWithAuth } from "../components/OpenInBrowserAction";
@@ -34,6 +35,7 @@ function QuizListItem({ module }: { module: Module }) {
   const gradeText = gradeTextByModuleId.get(module.id);
 
   const currentQuiz = data?.quizzes.find((quiz) => quiz.id === module.instance || quiz.coursemodule === module.id);
+  const { data: accessInfo } = useWSQuery("mod_quiz_get_quiz_access_information", { quizid: module.instance });
 
   if (!currentQuiz) {
     return <DefaultListItem module={module} />;
@@ -48,12 +50,18 @@ function QuizListItem({ module }: { module: Module }) {
           isLoading={isPending}
           module={module}
           attempts={attemptsData?.attempts}
+          accessInfo={accessInfo}
         />
       }
-      accessories={getQuizAccessories({ gradeText, attempts: attemptsData?.attempts })}
+      accessories={getQuizAccessories({ gradeText, attempts: attemptsData?.attempts, quiz: currentQuiz, accessInfo })}
       actions={
         <ActionPanel>
-          <StartQuizAction module={module} quiz={currentQuiz} attempts={attemptsData?.attempts} />
+          <StartQuizAction
+            module={module}
+            quiz={currentQuiz}
+            attempts={attemptsData?.attempts}
+            accessInfo={accessInfo}
+          />
           <Action.Push
             title="View Attempts"
             icon={Icon.List}
@@ -78,13 +86,14 @@ function StartQuizAction({
   module,
   quiz,
   attempts,
+  accessInfo,
 }: {
   module: Module;
   quiz: AddonModQuizQuizWSData;
   attempts: AddonModQuizAttemptWSData[] | undefined;
+  accessInfo: AddonModQuizGetQuizAccessInformationWSResponse | undefined;
 }) {
   const { push } = useNavigation();
-  const { data: accessInfo } = useWSQuery("mod_quiz_get_quiz_access_information", { quizid: quiz.id });
   const lastAttempt = useMemo(() => getLastAttempt(attempts), [attempts]);
   const shouldContinueAttempt = isAttemptInProgress(lastAttempt);
 
@@ -137,14 +146,15 @@ function QuizListItemDetail({
   isLoading,
   module,
   attempts,
+  accessInfo,
 }: {
   quiz: AddonModQuizQuizWSData;
   isLoading: boolean;
   module: Module;
   attempts: AddonModQuizAttemptWSData[] | undefined;
+  accessInfo: AddonModQuizGetQuizAccessInformationWSResponse | undefined;
 }) {
   const { data: bestGradeData } = useWSQuery("mod_quiz_get_user_best_grade", { quizid: quiz.id });
-  const { data: accessInfo } = useWSQuery("mod_quiz_get_quiz_access_information", { quizid: quiz.id });
 
   const lastAttempt = useMemo(() => getLastAttempt(attempts), [attempts]);
   const attemptsLimit = formatAttemptsLimit(quiz.attempts);
@@ -326,9 +336,13 @@ function getAttemptAccessories(
 function getQuizAccessories({
   gradeText,
   attempts,
+  quiz,
+  accessInfo,
 }: {
   gradeText?: string;
   attempts: AddonModQuizAttemptWSData[] | undefined;
+  quiz: AddonModQuizQuizWSData;
+  accessInfo: AddonModQuizGetQuizAccessInformationWSResponse | undefined;
 }): List.Item.Accessory[] {
   if (gradeText) {
     return [{ text: gradeText, tooltip: "Grade" }];
@@ -336,10 +350,59 @@ function getQuizAccessories({
 
   const lastAttempt = getLastAttempt(attempts);
   if (!lastAttempt?.state) {
-    return [{ text: "Open", tooltip: "No attempts yet" }];
+    return [{ text: getQuizAvailabilityAccessoryText(quiz, accessInfo), tooltip: "Availability" }];
   }
 
   return [{ text: getCompactAttemptState(lastAttempt.state), tooltip: "Attempt status" }];
+}
+
+function getQuizAvailabilityState(
+  quiz: Pick<AddonModQuizQuizWSData, "timeopen" | "timeclose">,
+  accessInfo?: Pick<
+    AddonModQuizGetQuizAccessInformationWSResponse,
+    "canattempt" | "canpreview" | "preventaccessreasons"
+  >,
+  timestamp = Math.floor(Date.now() / 1000),
+) {
+  if (quiz.timeclose && timestamp > quiz.timeclose) {
+    return "closed";
+  }
+
+  if (quiz.timeopen && timestamp < quiz.timeopen) {
+    return "pending";
+  }
+
+  if (accessInfo && !accessInfo.canattempt && !accessInfo.canpreview && hasPendingOpenDateRestriction(accessInfo)) {
+    return "pending";
+  }
+
+  return "open";
+}
+
+function getQuizAvailabilityAccessoryText(
+  quiz: Pick<AddonModQuizQuizWSData, "timeopen" | "timeclose">,
+  accessInfo?: Pick<
+    AddonModQuizGetQuizAccessInformationWSResponse,
+    "canattempt" | "canpreview" | "preventaccessreasons"
+  >,
+) {
+  switch (getQuizAvailabilityState(quiz, accessInfo)) {
+    case "closed":
+      return { value: "Closed", color: Color.Red };
+    case "pending":
+      return { value: "Pending", color: Color.Orange };
+    case "open":
+    default:
+      return { value: "Open", color: Color.Blue };
+  }
+}
+
+function hasPendingOpenDateRestriction(
+  accessInfo: Pick<AddonModQuizGetQuizAccessInformationWSResponse, "preventaccessreasons">,
+) {
+  return accessInfo.preventaccessreasons.some((reason) =>
+    /not open|not available yet|not available until|available from|opens?/i.test(reason),
+  );
 }
 
 function formatTimeLimit(seconds: number) {
