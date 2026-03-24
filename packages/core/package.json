@@ -8,7 +8,8 @@
     "fix-lint": "oxlint src --config ../../.oxlintrc.json --fix --fix-suggestions && oxfmt --write package.json tsconfig.json src",
     "format": "oxfmt --write package.json tsconfig.json src",
     "format:check": "oxfmt --check package.json tsconfig.json src",
-    "lint": "oxlint src --config ../../.oxlintrc.json --deny-warnings"
+    "lint": "oxlint src --config ../../.oxlintrc.json --deny-warnings",
+    "test": "bun test src/**/*.test.ts"
   },
   "dependencies": {
     "@mixmark-io/domino": "^2.2.0",

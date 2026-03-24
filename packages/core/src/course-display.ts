@@ -56,7 +56,7 @@ export function buildCourseDisplayLayout(
         return false;
       }),
     )
-    .toSorted(compareSurfacedModules);
+    .sort(compareSurfacedModules);
 
   const nextSections = sections
     .map((section, index) => ({
@@ -73,7 +73,7 @@ export function buildCourseDisplayLayout(
       index: entry.index,
       sectionNumber: entry.section.section ?? -1,
     }))
-    .toSorted((left, right) => compareSections(left, right));
+    .sort((left, right) => compareSections(left, right));
 
   return {
     surfacedModules,

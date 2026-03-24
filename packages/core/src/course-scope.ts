@@ -1,4 +1,7 @@
-import type { CourseScope, SimpleCourse } from "./course-types";
+import type { CourseScope, MoodleCourseLike, SimpleCourse } from "./course-types";
+import { filterCoursesBySemester, listCourseSemesters, pickPreferredSemester, toSimpleCourse } from "./course-types";
+
+type MoodleWSRequester = <T>(service: string, requestParams?: Record<string, unknown>) => Promise<T>;
 
 export function buildCourseScopes(courses: readonly SimpleCourse[], merge = true): CourseScope[] {
   if (!merge) return courses.map((course) => makeScope([course]));
@@ -27,6 +30,53 @@ export function buildCourseScopes(courses: readonly SimpleCourse[], merge = true
 
 export function findScopeByCourseId(scopes: readonly CourseScope[], courseId: number) {
   return scopes.find((scope) => scope.courseIds.includes(courseId));
+}
+
+export function listCourses(input: {
+  courses: readonly SimpleCourse[];
+  merge?: boolean;
+  semester?: string | "all" | null;
+}) {
+  const semesters = listCourseSemesters(input.courses);
+  const selectedSemester = input.semester === "all" ? "all" : pickPreferredSemester(input.courses, input.semester ?? undefined);
+  const filteredCourses = filterCoursesBySemester(input.courses, selectedSemester);
+
+  return {
+    semesters,
+    selectedSemester: selectedSemester ?? "all",
+    filteredCourses,
+    scopes: buildCourseScopes(filteredCourses, input.merge ?? true),
+  };
+}
+
+export async function fetchCourseCatalog(input: {
+  requestWS: MoodleWSRequester;
+  userId: number;
+  merge?: boolean;
+  semester?: string | "all" | null;
+}) {
+  const courseRows = await input.requestWS<MoodleCourseLike[]>("core_enrol_get_users_courses", {
+    userid: input.userId,
+    returnusercount: false,
+  });
+
+  const courses = courseRows
+    .map(toSimpleCourse)
+    .slice()
+    .sort((left, right) => right.timemodified - left.timemodified || left.displayname.localeCompare(right.displayname));
+  const listed = listCourses({
+    courses,
+    merge: input.merge,
+    semester: input.semester,
+  });
+
+  return {
+    courses,
+    semesters: listed.semesters,
+    selectedSemester: listed.selectedSemester,
+    filteredCourses: listed.filteredCourses,
+    scopes: listed.scopes,
+  };
 }
 
 function makeScope(group: readonly SimpleCourse[]): CourseScope {

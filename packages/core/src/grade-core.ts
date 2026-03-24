@@ -1,4 +1,5 @@
 import type { CoreGradesGetUserGradesTableWSResponse, CoreGradesTableRow } from "./grade-types";
+import { cleanMoodleHtml } from "./utils";
 
 type GradeCoreOptions = {
   siteUrl: string;
@@ -110,13 +111,7 @@ function cleanField(value: string | undefined): string | undefined {
 }
 
 function stripHtml(html: string) {
-  return html
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .trim();
+  return cleanMoodleHtml(html);
 }
 
 function isPlaceholder(value: string) {

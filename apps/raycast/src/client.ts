@@ -1,12 +1,14 @@
-import { AuthError, buildMoodleWSUrl, getMoodleErrorCode, getMoodleErrorMessage } from "@moodle/core";
+import {
+  AuthError,
+  authenticateWithCredentials,
+  authenticateWithQrLogin,
+  type MoodleSession,
+} from "@moodle/core";
 import { Cache, LocalStorage } from "@raycast/api";
 
 import { isQrAuth, preferences, siteOrigin, siteUrl } from "./helpers/preferences";
 
-interface User {
-  token: string;
-  privateToken?: string;
-  accessKey: string;
+export interface User extends MoodleSession {
   id: number;
   username?: string;
   fullname?: string;
@@ -16,81 +18,34 @@ const cache = new Cache({ namespace: "user" });
 let user: User | null = null;
 let userPromise: Promise<User> | null = null;
 
-type TokenResponse = { token?: string; privatetoken?: string };
-
-async function login(): Promise<{ token: string; privatetoken?: string }> {
+async function authenticate(): Promise<User> {
   if (isQrAuth) {
-    const resp = await fetch(
-      `${siteOrigin}/lib/ajax/service-nologin.php?info=tool_mobile_get_tokens_for_qr_login&lang=en`,
-      {
-        method: "POST",
-        body: JSON.stringify([
-          {
-            index: 0,
-            methodname: "tool_mobile_get_tokens_for_qr_login",
-            args: { qrloginkey: siteUrl.searchParams.get("qrlogin"), userid: siteUrl.searchParams.get("userid") },
-          },
-        ]),
-        headers: { "Content-Type": "application/json", "User-Agent": "MoodleMobile" },
-      },
-    );
-    const json = (await resp.json()) as TokenResponse | { data?: TokenResponse }[];
-    const data = Array.isArray(json) ? json[0]?.data : json;
-    if (!data?.token)
-      throw new AuthError(getMoodleErrorMessage(data) ?? "QR login failed", { code: getMoodleErrorCode(data) });
-    return { token: data.token, privatetoken: data.privatetoken };
+    const session = await authenticateWithQrLogin({
+      siteOrigin,
+      qrLoginKey: siteUrl.searchParams.get("qrlogin") ?? "",
+      userId: siteUrl.searchParams.get("userid") ?? "",
+    });
+    return mapSessionToUser(session);
   }
 
   if (!preferences.username || !preferences.password) {
     throw new AuthError("Missing username or password in preferences", { code: "missing_credentials" });
   }
 
-  const resp = await fetch(`${siteOrigin}/login/token.php?lang=en`, {
-    method: "POST",
-    body: new URLSearchParams({
-      username: preferences.username,
-      password: preferences.password,
-      service: "moodle_mobile_app",
-    }),
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+  const session = await authenticateWithCredentials({
+    siteOrigin,
+    username: preferences.username,
+    password: preferences.password,
   });
-  const data = (await resp.json()) as TokenResponse;
-  if (!data?.token)
-    throw new AuthError(getMoodleErrorMessage(data) ?? "Login failed", { code: getMoodleErrorCode(data) });
-  return { token: data.token, privatetoken: data.privatetoken };
+  return mapSessionToUser(session);
 }
 
-type SiteInfoResponse = {
-  userid?: number;
-  userprivateaccesskey?: string;
-  username?: string;
-  fullname?: string;
-  message?: string;
-};
-
-async function fetchSiteInfo(token: string): Promise<SiteInfoResponse> {
-  const resp = await fetch(
-    buildMoodleWSUrl({
-      siteOrigin,
-      service: "core_webservice_get_site_info",
-      token,
-    }),
-  );
-  const json = (await resp.json()) as SiteInfoResponse;
-  if (json.message) throw new AuthError(json.message, { code: "site_info_failed" });
-  return json;
-}
-
-async function authenticate(): Promise<User> {
-  const { token, privatetoken } = await login();
-  const siteInfo = await fetchSiteInfo(token);
+function mapSessionToUser(session: MoodleSession): User {
   return {
-    token,
-    privateToken: privatetoken,
-    id: siteInfo.userid ?? 0,
-    accessKey: siteInfo.userprivateaccesskey ?? "",
-    username: siteInfo.username,
-    fullname: siteInfo.fullname,
+    ...session,
+    id: session.account.userId,
+    username: session.account.username,
+    fullname: session.account.fullname,
   };
 }
 
@@ -105,7 +60,7 @@ async function loadUser(): Promise<User> {
   const cached = cache.get("userData");
   if (cached) {
     try {
-      user = JSON.parse(cached);
+      user = JSON.parse(cached) as User;
     } catch {
       /* ignore */
     }
@@ -114,7 +69,7 @@ async function loadUser(): Promise<User> {
   const stored = await LocalStorage.getItem<string>("userData");
   if (stored) {
     try {
-      user = JSON.parse(stored);
+      user = JSON.parse(stored) as User;
     } catch {
       /* ignore */
     }

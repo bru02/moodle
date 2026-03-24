@@ -7,7 +7,8 @@ import type {
   ScopedRenderedSection,
 } from "./course-content-types";
 import type { CourseScope, SimpleCourse } from "./course-types";
-import { stripHTML } from "./utils";
+import { buildCourseDisplayLayout } from "./course-display";
+import { cleanMoodleText, stripHTML } from "./utils";
 
 const EMPTY_CONTENT: CoreCourseGetContentsWSSection[] = [];
 
@@ -39,12 +40,16 @@ export function buildScopedSections(
 
     return regroupCourseContent(content || EMPTY_CONTENT).map((section) => ({
       ...section,
+      name: cleanMoodleText(section.name),
       id: `${courseId}:${section.id}`,
       modules: section.modules.map((module) => ({
         id: `${courseId}:${module.id}`,
-        module,
+        module: {
+          ...module,
+          name: cleanMoodleText(module.name),
+        },
         course,
-        sectionName: section.name,
+        sectionName: cleanMoodleText(section.name),
       })),
     }));
   });
@@ -105,7 +110,7 @@ export function regroupCourseContent(content: readonly CoreCourseGetContentsWSSe
           carry.modules = [];
           carry.id = module.id;
           carry.name = text.length > 50 ? `${text.slice(0, 50).trimEnd()}...` : text;
-          carry.subtitle = section.name;
+          carry.subtitle = cleanMoodleText(section.name);
           continue;
         }
       }
@@ -135,4 +140,22 @@ export function regroupCourseContentByVisibleModules(
   }
 
   return nextContent;
+}
+
+export function listCourseContents(input: {
+  scope: CourseScope;
+  contentRows: readonly (CoreCourseGetContentsWSResponse | undefined)[] | undefined;
+  now?: number;
+  dismissedRecentItemIds?: ReadonlySet<string>;
+}) {
+  const scopedSections = buildScopedSections(input.scope, input.contentRows);
+  const displayLayout = buildCourseDisplayLayout(input.scope, scopedSections, {
+    now: input.now,
+    dismissedRecentItemIds: input.dismissedRecentItemIds,
+  });
+
+  return {
+    scopedSections,
+    displayLayout,
+  };
 }

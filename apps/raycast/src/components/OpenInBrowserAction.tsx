@@ -1,51 +1,45 @@
+import { buildAuthenticatedOpenUrl, buildExternalOpenUrl } from "@moodle/core";
 import { Action, Icon, LocalStorage, open } from "@raycast/api";
 
 import { getUser } from "../client";
-import { getUrlForService, shortcut } from "../helpers";
-import { handleFileUrl } from "../helpers/files";
+import { shortcut } from "../helpers";
 import { siteOrigin } from "../helpers/preferences";
-import { CoreWSExternalWarning } from "../types";
 
 let timestamp: string | undefined;
-
-function withSemesterParam(url: string): string {
-  const parsed = new URL(url);
-  parsed.searchParams.set("semester", "-1");
-  return parsed.toString();
-}
 
 export async function openInBrowserWithAuth(url: string, onOpen?: () => void) {
   const user = await getUser();
   const { token, privateToken, id } = user;
   const direct = async (u = url) => (await open(u), onOpen?.());
 
-  if (new URL(url).origin !== siteOrigin) return direct();
+  const externalUrl = buildExternalOpenUrl({
+    url,
+    siteOrigin,
+    accessKey: user.accessKey,
+  });
 
-  if (url.includes("/pluginfile.php")) return direct(handleFileUrl(url));
-
-  url = withSemesterParam(url);
+  if (new URL(externalUrl).origin !== siteOrigin) return direct(externalUrl);
+  if (externalUrl.includes("/pluginfile.php") || externalUrl.includes("/tokenpluginfile.php/")) return direct(externalUrl);
 
   timestamp ??= (await LocalStorage.getItem<string>("lastAutoLoginTimestamp")) ?? undefined;
   const lastLogin = timestamp ? Number(timestamp) : NaN;
   const recentlyLoggedIn = Number.isFinite(lastLogin) && lastLogin + 6 * 60000 >= Date.now();
 
-  if (recentlyLoggedIn || !privateToken) return direct();
+  const authenticatedUrl = await buildAuthenticatedOpenUrl({
+    siteOrigin,
+    token,
+    privateToken,
+    userId: id,
+    destinationUrl: externalUrl,
+    lastAutoLoginAt: recentlyLoggedIn ? lastLogin : undefined,
+  });
 
-  return fetch(getUrlForService("tool_mobile_get_autologin_key", token), {
-    method: "POST",
-    headers: { "User-Agent": "MoodleMobile", "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ privatetoken: privateToken }),
-  })
-    .then((r) => (r.ok ? (r.json() as Promise<CoreSiteAutologinKeyResult>) : Promise.reject()))
-    .then(async (d) => {
-      if (!d?.autologinurl || !d?.key) return direct();
+  if (authenticatedUrl !== externalUrl) {
+    timestamp = Date.now().toString();
+    await LocalStorage.setItem("lastAutoLoginTimestamp", timestamp);
+  }
 
-      direct(`${d.autologinurl}?${new URLSearchParams({ key: d.key, userid: id.toString(), urltogo: url })}`);
-
-      timestamp = Date.now().toString();
-      await LocalStorage.setItem("lastAutoLoginTimestamp", timestamp);
-    })
-    .catch(() => direct());
+  return await direct(authenticatedUrl);
 }
 
 export function OpenInBrowserAction({
@@ -70,12 +64,3 @@ export function OpenInBrowserAction({
     />
   );
 }
-
-/**
- * Result of WS tool_mobile_get_autologin_key.
- */
-type CoreSiteAutologinKeyResult = {
-  key: string; // Auto-login key for a single usage with time expiration.
-  autologinurl: string; // Auto-login URL.
-  warnings?: CoreWSExternalWarning[];
-};

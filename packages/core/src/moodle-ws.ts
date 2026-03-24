@@ -1,36 +1,21 @@
-type Primitive = string | number | boolean;
+import { executeMoodleWSRequest } from "./request";
 
 export async function callMoodleWS<T>(params: {
   origin: string;
   token: string;
   wsfunction: string;
-  requestParams?: Record<string, Primitive>;
+  requestParams?: Record<string, string | number | boolean>;
 }): Promise<T> {
-  const { origin, token, wsfunction, requestParams = {} } = params;
-  const query = new URLSearchParams({
-    wsfunction,
-    wstoken: token,
-    moodlewssettinglang: "en",
-    moodlewsrestformat: "json",
+  const result = await executeMoodleWSRequest<T>({
+    siteOrigin: params.origin,
+    token: params.token,
+    service: params.wsfunction,
+    requestParams: params.requestParams ?? {},
   });
 
-  for (const [key, value] of Object.entries(requestParams)) {
-    query.set(key, String(value));
+  if (!result.ok) {
+    throw result.error;
   }
 
-  const url = `${origin.replace(/\/$/, "")}/webservice/rest/server.php?${query.toString()}`;
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Request failed for ${wsfunction}: HTTP ${response.status}`);
-  }
-
-  const payload = (await response.json()) as T & {
-    exception?: string;
-    message?: string;
-  };
-  if (payload && typeof payload === "object" && (payload.exception || payload.message)) {
-    throw new Error(`Moodle WS error for ${wsfunction}: ${payload.message || payload.exception}`);
-  }
-
-  return payload;
+  return result.data;
 }

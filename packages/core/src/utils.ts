@@ -3,8 +3,24 @@ import { decode } from "html-entities";
 export type Primitive = string | number | boolean;
 export type RequestParams = Record<string, Primitive>;
 
+const multilang2TagPattern = /{\s*mlang\s+((?:[a-z0-9_-]+)(?:\s*,\s*[a-z0-9_-]+\s*)*)\s*}([\s\S]*?){\s*mlang\s*}/gim;
+
 export function stripHTML(html: string) {
-  return decode(html.replace(/<[^>]+>/g, "")).trim();
+  return cleanMoodleHtml(html);
+}
+
+export function cleanMoodleText(text: string, language = "en") {
+  return decode(selectMoodleLanguage(text, language).replace(/<[^>]+>/g, " "))
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function cleanMoodleHtml(html: string, language = "en") {
+  return decode(selectMoodleLanguage(html, language).replace(/<[^>]+>/g, " "))
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function buildMoodleWSUrl(params: {
@@ -14,7 +30,8 @@ export function buildMoodleWSUrl(params: {
   requestParams?: Record<string, Primitive>;
 }) {
   const { siteOrigin, service, token, requestParams = {} } = params;
-  return `${siteOrigin}/webservice/rest/server.php?${new URLSearchParams({
+  const origin = siteOrigin.replace(/\/$/, "");
+  return `${origin}/webservice/rest/server.php?${new URLSearchParams({
     wsfunction: service,
     ...requestParams,
     wstoken: token,
@@ -25,25 +42,91 @@ export function buildMoodleWSUrl(params: {
 
 export function normalizeRequestParams(input: Record<string, unknown>): RequestParams {
   const output: RequestParams = {};
-
-  for (const [key, value] of Object.entries(input)) {
-    if (value == null) continue;
-
-    if (Array.isArray(value)) {
-      for (let index = 0; index < value.length; index++) {
-        const item = value[index];
-        if (item == null) continue;
-        if (typeof item === "string" || typeof item === "number" || typeof item === "boolean") {
-          output[`${key}[${index}]`] = item;
-        }
-      }
-      continue;
-    }
-
-    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-      output[key] = value;
-    }
-  }
+  appendRequestParams(output, input);
 
   return output;
+}
+
+function appendRequestParams(output: RequestParams, value: unknown, prefix?: string) {
+  if (value == null) {
+    return;
+  }
+
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    if (prefix) {
+      output[prefix] = value;
+    }
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index++) {
+      appendRequestParams(output, value[index], `${prefix ?? ""}[${index}]`);
+    }
+    return;
+  }
+
+  if (typeof value !== "object") {
+    return;
+  }
+
+  for (const [key, nestedValue] of Object.entries(value)) {
+    const nextPrefix = prefix ? `${prefix}[${key}]` : key;
+    appendRequestParams(output, nestedValue, nextPrefix);
+  }
+}
+
+function selectMoodleLanguage(content: string, language: string) {
+  if (!content || content.indexOf("mlang") === -1) {
+    return content;
+  }
+
+  const parentLanguage = getParentLanguage(language);
+  const [currentResult, currentReplacementDone] = replaceMultilang2Blocks(content, language, parentLanguage);
+  if (currentReplacementDone) {
+    return currentResult;
+  }
+
+  const [otherResult] = replaceMultilang2Blocks(content, "other");
+  return otherResult;
+}
+
+function replaceMultilang2Blocks(content: string, replaceLanguage: string, parentLanguage?: string): [string, boolean] {
+  let replacementDone = false;
+  const normalizedTargetLanguage = normalizeLanguage(replaceLanguage);
+  const normalizedParentLanguage = parentLanguage ? normalizeLanguage(parentLanguage) : undefined;
+
+  const replaced = content.replace(multilang2TagPattern, (_, languages: string, blockContent: string) => {
+    const blockLanguages = languages
+      .replace(/\s/g, "")
+      .split(",")
+      .map((language) => normalizeLanguage(language));
+
+    for (const blockLanguage of blockLanguages) {
+      if (
+        blockLanguage === normalizedTargetLanguage ||
+        (normalizedParentLanguage && blockLanguage === normalizedParentLanguage)
+      ) {
+        replacementDone = true;
+        return blockContent;
+      }
+    }
+
+    return "";
+  });
+
+  return [replaced, replacementDone];
+}
+
+function getParentLanguage(language: string): string | undefined {
+  const separatorIndex = language.indexOf("-");
+  if (separatorIndex <= 0) {
+    return undefined;
+  }
+
+  return language.slice(0, separatorIndex);
+}
+
+function normalizeLanguage(language: string): string {
+  return language.replace(/_/g, "-").toLowerCase();
 }

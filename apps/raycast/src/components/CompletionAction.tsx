@@ -1,3 +1,4 @@
+import type { SimpleCourse } from "@moodle/core";
 import { Action, Icon } from "@raycast/api";
 import { useMutation } from "@tanstack/react-query";
 

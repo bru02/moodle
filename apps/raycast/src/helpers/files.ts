@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { ReadStream } from "fs";
 import { join } from "path";
 
-import type { SimpleCourse } from "@moodle/core";
+import { handleMoodleFileUrl as handleMoodleFileUrlCore, type SimpleCourse } from "@moodle/core";
 import { sanitize } from "sanitize-filename-ts";
 
 import { getUserSync } from "../client";
@@ -10,19 +10,11 @@ import { CoreWSExternalFile, FilePath, Module } from "../types";
 import { preferences } from "./preferences";
 
 export function handleFileUrl(url: string) {
-  const accessKey = getUserSync()?.accessKey;
-
-  if (accessKey) {
-    url = url.replace(/(\/webservice)?\/pluginfile\.php/g, `/tokenpluginfile.php/${accessKey}`);
-  }
-
-  url = url.replaceAll("?forcedownload=1", "");
-
-  if (/generated\/course\.svg$/.test(url)) {
-    return `https://tune.toldy.me/svg?u=${encodeURIComponent(url)}`;
-  }
-
-  return url;
+  return handleMoodleFileUrlCore({
+    url,
+    accessKey: getUserSync()?.accessKey,
+    siteOrigin: getUserSync()?.siteOrigin,
+  });
 }
 
 export function pdfify(path: string) {

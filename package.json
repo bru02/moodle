@@ -23,5 +23,11 @@
   "devDependencies": {
     "oxfmt": "^0.40.0",
     "oxlint": "^1.55.0"
+  },
+  "version": "1.0.0",
+  "dependencies": {
+    "expo": "~55.0.8",
+    "react": "19.2.0",
+    "react-native": "0.83.2"
   }
 }

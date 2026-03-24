@@ -1,42 +1,95 @@
-import { AuthError } from "./errors";
-import { getMoodleErrorCode, getMoodleErrorMessage, isExpiredTokenError, isMoodleErrorPayload } from "./moodle-errors";
-import { buildMoodleWSUrl, normalizeRequestParams, type RequestParams } from "./utils";
+import { buildMoodleWSBatchQueryKey, buildMoodleWSQueryKey, createRequestLimiter, executeMoodleWSRequest, type RequestResult } from "./request";
+import type { RequestParams } from "./utils";
 
-type RequestResult<T> = { ok: true; data: T } | { ok: false; error: Error; payload?: unknown; shouldRefresh: boolean };
+export const createWSRequestLimiter = createRequestLimiter;
 
-export function createWSRequestLimiter(maxConcurrentRequests = 4) {
-  let activeRequests = 0;
-  const pendingResumes: Array<() => void> = [];
+type Primitive = string | number | boolean;
+type WSRequestParams = Record<string, Primitive>;
 
-  async function acquire() {
-    if (activeRequests < maxConcurrentRequests) {
-      activeRequests++;
-      return;
+type RequestParamsResolver<TSession> = (input: {
+  service: string;
+  params: WSRequestParams;
+  session: TSession;
+}) => WSRequestParams;
+
+export function createMoodleWSClient<TSession>(input: {
+  getSession: () => Promise<TSession>;
+  getSiteOrigin: (session: TSession) => string;
+  getToken: (session: TSession) => string;
+  refreshSession?: (session: TSession) => Promise<TSession>;
+  resolveRequestParams?: RequestParamsResolver<TSession>;
+  limiter?: ReturnType<typeof createWSRequestLimiter>;
+}) {
+  async function request<T>(service: string, requestParams: WSRequestParams = {}): Promise<T> {
+    const session = await input.getSession();
+    const resolvedParams = input.resolveRequestParams
+      ? input.resolveRequestParams({
+          service,
+          params: requestParams,
+          session,
+        })
+      : requestParams;
+
+    const initialResult = await executeMoodleWSRequest<T>({
+      siteOrigin: input.getSiteOrigin(session),
+      token: input.getToken(session),
+      service,
+      requestParams: resolvedParams,
+      limiter: input.limiter,
+    });
+
+    if (initialResult.ok) {
+      return initialResult.data;
     }
 
-    await new Promise<void>((resolve) => {
-      pendingResumes.push(() => {
-        activeRequests++;
-        resolve();
+    if (initialResult.shouldRefresh && input.refreshSession) {
+      const refreshedSession = await input.refreshSession(session);
+      const retryResult = await executeMoodleWSRequest<T>({
+        siteOrigin: input.getSiteOrigin(refreshedSession),
+        token: input.getToken(refreshedSession),
+        service,
+        requestParams: input.resolveRequestParams
+          ? input.resolveRequestParams({
+              service,
+              params: requestParams,
+              session: refreshedSession,
+            })
+          : requestParams,
+        limiter: input.limiter,
       });
-    });
+
+      if (retryResult.ok) {
+        return retryResult.data;
+      }
+
+      throw retryResult.error;
+    }
+
+    throw initialResult.error;
   }
 
-  function release() {
-    activeRequests = Math.max(0, activeRequests - 1);
-    const resume = pendingResumes.shift();
-    resume?.();
+  function getQueryOptions<T>(service: string, requestParams: WSRequestParams = {}) {
+    const queryParams = { ...requestParams };
+
+    return {
+      queryKey: buildMoodleWSQueryKey(service, queryParams),
+      queryFn: async () => await request<T>(service, queryParams),
+    };
+  }
+
+  function getBatchQueryOptions<T>(service: string, requestParamsList: readonly WSRequestParams[]) {
+    const queryParams = requestParamsList.map((params) => ({ ...params }));
+
+    return {
+      queryKey: buildMoodleWSBatchQueryKey(service, queryParams),
+      queryFn: async () => await Promise.all(queryParams.map(async (params) => await request<T>(service, params))),
+    };
   }
 
   return {
-    async run<T>(fn: () => Promise<T>) {
-      await acquire();
-      try {
-        return await fn();
-      } finally {
-        release();
-      }
-    },
+    request,
+    getQueryOptions,
+    getBatchQueryOptions,
   };
 }
 
@@ -47,45 +100,12 @@ export async function requestMoodleWS<T>(params: {
   requestParams?: Record<string, unknown>;
   limiter?: ReturnType<typeof createWSRequestLimiter>;
 }): Promise<RequestResult<T>> {
-  const { siteOrigin, service, token, requestParams = {}, limiter } = params;
-  const run = limiter?.run ?? (async <TValue>(fn: () => Promise<TValue>) => await fn());
-
-  return run(async () => {
-    let response: Response;
-
-    try {
-      response = await fetch(
-        buildMoodleWSUrl({
-          siteOrigin,
-          service,
-          token,
-          requestParams: normalizeRequestParams(requestParams),
-        }),
-      );
-    } catch (error) {
-      return {
-        ok: false,
-        error: error instanceof Error ? error : new Error("Network request failed"),
-        shouldRefresh: false,
-      };
-    }
-
-    let payload: unknown;
-    try {
-      payload = await response.json();
-    } catch {
-      payload = undefined;
-    }
-
-    if (!response.ok || isMoodleErrorPayload(payload)) {
-      const message = getMoodleErrorMessage(payload) ?? response.statusText ?? "Request failed";
-      const code = getMoodleErrorCode(payload);
-      const shouldRefresh = isExpiredTokenError(payload) || response.status === 401 || response.status === 403;
-      const error = shouldRefresh ? new AuthError(message, { code, status: response.status }) : new Error(message);
-      return { ok: false, error, payload, shouldRefresh };
-    }
-
-    return { ok: true, data: payload as T };
+  return await executeMoodleWSRequest<T>({
+    siteOrigin: params.siteOrigin,
+    token: params.token,
+    service: params.service,
+    requestParams: params.requestParams ?? {},
+    limiter: params.limiter,
   });
 }
 

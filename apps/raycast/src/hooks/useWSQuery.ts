@@ -1,4 +1,8 @@
-import { createWSRequestLimiter, isAuthError, requestMoodleWS } from "@moodle/core";
+import {
+  createMoodleWSClient,
+  createRequestLimiter,
+  isAuthError,
+} from "@moodle/core";
 import { Cache } from "@raycast/api";
 import { showFailureToast } from "@raycast/utils";
 import { experimental_createQueryPersister } from "@tanstack/query-persist-client-core";
@@ -15,51 +19,25 @@ import { getUser, refreshUserTokens } from "../client";
 import { siteOrigin } from "../helpers/preferences";
 import { WSParamsMap, WSResponseMap } from "../types/ws";
 
-type WSRequestResult<K extends keyof WSParamsMap> =
-  | { ok: true; data: WSResponseMap[K] }
-  | { ok: false; error: Error; payload?: unknown; shouldRefresh: boolean };
-
 type Primitive = string | number | boolean;
 type RequestParams = Record<string, Primitive>;
-const wsRequestLimiter = createWSRequestLimiter(4);
+const wsRequestLimiter = createRequestLimiter(4);
 
-async function requestWSInternal<K extends keyof WSParamsMap>(
-  key: K,
-  token: string,
-  params: RequestParams,
-): Promise<WSRequestResult<K>> {
-  const result = await requestMoodleWS<WSResponseMap[K]>({
-    siteOrigin,
-    service: key,
-    token,
-    requestParams: params,
-    limiter: wsRequestLimiter,
-  });
-  if (result.ok) {
-    return result;
-  }
-  return result;
-}
+const wsClient = createMoodleWSClient({
+  getSession: getUser,
+  getSiteOrigin: () => siteOrigin,
+  getToken: (session) => session.token,
+  refreshSession: async () => await refreshUserTokens(),
+  limiter: wsRequestLimiter,
+  resolveRequestParams: ({ params, session }) =>
+    "userid" in params && params.userid === 0 ? { ...params, userid: session.id } : params,
+});
 
 export async function requestWS<K extends keyof WSParamsMap>(
   key: K,
   params: WSParamsMap[K],
 ): Promise<WSResponseMap[K]> {
-  const currentUser = await getUser();
-  const { token, id } = currentUser;
-  const requestParamsSource =
-    "userid" in params && params.userid === 0 ? ({ ...params, userid: id } as WSParamsMap[K]) : params;
-  const requestParams = requestParamsSource as RequestParams;
-
-  let result = await requestWSInternal(key, token, requestParams);
-  if (!result.ok && result.shouldRefresh) {
-    const refreshed = await refreshUserTokens();
-    result = await requestWSInternal(key, refreshed.token, requestParams);
-  }
-  if (!result.ok) {
-    throw result.error;
-  }
-  return result.data;
+  return await wsClient.request<WSResponseMap[K]>(key, params as RequestParams);
 }
 
 type WSQueryKey<K extends keyof WSParamsMap> = readonly [K, WSParamsMap[K]];
@@ -127,24 +105,16 @@ export const queryClient = new QueryClient({
 });
 
 function getQueryOptions<K extends keyof WSParamsMap>(key: K, params: WSParamsMap[K]) {
-  const queryParams = { ...params } as WSParamsMap[K];
-  const queryKey: WSQueryKey<K> = [key, queryParams];
-  return {
-    queryKey,
-    async queryFn() {
-      return await requestWS(key, queryParams);
-    },
+  return wsClient.getQueryOptions<WSResponseMap[K]>(key, params as RequestParams) as {
+    queryKey: WSQueryKey<K>;
+    queryFn: () => Promise<WSResponseMap[K]>;
   };
 }
 
 function getBatchQueryOptions<K extends keyof WSParamsMap>(key: K, paramsList: readonly WSParamsMap[K][]) {
-  const queryParams = paramsList.map((params) => ({ ...params })) as readonly WSParamsMap[K][];
-  const queryKey: WSBatchQueryKey<K> = [key, "batch", queryParams];
-  return {
-    queryKey,
-    async queryFn() {
-      return await Promise.all(queryParams.map((params) => requestWS(key, params)));
-    },
+  return wsClient.getBatchQueryOptions<WSResponseMap[K]>(key, paramsList as readonly RequestParams[]) as unknown as {
+    queryKey: WSBatchQueryKey<K>;
+    queryFn: () => Promise<WSResponseMap[K][]>;
   };
 }
 

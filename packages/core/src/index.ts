@@ -1,3 +1,5 @@
+export * from "./auth";
+export * from "./browser";
 export * from "./course-content";
 export * from "./course-content-types";
 export * from "./course-display";
@@ -10,5 +12,8 @@ export * from "./grade-view-hierarchy";
 export * from "./grade-view-markdown";
 export * from "./moodle-errors";
 export * from "./moodle-ws";
+export * from "./moodle-types";
+export * from "./request";
+export * from "./tasks";
 export * from "./utils";
 export * from "./ws-client";
