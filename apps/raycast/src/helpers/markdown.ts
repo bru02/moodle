@@ -1,4 +1,5 @@
 import { gfm } from "@bwat47/turndown-plugin-gfm";
+import { selectMoodleLanguage, stripInlineDataImages } from "@moodle/core";
 import TurndownService from "turndown";
 
 import { handleFileUrl } from "./files";
@@ -19,11 +20,9 @@ type NodeWithSiblings = {
 
 const textNodeType = 3;
 const youtubeVideoIdPattern = /^[\w-]{11}$/;
-const multilang2TagPattern = /{\s*mlang\s+((?:[a-z0-9_-]+)(?:\s*,\s*[a-z0-9_-]+\s*)*)\s*}([\s\S]*?){\s*mlang\s*}/gim;
 const leadingPunctuationOrWhitespace = /^[\p{P}\s]+/u;
 const trailingPunctuationOrWhitespace = /[\p{P}\s]+$/u;
 const wordCharacter = /[\p{L}\p{N}]/u;
-const inlineDataImagePattern = /<img\b[^>]*\bsrc=(["'])data:[^"']+\1[^>]*>/gi;
 
 function isStrongLike(node: NodeWithSiblings | null | undefined): boolean {
   if (!node?.nodeName) return false;
@@ -36,7 +35,10 @@ function isWordCharacter(value: string | null): boolean {
   return wordCharacter.test(value);
 }
 
-function getBoundaryCharacter(node: NodeWithSiblings, direction: "previousSibling" | "nextSibling"): string | null {
+function getBoundaryCharacter(
+  node: NodeWithSiblings,
+  direction: "previousSibling" | "nextSibling",
+): string | null {
   let sibling = node[direction] ?? null;
 
   while (sibling) {
@@ -72,8 +74,14 @@ turndownService.addRule("strong", {
 
     const delimiter = options.strongDelimiter || "**";
     const normalizedNode = node as unknown as NodeWithSiblings;
-    const previousBoundaryChar = getBoundaryCharacter(normalizedNode, "previousSibling");
-    const nextBoundaryChar = getBoundaryCharacter(normalizedNode, "nextSibling");
+    const previousBoundaryChar = getBoundaryCharacter(
+      normalizedNode,
+      "previousSibling",
+    );
+    const nextBoundaryChar = getBoundaryCharacter(
+      normalizedNode,
+      "nextSibling",
+    );
     const previous = getMeaningfulSibling(normalizedNode, "previousSibling");
     const next = getMeaningfulSibling(normalizedNode, "nextSibling");
 
@@ -84,7 +92,8 @@ turndownService.addRule("strong", {
     let emphasized = content;
 
     if (open && isWordCharacter(previousBoundaryChar)) {
-      const leading = emphasized.match(leadingPunctuationOrWhitespace)?.[0] ?? "";
+      const leading =
+        emphasized.match(leadingPunctuationOrWhitespace)?.[0] ?? "";
       if (leading) {
         before = leading;
         emphasized = emphasized.slice(leading.length);
@@ -92,7 +101,8 @@ turndownService.addRule("strong", {
     }
 
     if (close && isWordCharacter(nextBoundaryChar)) {
-      const trailing = emphasized.match(trailingPunctuationOrWhitespace)?.[0] ?? "";
+      const trailing =
+        emphasized.match(trailingPunctuationOrWhitespace)?.[0] ?? "";
       if (trailing) {
         after = trailing;
         emphasized = emphasized.slice(0, emphasized.length - trailing.length);
@@ -110,10 +120,8 @@ turndownService.addRule("strong", {
 turndownService.addRule("iframe", {
   filter: ["iframe"],
   replacement: (content, node) => {
-    // @ts-expect-error no types
     const src = node.getAttribute("src");
     if (!src) return "";
-    // @ts-expect-error no types
     const title = node.getAttribute("title") || src;
     const thumbnail = getYouTubeThumbnail(src);
 
@@ -128,93 +136,44 @@ turndownService.addRule("iframe", {
 turndownService.addRule("img", {
   filter: ["img"],
   replacement: (content, node) => {
-    // @ts-expect-error no types
     const src = node.getAttribute("src");
     if (!src) return "";
-    // @ts-expect-error no types
     const alt = node.getAttribute("alt") || "";
     return `![${alt}](${handleFileUrl(src)})`;
   },
 });
 
-const htmlLoaders: MarkdownLoader[] = [stripInlineDataImagesLoader, multilang2Loader];
+const htmlLoaders: MarkdownLoader[] = [
+  stripInlineDataImagesLoader,
+  multilang2Loader,
+];
 const markdownLoaders: MarkdownLoader[] = [mathjaxNotationLoader];
 
 export function turndown(html: string) {
-  const normalizedHtml = htmlLoaders.reduce((content, loader) => loader(content), html);
+  const normalizedHtml = htmlLoaders.reduce(
+    (content, loader) => loader(content),
+    html,
+  );
   const markdown = turndownService.turndown(normalizedHtml);
-  const result = markdownLoaders.reduce((content, loader) => loader(content), markdown);
+  const result = markdownLoaders.reduce(
+    (content, loader) => loader(content),
+    markdown,
+  );
   return result;
 }
 
 function stripInlineDataImagesLoader(content: string): string {
-  if (!content || !content.includes("data:")) {
-    return content;
-  }
-
-  return content.replace(inlineDataImagePattern, "");
+  return stripInlineDataImages(content);
 }
 
 function multilang2Loader(content: string): string {
-  if (!content || content.indexOf("mlang") === -1) {
-    return content;
-  }
-
-  const currentLanguage = "en";
-  const parentLanguage = getParentLanguage(currentLanguage);
-
-  const [currentResult, currentReplacementDone] = replaceMultilang2Blocks(content, currentLanguage, parentLanguage);
-  if (currentReplacementDone) {
-    return currentResult;
-  }
-
-  const [otherResult] = replaceMultilang2Blocks(content, "other");
-  return otherResult;
-}
-
-function replaceMultilang2Blocks(content: string, replaceLanguage: string, parentLanguage?: string): [string, boolean] {
-  let replacementDone = false;
-  const normalizedTargetLanguage = normalizeLanguage(replaceLanguage);
-  const normalizedParentLanguage = parentLanguage ? normalizeLanguage(parentLanguage) : undefined;
-
-  const replaced = content.replace(multilang2TagPattern, (_, languages: string, blockContent: string) => {
-    const blockLanguages = languages
-      .replace(/\s/g, "")
-      .split(",")
-      .map((language) => normalizeLanguage(language));
-
-    for (const blockLanguage of blockLanguages) {
-      if (
-        blockLanguage === normalizedTargetLanguage ||
-        (normalizedParentLanguage && blockLanguage === normalizedParentLanguage)
-      ) {
-        replacementDone = true;
-        return blockContent;
-      }
-    }
-
-    return "";
-  });
-
-  return [replaced, replacementDone];
-}
-
-function getParentLanguage(language: string): string | undefined {
-  const separatorIndex = language.indexOf("-");
-  if (separatorIndex <= 0) {
-    return undefined;
-  }
-
-  return language.slice(0, separatorIndex);
-}
-
-function normalizeLanguage(language: string): string {
-  return language.replace(/_/g, "-").toLowerCase();
+  return selectMoodleLanguage(content, "en");
 }
 
 function mathjaxNotationLoader(content: string): string {
   const escapedBackslash = /\\\\\\\\/g;
-  const normalize = (expression: string) => expression.replace(escapedBackslash, "\\").trim();
+  const normalize = (expression: string) =>
+    expression.replace(escapedBackslash, "\\").trim();
 
   const spanWrapper = "(?:<span[^>]*>\\s*)?";
   const closingSpan = "(?:\\s*<\\/span>)?";
@@ -251,7 +210,11 @@ function getYouTubeVideoId(src: string): string | null {
       return normalizeYouTubeVideoId(url.pathname.slice(1));
     }
 
-    if (!["youtube.com", "m.youtube.com", "youtube-nocookie.com"].includes(hostname)) {
+    if (
+      !["youtube.com", "m.youtube.com", "youtube-nocookie.com"].includes(
+        hostname,
+      )
+    ) {
       return null;
     }
 
@@ -263,7 +226,10 @@ function getYouTubeVideoId(src: string): string | null {
       return normalizeYouTubeVideoId(url.searchParams.get("v"));
     }
 
-    if (url.pathname.startsWith("/shorts/") || url.pathname.startsWith("/live/")) {
+    if (
+      url.pathname.startsWith("/shorts/") ||
+      url.pathname.startsWith("/live/")
+    ) {
       return normalizeYouTubeVideoId(url.pathname.split("/")[2]);
     }
   } catch {
@@ -273,7 +239,9 @@ function getYouTubeVideoId(src: string): string | null {
   return null;
 }
 
-function normalizeYouTubeVideoId(videoId: string | null | undefined): string | null {
+function normalizeYouTubeVideoId(
+  videoId: string | null | undefined,
+): string | null {
   if (!videoId) return null;
   return youtubeVideoIdPattern.test(videoId) ? videoId : null;
 }

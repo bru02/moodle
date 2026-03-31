@@ -29,5 +29,8 @@
     "expo": "~55.0.8",
     "react": "19.2.0",
     "react-native": "0.83.2"
+  },
+  "patchedDependencies": {
+    "@native-html/heuristic-table-plugin@0.7.0": "patches/@native-html%2Fheuristic-table-plugin@0.7.0.patch"
   }
 }

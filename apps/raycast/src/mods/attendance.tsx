@@ -1,3 +1,4 @@
+import { normalizeNetworkError } from "@moodle/core";
 import { Action, ActionPanel, Color, Icon, List, Toast, showToast } from "@raycast/api";
 import { useQuery } from "@tanstack/react-query";
 import { memo, useContext, useMemo } from "react";
@@ -289,11 +290,16 @@ async function requestAttendanceMobileViaToolMobileGetContent({
     body.set(`args[${i}][value]`, String(value));
   }
 
-  const response = await fetch(`${siteOrigin}/webservice/rest/server.php`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${siteOrigin}/webservice/rest/server.php`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    });
+  } catch (error) {
+    throw normalizeNetworkError(error);
+  }
 
   let payload: unknown;
   try {

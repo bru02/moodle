@@ -18,6 +18,7 @@ const SEMINAR_GROUP_RE = /\((G[^)]*)\)/i;
 
 export type SimpleCourse = {
   id: number;
+  courseCode?: string;
   semester?: string;
   seminarGroup?: string;
   displayname: string;
@@ -35,6 +36,30 @@ export function extractSemester(text: string) {
 
 export function extractSeminarGroup(text: string) {
   return text.match(SEMINAR_GROUP_RE)?.[1];
+}
+
+export function extractCourseCode(input: Pick<MoodleCourseLike, "fullname" | "displayname" | "shortname">) {
+  for (const value of [input.displayname, input.fullname]) {
+    const cleanedValue = cleanMoodleText(value);
+    for (const match of cleanedValue.matchAll(/\(([^)]+)\)/g)) {
+      const candidate = match[1]?.trim();
+      if (isLikelyCourseCode(candidate)) return candidate;
+    }
+  }
+
+  const shortnameMatch = cleanMoodleText(input.shortname)
+    .trim()
+    .match(/^([A-Z0-9_]{6,})(?=_(?:Előadás|Gyakorlat|Lecture)\b|\s*\(|\s*$)/);
+  const shortnameCode = shortnameMatch?.[1]?.trim();
+  if (isLikelyCourseCode(shortnameCode)) return shortnameCode;
+}
+
+export function stripCourseCodeFromTitle(title: string, courseCode?: string) {
+  const cleanedTitle = cleanMoodleText(title).trim();
+  if (!courseCode) return cleanedTitle;
+
+  const escapedCourseCode = escapeRegExp(courseCode);
+  return cleanedTitle.replace(new RegExp(`\\s*\\(${escapedCourseCode}\\)`, "g"), "").replace(/\s{2,}/g, " ").trim();
 }
 
 export function listCourseSemesters(courses: readonly SimpleCourse[]) {
@@ -84,11 +109,14 @@ export function compareSemesterLabels(left: string, right: string) {
 }
 
 export function toSimpleCourse(course: MoodleCourseLike): SimpleCourse {
-  const displayname = cleanMoodleText(course.displayname || course.fullname || course.shortname);
+  const rawDisplayname = cleanMoodleText(course.displayname || course.fullname || course.shortname);
+  const courseCode = extractCourseCode(course);
+  const displayname = stripCourseCodeFromTitle(rawDisplayname, courseCode);
   const searchableText = cleanMoodleText(`${course.fullname} ${course.shortname} ${displayname}`);
 
   return {
     id: Number(course.id),
+    courseCode,
     semester: extractSemester(searchableText),
     seminarGroup: extractSeminarGroup(searchableText),
     displayname,
@@ -110,6 +138,17 @@ function parseSemesterLabel(value: string) {
     secondaryYear: Number(match[2]),
     term: Number(match[3]),
   };
+}
+
+function isLikelyCourseCode(value?: string) {
+  if (!value) return false;
+  if (SEMESTER_RE.test(value)) return false;
+  if (/^[EG]\d{2}(?:[-A-Z0-9]+)?$/i.test(value)) return false;
+  return /^[A-Z0-9_]{6,}$/.test(value) && (/\d/.test(value) || value.includes("_"));
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 export type CourseScope = {

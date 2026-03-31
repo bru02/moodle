@@ -1,0 +1,54 @@
+{
+  "$schema": "../../node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "react", "import"],
+  "categories": {
+    "correctness": "off"
+  },
+  "ignorePatterns": ["dist/*", ".expo/**", "android/**", "ios/**"],
+  "env": {
+    "es2022": true,
+    "commonjs": true
+  },
+  "globals": {
+    "URL": "readonly",
+    "URLSearchParams": "readonly",
+    "__dirname": "readonly",
+    "btoa": "readonly",
+    "clearTimeout": "readonly",
+    "fetch": "readonly",
+    "process": "readonly",
+    "setTimeout": "readonly"
+  },
+  "rules": {
+    "eqeqeq": ["warn", "smart"],
+    "import/first": "warn",
+    "no-dupe-args": "error",
+    "no-dupe-class-members": "error",
+    "no-dupe-keys": "error",
+    "no-duplicate-case": "error",
+    "no-empty-character-class": "warn",
+    "no-empty-pattern": "warn",
+    "no-extend-native": "warn",
+    "no-extra-bind": "warn",
+    "no-redeclare": "warn",
+    "no-undef": "error",
+    "no-unreachable": "warn",
+    "no-unsafe-negation": "warn",
+    "no-unused-expressions": ["warn", { "allowShortCircuit": true, "enforceForJSX": true }],
+    "no-unused-labels": "warn",
+    "no-unused-vars": [
+      "warn",
+      {
+        "vars": "all",
+        "args": "none",
+        "ignoreRestSiblings": true,
+        "caughtErrors": "all",
+        "caughtErrorsIgnorePattern": "^_"
+      }
+    ],
+    "no-var": "error",
+    "no-with": "warn",
+    "use-isnan": "error",
+    "valid-typeof": "error"
+  }
+}

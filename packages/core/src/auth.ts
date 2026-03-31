@@ -6,15 +6,23 @@ import {
   type MoodleAccount,
   type MoodleAutologinKeyResponse,
   type MoodleFetchLike,
+  type MoodlePublicConfig,
   type MoodleResponseLike,
   type MoodleSession,
+  type MoodleSiteCheckResult,
   type MoodleSiteInfo,
   type MoodleTokenResponse,
+  TypeOfLogin,
 } from "./moodle-types";
 import { buildMoodleWSUrl } from "./utils";
 
 function normalizeSiteOrigin(siteOrigin: string) {
-  return siteOrigin.replace(/\/$/, "");
+  const trimmed = siteOrigin.trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed.replace(/\/$/, "");
+  }
+  return `https://${trimmed.replace(/\/$/, "")}`;
 }
 
 function getFetch(fetcher?: MoodleFetchLike): MoodleFetchLike {
@@ -87,6 +95,206 @@ function throwOnAuthPayload(payload: unknown, fallbackMessage: string, code?: st
   throw new AuthError(message, { code: errorCode });
 }
 
+function createAjaxRequestBody(method: string, args: Record<string, unknown>) {
+  return JSON.stringify([
+    {
+      index: 0,
+      methodname: method,
+      args,
+    },
+  ]);
+}
+
+async function fetchAjaxJson(input: {
+  fetcher?: MoodleFetchLike;
+  siteOrigin: string;
+  method: string;
+  args?: Record<string, unknown>;
+  lang?: string;
+  useGet?: boolean;
+  noLogin?: boolean;
+}) {
+  const siteOrigin = normalizeSiteOrigin(input.siteOrigin);
+  const lang = input.lang ?? "en";
+  const script = input.noLogin ? "service-nologin.php" : "service.php";
+  const body = createAjaxRequestBody(input.method, input.args ?? {});
+  const baseUrl = `${siteOrigin}/lib/ajax/${script}?info=${encodeURIComponent(input.method)}&lang=${encodeURIComponent(lang)}`;
+
+  if (input.useGet) {
+    return await fetchJson({
+      fetcher: input.fetcher,
+      url: `${baseUrl}&args=${encodeURIComponent(body)}`,
+      init: {
+        method: "GET",
+        headers: {
+          "User-Agent": "MoodleMobile",
+        },
+      },
+    });
+  }
+
+  return await fetchJson({
+    fetcher: input.fetcher,
+    url: baseUrl,
+    init: {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "MoodleMobile",
+      },
+      body,
+    },
+  });
+}
+
+function parseAjaxResponse<T>(payload: unknown): T {
+  if (!payload || typeof payload !== "object") {
+    throw new AuthError("Invalid Moodle response", { code: "invalid_response" });
+  }
+
+  if ("error" in payload && (payload as { error?: unknown }).error) {
+    throwOnAuthPayload(payload, "Moodle request failed");
+  }
+
+  if (Array.isArray(payload)) {
+    const first = payload[0] as { error?: unknown; data?: T; exception?: unknown } | undefined;
+    if (!first) {
+      throw new AuthError("Invalid Moodle response", { code: "invalid_response" });
+    }
+    if (first.error || first.exception) {
+      throwOnAuthPayload(first, "Moodle request failed");
+    }
+    return (first.data ?? {}) as T;
+  }
+
+  if ("data" in payload) {
+    return ((payload as { data?: T }).data ?? {}) as T;
+  }
+
+  return payload as T;
+}
+
+function validatePublicConfig(siteOrigin: string, config: MoodlePublicConfig): MoodlePublicConfig {
+  if (!config.enablewebservices) {
+    throw new AuthError(`Web services are not enabled for ${siteOrigin}`, {
+      code: "webservicesnotenabled",
+    });
+  }
+
+  if (!config.enablemobilewebservice) {
+    throw new AuthError(`Mobile services are not enabled for ${siteOrigin}`, {
+      code: "mobileservicesnotenabled",
+    });
+  }
+
+  if (config.maintenanceenabled) {
+    throw new AuthError(config.maintenancemessage || "This Moodle site is in maintenance mode", {
+      code: "siteinmaintenance",
+    });
+  }
+
+  return config;
+}
+
+function toggleWww(siteOrigin: string) {
+  const parsed = new URL(siteOrigin);
+  if (parsed.hostname.startsWith("www.")) {
+    parsed.hostname = parsed.hostname.slice(4);
+  } else {
+    parsed.hostname = `www.${parsed.hostname}`;
+  }
+  return parsed.toString().replace(/\/$/, "");
+}
+
+async function fetchPublicConfigAttempt(input: {
+  siteOrigin: string;
+  fetcher?: MoodleFetchLike;
+}) {
+  const siteOrigin = normalizeSiteOrigin(input.siteOrigin);
+
+  try {
+    const { response, payload } = await fetchAjaxJson({
+      fetcher: input.fetcher,
+      siteOrigin,
+      method: "tool_mobile_get_public_config",
+      noLogin: true,
+    });
+    if (!response.ok) {
+      throwOnAuthPayload(payload, response.statusText || "Failed to fetch Moodle site config", "site_config_failed");
+    }
+    return parseAjaxResponse<MoodlePublicConfig>(payload);
+  } catch (error) {
+    const { response, payload } = await fetchAjaxJson({
+      fetcher: input.fetcher,
+      siteOrigin,
+      method: "tool_mobile_get_public_config",
+      noLogin: true,
+      useGet: true,
+    });
+
+    if (!response.ok) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throwOnAuthPayload(payload, response.statusText || "Failed to fetch Moodle site config", "site_config_failed");
+    }
+
+    return parseAjaxResponse<MoodlePublicConfig>(payload);
+  }
+}
+
+export async function fetchPublicConfig(input: {
+  siteOrigin: string;
+  fetcher?: MoodleFetchLike;
+}) {
+  const config = await fetchPublicConfigAttempt(input);
+  return validatePublicConfig(input.siteOrigin, config);
+}
+
+export async function checkSite(input: {
+  siteUrl: string;
+  fetcher?: MoodleFetchLike;
+}): Promise<MoodleSiteCheckResult> {
+  const normalized = normalizeSiteOrigin(input.siteUrl);
+  const candidates = Array.from(
+    new Set([
+      normalized,
+      normalized.replace(/^https:\/\//i, "http://"),
+      normalized.replace(/^http:\/\//i, "https://"),
+      toggleWww(normalized),
+      toggleWww(normalized.replace(/^https:\/\//i, "http://")),
+      toggleWww(normalized.replace(/^http:\/\//i, "https://")),
+    ]),
+  ).filter(Boolean);
+
+  let lastError: unknown;
+  for (const candidate of candidates) {
+    try {
+      const config = await fetchPublicConfig({
+        siteOrigin: candidate,
+        fetcher: input.fetcher,
+      });
+      const siteUrl = (config.httpswwwroot || config.wwwroot || candidate).replace(/\/$/, "");
+      return {
+        code: config.typeoflogin || TypeOfLogin.APP,
+        siteUrl,
+        service: "moodle_mobile_app",
+        config,
+      };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+
+  throw new AuthError("Could not connect to this Moodle site", {
+    code: "site_check_failed",
+  });
+}
+
 export async function fetchSiteInfo(input: {
   siteOrigin: string;
   token: string;
@@ -153,6 +361,34 @@ export async function authenticateWithCredentials(input: {
     siteInfo,
     now: input.now,
     authMethod: AuthMethod.PASSWORD,
+  });
+}
+
+export async function authenticateWithToken(input: {
+  siteOrigin: string;
+  token: string;
+  privateToken?: string;
+  fetcher?: MoodleFetchLike;
+  now?: number;
+}) {
+  const siteOrigin = normalizeSiteOrigin(input.siteOrigin);
+  if (!input.token) {
+    throw new AuthError("Missing token", { code: "missing_token" });
+  }
+
+  const siteInfo = await fetchSiteInfo({
+    siteOrigin,
+    token: input.token,
+    fetcher: input.fetcher,
+  });
+
+  return createSession({
+    siteOrigin,
+    token: input.token,
+    privateToken: input.privateToken,
+    siteInfo,
+    now: input.now,
+    authMethod: AuthMethod.TOKEN,
   });
 }
 
@@ -307,4 +543,11 @@ export function buildAutologinUrl(input: {
   return autologinUrl.toString();
 }
 
-export type { MoodleAutologinKeyResponse, MoodleSession, MoodleSiteInfo, CoreWSExternalWarning };
+export type {
+  CoreWSExternalWarning,
+  MoodleAutologinKeyResponse,
+  MoodlePublicConfig,
+  MoodleSession,
+  MoodleSiteCheckResult,
+  MoodleSiteInfo,
+};

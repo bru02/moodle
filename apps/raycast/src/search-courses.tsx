@@ -1,4 +1,4 @@
-import { buildCourseScopes, findScopeByCourseId, toSimpleCourse, type CourseScope } from "@moodle/core";
+import { findScopeByCourseId, isAuthError, listCourses, toSimpleCourse, type CourseScope } from "@moodle/core";
 import { Action, ActionPanel, Grid, Icon, LaunchProps } from "@raycast/api";
 import { createDeeplink, useCachedState, useFrecencySorting } from "@raycast/utils";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -26,37 +26,36 @@ export default function Command({ launchContext }: SearchCoursesLaunchProps) {
   const [searchText, setSearchText] = useState("");
 
   const courses = useMemo(() => (data ?? []).map(toSimpleCourse), [data]);
-  const semesters = useMemo(() => {
-    const set = new Set<string>();
-    for (const c of courses) if (c.semester) set.add(c.semester);
-    return Array.from(set).toSorted().toReversed();
-  }, [courses]);
-
-  const effectiveSemester = useMemo(() => {
-    if (selectedSemester === "all") return "all";
-    if (selectedSemester && semesters.includes(selectedSemester)) return selectedSemester;
-    return semesters[0];
-  }, [selectedSemester, semesters]);
 
   const { data: sortedCourses, visitItem } = useFrecencySorting(courses, {
     sortUnvisited: (a, b) => b.timemodified - a.timemodified,
     key: (c) => String(c.id),
   });
 
-  const filteredCourses = useMemo(() => {
-    if (!effectiveSemester || effectiveSemester === "all") return sortedCourses;
-    return sortedCourses.filter((course) => course.semester === effectiveSemester);
-  }, [sortedCourses, effectiveSemester]);
-
-  const scopes = useMemo(
-    () => buildCourseScopes(filteredCourses, preferences.merge_similar_courses),
-    [filteredCourses],
+  const listedCourses = useMemo(
+    () =>
+      listCourses({
+        courses: sortedCourses,
+        merge: preferences.merge_similar_courses,
+        semester: selectedSemester,
+      }),
+    [selectedSemester, sortedCourses],
   );
+  const semesters = listedCourses.semesters;
+  const effectiveSemester = listedCourses.selectedSemester;
+  const scopes = listedCourses.scopes;
 
   const directLaunchCourseId = launchContext?.courseId ? Number(launchContext.courseId) : undefined;
   const scopeToLaunch = useMemo(() => {
     if (!directLaunchCourseId) return undefined;
-    return findScopeByCourseId(buildCourseScopes(courses, preferences.merge_similar_courses), directLaunchCourseId);
+    return findScopeByCourseId(
+      listCourses({
+        courses,
+        merge: preferences.merge_similar_courses,
+        semester: "all",
+      }).scopes,
+      directLaunchCourseId,
+    );
   }, [courses, directLaunchCourseId]);
 
   const hasVisitedDirectCourse = useRef(false);
@@ -81,7 +80,9 @@ export default function Command({ launchContext }: SearchCoursesLaunchProps) {
     trackCourseAccess(c.id, "deeplink", null);
   }, [courses, directLaunchCourseId, trackCourseAccess, visitItem]);
 
-  if (error) return <AuthErrorDetail error={error} onRetry={() => refetch()} />;
+  if (error && isAuthError(error)) {
+    return <AuthErrorDetail error={error} onRetry={() => refetch()} />;
+  }
 
   if (scopeToLaunch) {
     return (
@@ -135,7 +136,7 @@ function renderScopeItems(
         key={scope.id}
         content={handleFileUrl(course.courseimage)}
         title={course.displayname}
-        subtitle={course.seminarGroup ?? ""}
+        subtitle={[course.courseCode, course.seminarGroup].filter(Boolean).join(" · ")}
         actions={
           <ActionPanel>
             <Action.Push

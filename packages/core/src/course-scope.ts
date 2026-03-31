@@ -57,7 +57,6 @@ export async function fetchCourseCatalog(input: {
 }) {
   const courseRows = await input.requestWS<MoodleCourseLike[]>("core_enrol_get_users_courses", {
     userid: input.userId,
-    returnusercount: false,
   });
 
   const courses = courseRows
@@ -102,6 +101,7 @@ function makeScope(group: readonly SimpleCourse[]): CourseScope {
     title,
     mergedCourse: {
       id: imageSource?.id ?? mostRecent.id,
+      courseCode: group.find((course) => course.courseCode)?.courseCode ?? mostRecent.courseCode,
       displayname: title,
       courseimage: imageSource?.courseimage ?? mostRecent.courseimage,
       timemodified: mostRecent.timemodified,
@@ -161,7 +161,15 @@ function commonTitle(group: readonly SimpleCourse[]) {
 }
 
 function isMergeCandidate(left: SimpleCourse, right: SimpleCourse) {
-  return normalize(baseTitle(left.displayname)) === normalize(baseTitle(right.displayname));
+  if (normalize(baseTitle(left.displayname)) !== normalize(baseTitle(right.displayname))) {
+    return false;
+  }
+
+  if (left.semester && right.semester) {
+    return left.semester === right.semester;
+  }
+
+  return left.semester === right.semester;
 }
 
 function baseTitle(title: string) {

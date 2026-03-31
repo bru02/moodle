@@ -2,6 +2,7 @@ import {
   createMoodleWSClient,
   createRequestLimiter,
   isAuthError,
+  isLikelyOfflineError,
 } from "@moodle/core";
 import { Cache } from "@raycast/api";
 import { showFailureToast } from "@raycast/utils";
@@ -91,7 +92,7 @@ export const queryClient = new QueryClient({
       if (isAuthError(error)) {
         return;
       }
-      if (query.state.data === undefined) {
+      if (query.state.data === undefined || isLikelyOfflineError(error)) {
         showFailureToast(error, {
           primaryAction: {
             title: "Retry",

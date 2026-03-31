@@ -9,7 +9,7 @@
     "format": "oxfmt --write package.json tsconfig.json src",
     "format:check": "oxfmt --check package.json tsconfig.json src",
     "lint": "oxlint src --config ../../.oxlintrc.json --deny-warnings",
-    "test": "bun test src/**/*.test.ts"
+    "test": "bun test ./src"
   },
   "dependencies": {
     "@mixmark-io/domino": "^2.2.0",

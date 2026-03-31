@@ -17,4 +17,5 @@ tmp
 .idea
 bun.lock
 tests
-apps/mobile
+.agents
+apps/raycast/node_modules

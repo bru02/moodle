@@ -30,6 +30,7 @@ export function buildCourseDisplayLayout(
   options: {
     now?: number;
     dismissedRecentItemIds?: ReadonlySet<string>;
+    recentActivityCutoffAt?: number | null;
   } = {},
 ): CourseDisplayLayout {
   const now = options.now ?? Math.floor(Date.now() / 1000);
@@ -37,15 +38,15 @@ export function buildCourseDisplayLayout(
   const currentWeekNumber = getCourseWeekNumberAtTimestamp(scope, now);
   const lastVisitedWeekNumber = getCourseWeekNumberAtTimestamp(scope, scope.mergedCourse.lastaccess);
   const anchorWeekNumber = currentWeekNumber ?? lastVisitedWeekNumber;
-  const lastVisitedWeekStart =
-    typeof lastVisitedWeekNumber === "number" ? getWeekStartTimestamp(scope, lastVisitedWeekNumber) : null;
+  const recentActivityCutoffAt =
+    options.recentActivityCutoffAt === undefined ? scope.mergedCourse.lastaccess ?? null : options.recentActivityCutoffAt;
   const surfacedModuleIds = new Set<string>();
 
   const surfacedModules = sections
     .flatMap((section) =>
       section.modules.filter((module) => {
         if (dismissedRecentItemIds.has(module.id)) return false;
-        if (shouldSurfaceRecentNonWeekModule(scope, section, module, lastVisitedWeekStart)) {
+        if (shouldSurfaceRecentNonWeekModule(scope, section, module, recentActivityCutoffAt)) {
           surfacedModuleIds.add(module.id);
           return true;
         }
@@ -98,12 +99,6 @@ export function getCourseWeekNumberAtTimestamp(scope: CourseScope, timestamp?: n
   return Math.floor((timestamp - (startdate + DST_OFFSET_SECONDS)) / SECONDS_WEEK) + 1;
 }
 
-function getWeekStartTimestamp(scope: CourseScope, sectionNumber: number) {
-  const startdate = scope.mergedCourse.startdate;
-  if (!startdate || sectionNumber < 1) return null;
-  return startdate + DST_OFFSET_SECONDS + SECONDS_WEEK * (sectionNumber - 1);
-}
-
 function isWeekSection(scope: CourseScope, section: Pick<ScopedRenderedSection, "section">) {
   return scope.mergedCourse.format === "weeks" && typeof section.section === "number" && section.section >= 1;
 }
@@ -126,11 +121,11 @@ function shouldSurfaceRecentNonWeekModule(
   scope: CourseScope,
   section: ScopedRenderedSection,
   module: ScopedModule,
-  lastVisitedWeekStart: number | null,
+  recentActivityCutoffAt: number | null,
 ) {
-  if (lastVisitedWeekStart == null || isWeekSection(scope, section)) return false;
+  if (recentActivityCutoffAt == null || isWeekSection(scope, section)) return false;
   const updatedAt = getModuleUpdatedAt(module);
-  return updatedAt != null && updatedAt >= lastVisitedWeekStart;
+  return updatedAt != null && updatedAt >= recentActivityCutoffAt;
 }
 
 function shouldSurfaceClosingSoonModule(module: ScopedModule, now: number) {

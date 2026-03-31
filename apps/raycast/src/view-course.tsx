@@ -1,6 +1,7 @@
 import {
   buildCourseDisplayLayout,
   buildScopedSections,
+  isAuthError,
   regroupCourseContentByVisibleModules,
   type CourseScope,
   type ScopedModule,
@@ -61,7 +62,9 @@ export default function ViewCourse({ scope, preselectItem }: { scope: CourseScop
 
   useSync(files);
 
-  if (error) return <AuthErrorDetail error={error} onRetry={() => refetch()} />;
+  if (error && isAuthError(error)) {
+    return <AuthErrorDetail error={error} onRetry={() => refetch()} />;
+  }
 
   if (!contentRows && isFetching) {
     return (

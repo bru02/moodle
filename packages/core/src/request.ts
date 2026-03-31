@@ -1,4 +1,4 @@
-import { AuthError } from "./errors";
+import { AuthError, normalizeNetworkError } from "./errors";
 import { getMoodleErrorCode, getMoodleErrorMessage, isExpiredTokenError, isMoodleErrorPayload } from "./moodle-errors";
 import { type MoodleFetchLike, type MoodleResponseLike, type MoodleSession } from "./moodle-types";
 import { buildMoodleWSUrl, normalizeRequestParams } from "./utils";
@@ -57,7 +57,7 @@ async function requestOnce<T>(input: {
     } catch (error) {
       return {
         ok: false,
-        error: error instanceof Error ? error : new Error("Network request failed"),
+        error: normalizeNetworkError(error),
         shouldRefresh: false,
       };
     }

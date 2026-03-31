@@ -1,4 +1,4 @@
-import { buildScopedSections, type CourseScope } from "@moodle/core";
+import { buildScopedSections, isAuthError, type CourseScope } from "@moodle/core";
 import { Action, ActionPanel, Icon, List } from "@raycast/api";
 import { useMemo } from "react";
 
@@ -35,9 +35,13 @@ export default function ViewCourseGrades({
     forceRefresh,
   });
 
-  if (gradesQuery.error) return <AuthErrorDetail error={gradesQuery.error} onRetry={() => gradesQuery.refetch()} />;
+  if (gradesQuery.error && isAuthError(gradesQuery.error)) {
+    return <AuthErrorDetail error={gradesQuery.error} onRetry={() => gradesQuery.refetch()} />;
+  }
   if (contentsQuery.error)
-    return <AuthErrorDetail error={contentsQuery.error} onRetry={() => contentsQuery.refetch()} />;
+    if (isAuthError(contentsQuery.error)) {
+      return <AuthErrorDetail error={contentsQuery.error} onRetry={() => contentsQuery.refetch()} />;
+    }
 
   const payload = analysis.payload;
 

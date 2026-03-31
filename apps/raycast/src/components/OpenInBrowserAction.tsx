@@ -1,4 +1,4 @@
-import { buildAuthenticatedOpenUrl, buildExternalOpenUrl } from "@moodle/core";
+import { buildAuthenticatedExternalOpenUrl, buildExternalOpenUrl } from "@moodle/core";
 import { Action, Icon, LocalStorage, open } from "@raycast/api";
 
 import { getUser } from "../client";
@@ -25,12 +25,13 @@ export async function openInBrowserWithAuth(url: string, onOpen?: () => void) {
   const lastLogin = timestamp ? Number(timestamp) : NaN;
   const recentlyLoggedIn = Number.isFinite(lastLogin) && lastLogin + 6 * 60000 >= Date.now();
 
-  const authenticatedUrl = await buildAuthenticatedOpenUrl({
+  const authenticatedUrl = await buildAuthenticatedExternalOpenUrl({
+    url,
     siteOrigin,
+    accessKey: user.accessKey,
     token,
     privateToken,
     userId: id,
-    destinationUrl: externalUrl,
     lastAutoLoginAt: recentlyLoggedIn ? lastLogin : undefined,
   });
 

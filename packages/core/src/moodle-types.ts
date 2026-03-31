@@ -3,8 +3,70 @@ import type { CoreCourseGetContentsWSModule, CoreCourseGetContentsWSSection } fr
 export enum AuthMethod {
   PASSWORD = "password",
   QR = "qr",
+  TOKEN = "token",
   REFRESH = "refresh",
 }
+
+export enum TypeOfLogin {
+  APP = 1,
+  BROWSER = 2,
+  EMBEDDED = 3,
+}
+
+export type MoodleIdentityProvider = {
+  name: string;
+  iconurl: string;
+  url: string;
+};
+
+export type MoodlePublicConfig = {
+  wwwroot: string;
+  httpswwwroot: string;
+  sitename: string;
+  guestlogin: number;
+  rememberusername: number;
+  authloginviaemail: number;
+  registerauth: string;
+  forgottenpasswordurl: string;
+  authinstructions: string;
+  authnoneenabled: number;
+  enablewebservices: number;
+  enablemobilewebservice: number;
+  maintenanceenabled: number;
+  maintenancemessage: string;
+  logourl?: string;
+  compactlogourl?: string;
+  typeoflogin: TypeOfLogin;
+  launchurl?: string;
+  mobilecssurl?: string;
+  tool_mobile_disabledfeatures?: string;
+  identityproviders?: MoodleIdentityProvider[];
+  country?: string;
+  agedigitalconsentverification?: boolean;
+  supportname?: string;
+  supportemail?: string;
+  supportavailability?: number;
+  supportpage?: string;
+  autolang?: number;
+  lang?: string;
+  langmenu?: number;
+  langlist?: string;
+  locale?: string;
+  tool_mobile_minimumversion?: string;
+  tool_mobile_iosappid?: string;
+  tool_mobile_androidappid?: string;
+  tool_mobile_setuplink?: string;
+  tool_mobile_qrcodetype?: number;
+  showloginform?: number;
+  warnings?: CoreWSExternalWarning[];
+};
+
+export type MoodleSiteCheckResult = {
+  code: TypeOfLogin | number;
+  siteUrl: string;
+  service: string;
+  config: MoodlePublicConfig;
+};
 
 export type MoodleSiteInfo = {
   userid?: number;

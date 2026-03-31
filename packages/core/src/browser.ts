@@ -1,4 +1,5 @@
-import { type MoodleSession } from "./moodle-types";
+import { buildAuthenticatedOpenUrl } from "./auth";
+import { type MoodleFetchLike, type MoodleSession } from "./moodle-types";
 
 function normalizeSiteOrigin(siteOrigin: string) {
   return siteOrigin.replace(/\/$/, "");
@@ -73,5 +74,46 @@ export function buildOpenUrlForSession(input: {
     accessKey: input.session.accessKey,
     semester: input.semester,
     courseSvgProxyUrl: input.courseSvgProxyUrl,
+  });
+}
+
+export async function buildAuthenticatedExternalOpenUrl(input: {
+  url: string;
+  siteOrigin: string;
+  accessKey?: string;
+  token: string;
+  privateToken?: string;
+  userId: number;
+  semester?: string | number;
+  courseSvgProxyUrl?: string;
+  lastAutoLoginAt?: number;
+  now?: number;
+  fetcher?: MoodleFetchLike;
+}) {
+  const externalUrl = buildExternalOpenUrl({
+    url: input.url,
+    siteOrigin: input.siteOrigin,
+    accessKey: input.accessKey,
+    semester: input.semester,
+    courseSvgProxyUrl: input.courseSvgProxyUrl,
+  });
+
+  if (new URL(externalUrl).origin !== normalizeSiteOrigin(input.siteOrigin)) {
+    return externalUrl;
+  }
+
+  if (externalUrl.includes("/pluginfile.php") || externalUrl.includes("/tokenpluginfile.php/")) {
+    return externalUrl;
+  }
+
+  return await buildAuthenticatedOpenUrl({
+    siteOrigin: input.siteOrigin,
+    token: input.token,
+    privateToken: input.privateToken,
+    userId: input.userId,
+    destinationUrl: externalUrl,
+    lastAutoLoginAt: input.lastAutoLoginAt,
+    now: input.now,
+    fetcher: input.fetcher,
   });
 }

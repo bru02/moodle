@@ -1,0 +1,437 @@
+diff --git a/Users/bruno/development/moodle/node_modules/@native-html/heuristic-table-plugin/.bun-tag-56931a0db457f5ec b/.bun-tag-56931a0db457f5ec
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/README.md b/README.md
+index 41653ec93209ca8618a78095a2120d87c41499c2..1c7ae0e59e8213b59f153f735cfbebe1eb2285ea 100644
+--- a/README.md
++++ b/README.md
+@@ -39,7 +39,7 @@
+ </p>
+ 
+ <p align="center">
+-  🔠 A 100% native component using heuristics to render tables in react-native-render-html.
++  🔠 A 100% native component using heuristics to render tables in @native-html/render.
+ </p>
+ 
+ <hr/>
+@@ -54,7 +54,7 @@ yarn add @native-html/heuristic-table-plugin
+ 
+ ## Compat Table
+ 
+-| react-native-render-html | @native-html/heuristic-table-plugin                                                                                |
++| @native-html/render | @native-html/heuristic-table-plugin                                                                                |
+ | ------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+ | &lt; 6.0.0               | -                                                                                                                  |
+ | ≥ 6.0.0                  | 6.x ([documentation](https://github.com/native-html/plugins/tree/rnrh/6.x/packages/heuristic-table-plugin#readme)) |
+@@ -64,7 +64,7 @@ yarn add @native-html/heuristic-table-plugin
+ ```javascript
+ import React from 'react';
+ import { ScrollView } from 'react-native';
+-import HTML from 'react-native-render-html';
++import HTML from '@native-html/render';
+ import tableRenderers from '@native-html/heuristic-table-plugin';
+ 
+ const html = `
+diff --git a/lib/commonjs/TreeRenderer.js b/lib/commonjs/TreeRenderer.js
+index 383b9f690263d001f8a2afe8f5fd57eb28db2a22..6c8339665c381517ab6c7f627f1a391ccf356705 100644
+--- a/lib/commonjs/TreeRenderer.js
++++ b/lib/commonjs/TreeRenderer.js
+@@ -9,7 +9,7 @@ var _react = _interopRequireDefault(require("react"));
+ 
+ var _reactNative = require("react-native");
+ 
+-var _reactNativeRenderHtml = require("react-native-render-html");
++var _reactNativeRenderHtml = require("@native-html/render");
+ 
+ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+ 
+diff --git a/lib/commonjs/useHtmlTableProps.js b/lib/commonjs/useHtmlTableProps.js
+index 9200e8707599f217a93ca4d1b046cbd82bff0fe7..6978dc8c7e9a6c6a911968bf31932f080a20eec3 100644
+--- a/lib/commonjs/useHtmlTableProps.js
++++ b/lib/commonjs/useHtmlTableProps.js
+@@ -7,7 +7,7 @@ exports.default = useHtmlTableProps;
+ 
+ var _react = require("react");
+ 
+-var _reactNativeRenderHtml = require("react-native-render-html");
++var _reactNativeRenderHtml = require("@native-html/render");
+ 
+ var _TableLayout = _interopRequireDefault(require("./TableLayout"));
+ 
+diff --git a/lib/module/TreeRenderer.js b/lib/module/TreeRenderer.js
+index f2db267f1461bfc6b9962aab030d1a96f0229e26..9c5c947a33b14f5b7ea06a369b4d61d89646cee4 100644
+--- a/lib/module/TreeRenderer.js
++++ b/lib/module/TreeRenderer.js
+@@ -1,6 +1,6 @@
+ import React from 'react';
+ import { StyleSheet, View } from 'react-native';
+-import { TNodeRenderer } from 'react-native-render-html';
++import { TNodeRenderer } from '@native-html/render';
+ const styles = StyleSheet.create({
+   colContainer: {
+     flexDirection: 'column',
+diff --git a/lib/module/useHtmlTableProps.js b/lib/module/useHtmlTableProps.js
+index f645aee1ad29ccfec1d5a5302d33d41e21d45e9b..389e04f4ff12ff25cc8934a344562ca8abd95a89 100644
+--- a/lib/module/useHtmlTableProps.js
++++ b/lib/module/useHtmlTableProps.js
+@@ -1,5 +1,5 @@
+ import { useMemo } from 'react';
+-import { useContentWidth, useRendererProps } from 'react-native-render-html';
++import { useContentWidth, useRendererProps } from '@native-html/render';
+ import TableLayout from './TableLayout';
+ 
+ function useTableLayout({
+diff --git a/lib/typescript/TableLayout.d.ts b/lib/typescript/TableLayout.d.ts
+index d3b8055356315675ab527a1ee4f676375d586e07..1a2b16ae1ba93f592b02d936448682ffea7a1ce0 100644
+--- a/lib/typescript/TableLayout.d.ts
++++ b/lib/typescript/TableLayout.d.ts
+@@ -1,4 +1,4 @@
+-import { TNode } from 'react-native-render-html';
++import { TNode } from '@native-html/render';
+ import { Display, Settings, TableRoot } from './shared-types';
+ export default class TableLayout {
+     readonly display: Display;
+diff --git a/lib/typescript/TableRenderer.d.ts b/lib/typescript/TableRenderer.d.ts
+index 902a2b1df517f263579958de0f0a8976d8553d06..8660428ccf04a03d207190072ca23ce6d939aee9 100644
+--- a/lib/typescript/TableRenderer.d.ts
++++ b/lib/typescript/TableRenderer.d.ts
+@@ -1,6 +1,6 @@
+-import { CustomBlockRenderer } from 'react-native-render-html';
++import { CustomBlockRenderer } from '@native-html/render';
+ import { HeuristicTablePluginConfig } from './shared-types';
+-declare module 'react-native-render-html' {
++declare module '@native-html/render' {
+     interface RenderersPropsBase {
+         table?: HeuristicTablePluginConfig;
+     }
+diff --git a/lib/typescript/TdRenderer.d.ts b/lib/typescript/TdRenderer.d.ts
+index 5edcab9ea69528f5bdbf5f21d0989c7356e6078b..0fab36dab290a6c24e3a32de06c60b780265736d 100644
+--- a/lib/typescript/TdRenderer.d.ts
++++ b/lib/typescript/TdRenderer.d.ts
+@@ -1,4 +1,4 @@
+-import { CustomBlockRenderer } from 'react-native-render-html';
++import { CustomBlockRenderer } from '@native-html/render';
+ /**
+  * The renderer component for `td` tag.
+  *
+diff --git a/lib/typescript/ThRenderer.d.ts b/lib/typescript/ThRenderer.d.ts
+index ce3dc03bb70749418e882c7a9c5a40d7e5c189d6..08be7c280c08fcdddf94f2499d6cd1b5b46d3b78 100644
+--- a/lib/typescript/ThRenderer.d.ts
++++ b/lib/typescript/ThRenderer.d.ts
+@@ -1,4 +1,4 @@
+-import { CustomBlockRenderer } from 'react-native-render-html';
++import { CustomBlockRenderer } from '@native-html/render';
+ /**
+  * The renderer component for `th` tag.
+  *
+diff --git a/lib/typescript/helpers/TCellConstraintsComputer.d.ts b/lib/typescript/helpers/TCellConstraintsComputer.d.ts
+index 51f06003224a059cb191f4b0bdef71c660657ca2..92bddc8ce31c12214b9e82ad041df5836f27e6fb 100644
+--- a/lib/typescript/helpers/TCellConstraintsComputer.d.ts
++++ b/lib/typescript/helpers/TCellConstraintsComputer.d.ts
+@@ -1,4 +1,4 @@
+-import { TNode } from 'react-native-render-html';
++import { TNode } from '@native-html/render';
+ import { TCellConstraints } from '../shared-types';
+ export default class TCellConstraintsComputer {
+     private baseFontCoeff;
+diff --git a/lib/typescript/helpers/fillTableDisplay.d.ts b/lib/typescript/helpers/fillTableDisplay.d.ts
+index 71778ac5052d1ce6feca79e251eaa3fc44b5d163..28d52e4728814fd5ff9722191998806cc3a55911 100644
+--- a/lib/typescript/helpers/fillTableDisplay.d.ts
++++ b/lib/typescript/helpers/fillTableDisplay.d.ts
+@@ -1,4 +1,4 @@
+-import { TNode } from 'react-native-render-html';
++import { TNode } from '@native-html/render';
+ import { Display, Settings } from '../shared-types';
+ import TCellConstraintsComputer from './TCellConstraintsComputer';
+ export declare function createEmptyDisplay(config: Settings): Display;
+diff --git a/lib/typescript/helpers/measure.d.ts b/lib/typescript/helpers/measure.d.ts
+index 89411b4c33efe7364ca03a6212c6b0b10aee8c13..6e25e5f6661c88d4988a50d07c67b38c8e647f68 100644
+--- a/lib/typescript/helpers/measure.d.ts
++++ b/lib/typescript/helpers/measure.d.ts
+@@ -1,2 +1,2 @@
+-export declare const getHorizontalMargins: (x: Partial<Pick<import("react-native").ViewStyle, import("react-native-render-html").CSSLongNativeTranslatableBlockRetainedPropKey>>) => number;
+-export declare const getHorizontalSpacing: (x: Partial<Pick<import("react-native").ViewStyle, import("react-native-render-html").CSSLongNativeTranslatableBlockRetainedPropKey>>) => number;
++export declare const getHorizontalMargins: (x: Partial<Pick<import("react-native").ViewStyle, import("@native-html/render").CSSLongNativeTranslatableBlockRetainedPropKey>>) => number;
++export declare const getHorizontalSpacing: (x: Partial<Pick<import("react-native").ViewStyle, import("@native-html/render").CSSLongNativeTranslatableBlockRetainedPropKey>>) => number;
+diff --git a/lib/typescript/index.d.ts b/lib/typescript/index.d.ts
+index 2c6a6fb3736677c72214921d13b249c55826dfcb..3e6a037bb31a5a4cf261e8c7ff0b91eb24e755b2 100644
+--- a/lib/typescript/index.d.ts
++++ b/lib/typescript/index.d.ts
+@@ -1,4 +1,4 @@
+-import { CustomBlockRenderer } from 'react-native-render-html';
++import { CustomBlockRenderer } from '@native-html/render';
+ import { HeuristicTablePluginConfig, Settings } from './shared-types';
+ import TableRenderer from './TableRenderer';
+ import TdRenderer from './TdRenderer';
+@@ -14,7 +14,7 @@ declare const renderers: Record<'th' | 'td' | 'table', CustomBlockRenderer>;
+ export { default as useHtmlTableProps } from './useHtmlTableProps';
+ export { default as useHtmlTableCellProps } from './useHtmlTableCellProps';
+ export { default as HTMLTable } from './HTMLTable';
+-declare module 'react-native-render-html' {
++declare module '@native-html/render' {
+     interface RenderersProps {
+         /**
+          * Configuration for `@native-html/heuristic-table-plugin` table renderer.
+diff --git a/lib/typescript/shared-types.d.ts b/lib/typescript/shared-types.d.ts
+index b3363517b45b0d6aa161f97d33b9d0ebcce2e9ba..4cfd2207324caba5e9778f8845c24aacaf2c8109 100644
+--- a/lib/typescript/shared-types.d.ts
++++ b/lib/typescript/shared-types.d.ts
+@@ -1,5 +1,5 @@
+ import { ViewStyle } from 'react-native';
+-import { CustomRendererProps, PropsFromParent, TBlock, TNode } from 'react-native-render-html';
++import { CustomRendererProps, PropsFromParent, TBlock, TNode } from '@native-html/render';
+ import TableLayout from './TableLayout';
+ /**
+  * @public
+diff --git a/lib/typescript/useHtmlTableCellProps.d.ts b/lib/typescript/useHtmlTableCellProps.d.ts
+index cd95e11390d0c540c7707fda13576f395ddc3e04..141b24be624d94bddc5cbd756c4e4a26e4b4b540 100644
+--- a/lib/typescript/useHtmlTableCellProps.d.ts
++++ b/lib/typescript/useHtmlTableCellProps.d.ts
+@@ -1,4 +1,4 @@
+-import { TBlock, CustomRendererProps } from 'react-native-render-html';
++import { TBlock, CustomRendererProps } from '@native-html/render';
+ /**
+  * Customize `td` and `th` renderers while reusing default cell renderer logic.
+  *
+diff --git a/lib/typescript/useHtmlTableProps.d.ts b/lib/typescript/useHtmlTableProps.d.ts
+index 8e744e662c93b379752a95d03566fac1ed94cce6..f9d8232bc786888f55fc4eb6c11dca8293fbd030 100644
+--- a/lib/typescript/useHtmlTableProps.d.ts
++++ b/lib/typescript/useHtmlTableProps.d.ts
+@@ -1,4 +1,4 @@
+-import { CustomRendererProps, TBlock } from 'react-native-render-html';
++import { CustomRendererProps, TBlock } from '@native-html/render';
+ import { HTMLTableProps } from './shared-types';
+ /**
+  * Customize the rendering logic of the table renderer via this hook.
+diff --git a/package.json b/package.json
+index 7f0942f65bd4a080aa3e28e4691ac945343a7d76..eecb7b8851631a511177989ec08d86f139a25f4c 100644
+--- a/package.json
++++ b/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "@native-html/heuristic-table-plugin",
+   "version": "0.7.0",
+-  "description": "🔠 A 100% native component using heuristics to render tables in react-native-render-html",
++  "description": "🔠 A 100% native component using heuristics to render tables in @native-html/render",
+   "main": "lib/commonjs/index.js",
+   "module": "lib/module/index.js",
+   "react-native": "src/",
+@@ -25,7 +25,7 @@
+   },
+   "keywords": [
+     "react-native",
+-    "react-native-render-html",
++    "@native-html/render",
+     "html",
+     "table",
+     "plugins"
+@@ -55,7 +55,7 @@
+     "react": "16.13.1",
+     "react-native": "^0.63.2",
+     "react-native-builder-bob": "^0.17.1",
+-    "react-native-render-html": "6.1.0",
++    "@native-html/render": "^1.0.2",
+     "react-test-renderer": "16.13.1",
+     "release-it": "^14.3.0",
+     "typescript": "~4.4.2"
+@@ -69,7 +69,7 @@
+   "peerDependencies": {
+     "react": ">= 16.8.0",
+     "react-native": ">= 0.63.0",
+-    "react-native-render-html": ">= 6.0.0-beta.0 || 6.x"
++    "@native-html/render": "^1.0.2"
+   },
+   "author": "Jules Sam. Randolph <jules.sam.randolph@gmail.com> (https://github.com/jsamr)",
+   "homepage": "https://github.com/native-html/plugins/tree/master/packages/heuristic-table-plugin#readme",
+diff --git a/src/TableLayout.ts b/src/TableLayout.ts
+index 996f2d39fd08fd04555ad2dbe699ab8b912786c7..3506b9e996c0ba5e7d3cd96dd4191d9d103beb73 100644
+--- a/src/TableLayout.ts
++++ b/src/TableLayout.ts
+@@ -1,5 +1,5 @@
+ import { sum } from 'ramda';
+-import { TNode } from 'react-native-render-html';
++import { TNode } from '@native-html/render';
+ import computeColumnWidths from './helpers/computeColumnWidths';
+ import createRenderTree from './helpers/createRenderTree';
+ import fillTableDisplay, {
+diff --git a/src/TableRenderer.ts b/src/TableRenderer.ts
+index 5039ef09737000c969746ebf190a12f6d6d4a28e..3d9466992f4483d2072166068c2162a4ee31ea9d 100644
+--- a/src/TableRenderer.ts
++++ b/src/TableRenderer.ts
+@@ -1,10 +1,10 @@
+ import React from 'react';
+-import { CustomBlockRenderer } from 'react-native-render-html';
++import { CustomBlockRenderer } from '@native-html/render';
+ import HTMLTable from './HTMLTable';
+ import { HeuristicTablePluginConfig } from './shared-types';
+ import useHtmlTableProps from './useHtmlTableProps';
+ 
+-declare module 'react-native-render-html' {
++declare module '@native-html/render' {
+   interface RenderersPropsBase {
+     table?: HeuristicTablePluginConfig;
+   }
+diff --git a/src/TdRenderer.tsx b/src/TdRenderer.tsx
+index 3c4a6d9ecd2e0b09da8f3e59d808040e0596f783..9861e2c0fcf8885391d9383f3246f51bed8ecd42 100644
+--- a/src/TdRenderer.tsx
++++ b/src/TdRenderer.tsx
+@@ -1,5 +1,5 @@
+ import React from 'react';
+-import { CustomBlockRenderer } from 'react-native-render-html';
++import { CustomBlockRenderer } from '@native-html/render';
+ import useHtmlTableCellProps from './useHtmlTableCellProps';
+ 
+ /**
+diff --git a/src/ThRenderer.ts b/src/ThRenderer.ts
+index 56dbd6dfed55b5d4596999e238cdd47007ce501f..e212aacd7f0f5bb2c27a39241ca8b8590f0504e4 100644
+--- a/src/ThRenderer.ts
++++ b/src/ThRenderer.ts
+@@ -1,5 +1,5 @@
+ import React from 'react';
+-import { CustomBlockRenderer } from 'react-native-render-html';
++import { CustomBlockRenderer } from '@native-html/render';
+ import useHtmlTableCellProps from './useHtmlTableCellProps';
+ 
+ /**
+diff --git a/src/TreeRenderer.tsx b/src/TreeRenderer.tsx
+index 6d35fa68609af56d275481cab628be9180ebd0c7..5a99548794b099cfafa576ff3b525a020229fe29 100644
+--- a/src/TreeRenderer.tsx
++++ b/src/TreeRenderer.tsx
+@@ -1,6 +1,6 @@
+ import React from 'react';
+ import { StyleSheet, View } from 'react-native';
+-import { TNodeRenderer } from 'react-native-render-html';
++import { TNodeRenderer } from '@native-html/render';
+ import { HeuristicTablePluginConfig, TableRenderNode } from './shared-types';
+ 
+ const styles = StyleSheet.create({
+diff --git a/src/helpers/TCellConstraintsComputer.ts b/src/helpers/TCellConstraintsComputer.ts
+index 42ba9b7fc2a764af89fe276f2485596b9e155a4d..12adb95fac33bc8c66256b47291384c5b2478fc0 100644
+--- a/src/helpers/TCellConstraintsComputer.ts
++++ b/src/helpers/TCellConstraintsComputer.ts
+@@ -5,7 +5,7 @@ import max from 'ramda/src/max';
+ import prop from 'ramda/src/prop';
+ import reduce from 'ramda/src/reduce';
+ import { TextStyle } from 'react-native';
+-import { TNode } from 'react-native-render-html';
++import { TNode } from '@native-html/render';
+ import { TCellConstraints } from '../shared-types';
+ import { getHorizontalMargins, getHorizontalSpacing } from './measure';
+ 
+diff --git a/src/helpers/__tests__/fillTableDisplay.test.ts b/src/helpers/__tests__/fillTableDisplay.test.ts
+index 5020165eb0df5023ef2c5de7092316a88ccff479..941d3aaed5a4d2b0dfe1845a0d1cfbb759601c76 100644
+--- a/src/helpers/__tests__/fillTableDisplay.test.ts
++++ b/src/helpers/__tests__/fillTableDisplay.test.ts
+@@ -1,4 +1,4 @@
+-import { TNode } from 'react-native-render-html';
++import { TNode } from '@native-html/render';
+ import fillTableDisplay, { createEmptyDisplay } from '../fillTableDisplay';
+ import TCellConstraintsComputer from '../TCellConstraintsComputer';
+ import { createTableTNode } from './utils';
+diff --git a/src/helpers/__tests__/makeRows.test.ts b/src/helpers/__tests__/makeRows.test.ts
+index 6babfbbde2b81047c981d34b66c713c27f30bbc5..502934698664d0a2ebc678ca00c804a92a89bfe0 100644
+--- a/src/helpers/__tests__/makeRows.test.ts
++++ b/src/helpers/__tests__/makeRows.test.ts
+@@ -1,4 +1,4 @@
+-import { TNode } from 'react-native-render-html';
++import { TNode } from '@native-html/render';
+ import R from 'ramda';
+ import { TableCell } from '../../shared-types';
+ import makeRows from '../makeRows';
+diff --git a/src/helpers/fillTableDisplay.ts b/src/helpers/fillTableDisplay.ts
+index 4ddfb79b8e391e76a36ad94ec4267b63c307b6b0..58785e0427d7817ea4435c361e3c93976b2bdff0 100644
+--- a/src/helpers/fillTableDisplay.ts
++++ b/src/helpers/fillTableDisplay.ts
+@@ -1,4 +1,4 @@
+-import { TNode } from 'react-native-render-html';
++import { TNode } from '@native-html/render';
+ import { Display, DisplayCell, Settings } from '../shared-types';
+ import TCellConstraintsComputer from './TCellConstraintsComputer';
+ 
+diff --git a/src/helpers/measure.ts b/src/helpers/measure.ts
+index e41adb8bc01eeb5c83e39dc5016798b2ddecb2af..2deab72f62a41ff3b5e9a3b36874ea609854ebe1 100644
+--- a/src/helpers/measure.ts
++++ b/src/helpers/measure.ts
+@@ -3,7 +3,7 @@ import pipe from 'ramda/src/pipe';
+ import sum from 'ramda/src/sum';
+ import map from 'ramda/src/map';
+ import values from 'ramda/src/values';
+-import { TNode } from 'react-native-render-html';
++import { TNode } from '@native-html/render';
+ 
+ type NativeBlockRetStyle = TNode['styles']['nativeBlockRet'];
+ type SpacingFields = Extract<
+diff --git a/src/index.ts b/src/index.ts
+index 5492b06b007f652cb32759d3986124d5b5c521ef..2062342d20b533b4dc31283e7354b3cbca18110a 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -1,4 +1,4 @@
+-import { CustomBlockRenderer } from 'react-native-render-html';
++import { CustomBlockRenderer } from '@native-html/render';
+ import { HeuristicTablePluginConfig, Settings } from './shared-types';
+ import TableRenderer from './TableRenderer';
+ import TdRenderer from './TdRenderer';
+@@ -34,7 +34,7 @@ export { default as useHtmlTableProps } from './useHtmlTableProps';
+ export { default as useHtmlTableCellProps } from './useHtmlTableCellProps';
+ export { default as HTMLTable } from './HTMLTable';
+ 
+-declare module 'react-native-render-html' {
++declare module '@native-html/render' {
+   interface RenderersProps {
+     /**
+      * Configuration for `@native-html/heuristic-table-plugin` table renderer.
+diff --git a/src/shared-types.ts b/src/shared-types.ts
+index 163fdb33c5a213e5523a8ef16fd9256cfd974d67..78765c30f2170272f4ff857df8ad1efa9156f225 100644
+--- a/src/shared-types.ts
++++ b/src/shared-types.ts
+@@ -4,7 +4,7 @@ import {
+   PropsFromParent,
+   TBlock,
+   TNode
+-} from 'react-native-render-html';
++} from '@native-html/render';
+ import TableLayout from './TableLayout';
+ 
+ /**
+diff --git a/src/useHtmlTableCellProps.ts b/src/useHtmlTableCellProps.ts
+index b71776a1f4f1bda415b6daab7d015af9e3a01a84..5c9902e704487e3a33ec3e0b61663618c6de97d5 100644
+--- a/src/useHtmlTableCellProps.ts
++++ b/src/useHtmlTableCellProps.ts
+@@ -1,4 +1,4 @@
+-import { TBlock, CustomRendererProps } from 'react-native-render-html';
++import { TBlock, CustomRendererProps } from '@native-html/render';
+ import { TableCellPropsFromParent } from './shared-types';
+ 
+ /**
+diff --git a/src/useHtmlTableProps.ts b/src/useHtmlTableProps.ts
+index bdd307aa10704b389db563ca82bf773832a89d6f..bdc87f2189164ee208ce03666e803add17b187cd 100644
+--- a/src/useHtmlTableProps.ts
++++ b/src/useHtmlTableProps.ts
+@@ -5,7 +5,7 @@ import {
+   TNode,
+   useContentWidth,
+   useRendererProps
+-} from 'react-native-render-html';
++} from '@native-html/render';
+ import { Settings, HTMLTableProps } from './shared-types';
+ import TableLayout from './TableLayout';
+ 
+diff --git a/types/@native-html/heuristic-table-plugin/index.d.ts b/types/@native-html/heuristic-table-plugin/index.d.ts
+index 7de4ce0b734ba5201704a530c59a0d510af75da1..ab73b17eb97613ebdadb3a75f054e962c7e03f70 100644
+--- a/types/@native-html/heuristic-table-plugin/index.d.ts
++++ b/types/@native-html/heuristic-table-plugin/index.d.ts
+@@ -1,9 +1,9 @@
+-import { CustomBlockRenderer } from 'react-native-render-html';
+-import { CustomRendererProps } from 'react-native-render-html';
+-import { PropsFromParent } from 'react-native-render-html';
++import { CustomBlockRenderer } from '@native-html/render';
++import { CustomRendererProps } from '@native-html/render';
++import { PropsFromParent } from '@native-html/render';
+ import { default as React_2 } from 'react';
+-import { TBlock } from 'react-native-render-html';
+-import { TNode } from 'react-native-render-html';
++import { TBlock } from '@native-html/render';
++import { TNode } from '@native-html/render';
+ import { ViewStyle } from 'react-native';
+ 
+ /**

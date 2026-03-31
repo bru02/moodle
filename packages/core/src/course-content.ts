@@ -147,11 +147,13 @@ export function listCourseContents(input: {
   contentRows: readonly (CoreCourseGetContentsWSResponse | undefined)[] | undefined;
   now?: number;
   dismissedRecentItemIds?: ReadonlySet<string>;
+  recentActivityCutoffAt?: number | null;
 }) {
   const scopedSections = buildScopedSections(input.scope, input.contentRows);
   const displayLayout = buildCourseDisplayLayout(input.scope, scopedSections, {
     now: input.now,
     dismissedRecentItemIds: input.dismissedRecentItemIds,
+    recentActivityCutoffAt: input.recentActivityCutoffAt,
   });
 
   return {
