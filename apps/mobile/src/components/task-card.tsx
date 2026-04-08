@@ -6,14 +6,16 @@ import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { BlurView } from "expo-blur";
 import type { TaskItem } from "@moodle/core";
 
+const taskDateFormatter = new Intl.DateTimeFormat("en", {
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
 function formatTimestamp(value?: number) {
   if (!value) return null;
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(value * 1000));
+  return taskDateFormatter.format(new Date(value * 1000));
 }
 
 function kindColor(kind: string): string {

@@ -3,8 +3,10 @@ import { Alert, Platform } from "react-native";
 import { viewDocument } from "@react-native-documents/viewer";
 import * as Crypto from "expo-crypto";
 import { Directory, File, Paths } from "expo-file-system";
+import { router } from "expo-router";
 
 import { openExternalUrl } from "@/lib/browser";
+import { detectNativeResourcePreviewKind } from "@/lib/resource-preview";
 
 type PreviewRemoteDocumentInput = {
   url: string;
@@ -19,6 +21,19 @@ export async function previewRemoteDocument(input: PreviewRemoteDocumentInput) {
   }
 
   const localFile = await ensureCachedDocument(input);
+  const previewKind = detectNativeResourcePreviewKind(input);
+
+  if (previewKind) {
+    router.push({
+      pathname: "/resource-preview",
+      params: {
+        uri: localFile.uri,
+        fileName: input.fileName ?? "",
+        mimeType: input.mimeType ?? "",
+      },
+    });
+    return;
+  }
 
   try {
     await viewDocument({

@@ -1,5 +1,6 @@
+import { useFocusEffect } from "@react-navigation/native";
 import { Stack, useLocalSearchParams, router } from "expo-router";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { Text, View } from "react-native";
 
 import { platformColors } from "@/constants/platform-colors";
@@ -9,6 +10,7 @@ import { buttonStyle, controlSize, tint } from "@expo/ui/swift-ui/modifiers";
 import { EmptyState } from "@/components/empty-state";
 import { GroupHeader, InsetGroup, NativeScrollPage, SectionTitle, StatPill, SymbolBadge } from "@/components/native-ui";
 import { useTasksQuery } from "@/lib/moodle-queries";
+import { clearCurrentUserActivity, donateUserActivity } from "@/lib/user-activity";
 
 export default function TaskDetailScreen() {
   const params = useLocalSearchParams<{ taskId?: string }>();
@@ -25,6 +27,31 @@ export default function TaskDetailScreen() {
   const labelColor = platformColors.label;
   const label2Color = platformColors.secondaryLabel;
   const blueColor = platformColors.systemBlue;
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!task) return;
+
+      const routePath = normalizeRouteToPath(task.route);
+
+      void donateUserActivity({
+        activityType: "me.toldy.moodle.view-task",
+        title: task.title,
+        description: [task.courseTitle, task.subtitle].filter(Boolean).join(" · "),
+        route: routePath,
+        url: `mobile://${routePath.replace(/^\//, "")}`,
+        persistentIdentifier: `task:${task.id}`,
+        keywords: [task.kind, task.courseTitle].filter((value): value is string => Boolean(value)),
+        userInfo: {
+          taskId: task.id,
+        },
+      });
+
+      return () => {
+        void clearCurrentUserActivity();
+      };
+    }, [task]),
+  );
 
   if (tasksQuery.isLoading && !task) {
     return <EmptyState title="Loading task" />;
@@ -70,6 +97,14 @@ export default function TaskDetailScreen() {
       </NativeScrollPage>
     </>
   );
+}
+
+function normalizeRouteToPath(route: string | { pathname: string }) {
+  if (typeof route === "string") {
+    return route;
+  }
+
+  return typeof route.pathname === "string" ? route.pathname : String(route.pathname);
 }
 
 function symbolForTask(kind: string) {

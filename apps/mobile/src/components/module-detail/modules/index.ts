@@ -3,6 +3,7 @@ import type { ComponentType } from "react";
 import type { ModuleDetailProps } from "../types";
 import { AssignmentDetail } from "./assignment";
 import { BookDetail } from "./book";
+import { ChoiceDetail } from "./choice";
 import { FeedbackDetail } from "./feedback";
 import { FolderDetail } from "./folder";
 import { ForumDetail } from "./forum";
@@ -19,6 +20,7 @@ export const moduleDetailComponents: Partial<Record<string, ComponentType<Module
   assign: AssignmentDetail,
   quiz: QuizDetail,
   forum: ForumDetail,
+  choice: ChoiceDetail,
   feedback: FeedbackDetail,
   crfeedback: FeedbackDetail,
 };

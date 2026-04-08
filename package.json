@@ -9,14 +9,14 @@
   "scripts": {
     "build": "bun run --cwd apps/raycast build",
     "check": "bun run lint && bun run format:check && bun run test",
+    "compare:ios": "bash ./scripts/compare/start-mobile-ios.sh",
+    "compare:oma": "bash ./scripts/compare/start-oma-web.sh",
     "dev": "bun run --cwd apps/raycast dev",
     "fix-lint": "bun run --cwd apps/raycast fix-lint && bun run --cwd packages/core fix-lint && oxfmt --write .gitignore .oxfmtrc.json .oxlintrc.json README.md package.json tsconfig.base.json",
     "format": "bun run --cwd apps/raycast format && bun run --cwd packages/core format && oxfmt --write .gitignore .oxfmtrc.json .oxlintrc.json README.md package.json tsconfig.base.json",
     "format:check": "bun run --cwd apps/raycast format:check && bun run --cwd packages/core format:check && oxfmt --check .gitignore .oxfmtrc.json .oxlintrc.json README.md package.json tsconfig.base.json",
     "lint": "bun run --cwd apps/raycast lint && bun run --cwd packages/core lint",
     "publish": "bun run --cwd apps/raycast publish",
-    "syllabus:analyze": "bun run --cwd apps/raycast syllabus:analyze",
-    "syllabus:audit": "bun run --cwd apps/raycast syllabus:audit",
     "test": "bun run --cwd apps/raycast test",
     "test:grade-pipeline": "bun run --cwd apps/raycast test:grade-pipeline"
   },
@@ -31,6 +31,7 @@
     "react-native": "0.83.2"
   },
   "patchedDependencies": {
-    "@native-html/heuristic-table-plugin@0.7.0": "patches/@native-html%2Fheuristic-table-plugin@0.7.0.patch"
+    "@native-html/heuristic-table-plugin@0.7.0": "patches/@native-html%2Fheuristic-table-plugin@0.7.0.patch",
+    "react-native-shiki-engine@0.3.9": "patches/react-native-shiki-engine@0.3.9.patch"
   }
 }

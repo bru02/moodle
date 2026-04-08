@@ -1,7 +1,4 @@
 import { router } from "expo-router";
-import { useEffect, useRef, useState } from "react";
-import { BottomSheet, Group, Host, RNHostView } from "@expo/ui/swift-ui";
-import { presentationDetents, presentationDragIndicator } from "@expo/ui/swift-ui/modifiers";
 import { Image } from "expo-image";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -12,10 +9,8 @@ import { useAppState } from "@/providers/app-provider";
 
 export default function AccountsSheet() {
   const { accounts, activeAccount, activeAccountId, removeAccount, setActiveAccount } = useAppState();
-  const [isPresented, setIsPresented] = useState(false);
-  const isClosingRef = useRef(false);
-  const isIos = process.env.EXPO_OS === "ios";
-  const content = (
+
+  return (
     <AccountsSheetContent
       accounts={accounts}
       activeAccount={activeAccount}
@@ -24,65 +19,15 @@ export default function AccountsSheet() {
         if (id !== activeAccountId) {
           await setActiveAccount(id);
         }
-        closeSheet();
+        router.back();
       }}
       onSignOut={async (id) => {
         await removeAccount(id);
         if (accounts.length <= 1) {
-          closeSheet();
+          router.back();
         }
       }}
     />
-  );
-
-  function closeSheet() {
-    if (isClosingRef.current) {
-      return;
-    }
-
-    isClosingRef.current = true;
-    setIsPresented(false);
-    router.back();
-  }
-
-  useEffect(() => {
-    if (!isIos) {
-      return;
-    }
-
-    setIsPresented(true);
-  }, [isIos]);
-
-  if (!isIos) {
-    return content;
-  }
-
-  return (
-    <Host style={{ flex: 1, backgroundColor: "transparent" }}>
-      <BottomSheet
-        isPresented={isPresented}
-        onIsPresentedChange={(next) => {
-          setIsPresented(next);
-
-          if (!next) {
-            closeSheet();
-          }
-        }}
-      >
-        <Group
-          modifiers={[
-            presentationDetents([{ fraction: 0.48 }, "large"]),
-            presentationDragIndicator("visible"),
-          ]}
-        >
-          <RNHostView>
-            <View style={{ flex: 1, backgroundColor: platformColors.systemGroupedBackground }}>
-              {content}
-            </View>
-          </RNHostView>
-        </Group>
-      </BottomSheet>
-    </Host>
   );
 }
 

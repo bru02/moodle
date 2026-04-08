@@ -52,64 +52,114 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
 function AppProviderBridge({ children }: { children: React.ReactNode }) {
   const session = useSession();
+  const {
+    accounts,
+    activeAccount,
+    activeSession,
+    isHydrated,
+    settings,
+    switchAccount,
+    removeAccount: removeStoredAccount,
+    resolveSite: resolveStoredSite,
+    signInWithCredentials,
+    signInWithToken,
+    signInWithQrPayload,
+    refreshSessionForAccount,
+    setMergeSimilarCourses,
+  } = session;
+  const mappedAccounts = React.useMemo(() => accounts.map(mapAccount), [accounts]);
+  const mappedActiveAccount = React.useMemo(
+    () => (activeAccount ? mapAccount(activeAccount) : null),
+    [activeAccount],
+  );
+  const mappedActiveSession = React.useMemo(() => mapSession(activeSession), [activeSession]);
+
+  const setActiveAccount = React.useCallback(async (id: string | null) => {
+    if (!id) {
+      return;
+    }
+    await switchAccount(id);
+  }, [switchAccount]);
+
+  const removeAccount = React.useCallback(async (id: string) => {
+    await removeStoredAccount(id);
+  }, [removeStoredAccount]);
+
+  const resolveSite = React.useCallback(async (input: { siteUrl: string }) => {
+    return await resolveStoredSite(input);
+  }, [resolveStoredSite]);
+
+  const addCredentialAccount = React.useCallback(async (input: CredentialsInput) => {
+    await signInWithCredentials({
+      siteOrigin: input.siteUrl,
+      username: input.username,
+      password: input.password,
+    });
+  }, [signInWithCredentials]);
+
+  const addTokenAccount = React.useCallback(async (input: { siteUrl: string; token: string; privateToken?: string }) => {
+    await signInWithToken({
+      siteOrigin: input.siteUrl,
+      token: input.token,
+      privateToken: input.privateToken,
+    });
+  }, [signInWithToken]);
+
+  const addQrAccount = React.useCallback(async (input: QrInput) => {
+    const payload = `${normalizeSiteUrl(input.siteUrl)}?qrlogin=${encodeURIComponent(input.qrLoginKey)}&userid=${encodeURIComponent(input.userId)}`;
+    await signInWithQrPayload(payload);
+  }, [signInWithQrPayload]);
+
+  const refreshAccountSession = React.useCallback(async (id: string) => {
+    const refreshed = await refreshSessionForAccount(id);
+    return mapSession(refreshed);
+  }, [refreshSessionForAccount]);
+
+  const updateSettings = React.useCallback(async (next: Partial<{ mergeSimilarCourses: boolean }>) => {
+    if (typeof next.mergeSimilarCourses === "boolean") {
+      await setMergeSimilarCourses(next.mergeSimilarCourses);
+    }
+  }, [setMergeSimilarCourses]);
+
+  const accountSession = React.useCallback((id: string) => {
+    if (mappedActiveAccount?.id !== id) {
+      return null;
+    }
+    return mappedActiveSession;
+  }, [mappedActiveAccount?.id, mappedActiveSession]);
 
   const value = React.useMemo<AppContextValue>(() => {
-    const mappedAccounts = session.accounts.map(mapAccount);
-    const mappedActiveAccount = session.activeAccount ? mapAccount(session.activeAccount) : null;
-
     return {
-      ready: session.isHydrated,
+      ready: isHydrated,
       accounts: mappedAccounts,
       activeAccountId: mappedActiveAccount?.id ?? null,
       activeAccount: mappedActiveAccount,
-      settings: session.settings,
-      async setActiveAccount(id) {
-        if (!id) {
-          return;
-        }
-        await session.switchAccount(id);
-      },
-      async removeAccount(id) {
-        await session.removeAccount(id);
-      },
-      async resolveSite(input) {
-        return await session.resolveSite(input);
-      },
-      async addCredentialAccount(input) {
-        await session.signInWithCredentials({
-          siteOrigin: input.siteUrl,
-          username: input.username,
-          password: input.password,
-        });
-      },
-      async addTokenAccount(input) {
-        await session.signInWithToken({
-          siteOrigin: input.siteUrl,
-          token: input.token,
-          privateToken: input.privateToken,
-        });
-      },
-      async addQrAccount(input) {
-        const payload = `${normalizeSiteUrl(input.siteUrl)}?qrlogin=${encodeURIComponent(input.qrLoginKey)}&userid=${encodeURIComponent(input.userId)}`;
-        await session.signInWithQrPayload(payload);
-      },
-      async refreshAccountSession(id) {
-        const refreshed = await session.refreshSessionForAccount(id);
-        return mapSession(refreshed);
-      },
-      async updateSettings(next) {
-        if (typeof next.mergeSimilarCourses === "boolean") {
-          await session.setMergeSimilarCourses(next.mergeSimilarCourses);
-        }
-      },
-      accountSession(id) {
-        if (mappedActiveAccount?.id !== id || !session.activeSession) {
-          return null;
-        }
-        return mapSession(session.activeSession);
-      },
+      settings,
+      setActiveAccount,
+      removeAccount,
+      resolveSite,
+      addCredentialAccount,
+      addTokenAccount,
+      addQrAccount,
+      refreshAccountSession,
+      updateSettings,
+      accountSession,
     };
-  }, [session]);
+  }, [
+    accountSession,
+    addCredentialAccount,
+    addQrAccount,
+    addTokenAccount,
+    mappedAccounts,
+    mappedActiveAccount,
+    refreshAccountSession,
+    removeAccount,
+    resolveSite,
+    isHydrated,
+    settings,
+    setActiveAccount,
+    updateSettings,
+  ]);
 
   return <AppContext value={value}>{children}</AppContext>;
 }
@@ -124,6 +174,7 @@ export function useAppState() {
 
 function mapAccount(account: ReturnType<typeof useSession>["accounts"][number]): MoodleAccount {
   const authMethod = mapAuthMethod(account.authMethod);
+  const timestamp = account.lastUsedAt ?? 0;
 
   return {
     id: account.id,
@@ -133,9 +184,9 @@ function mapAccount(account: ReturnType<typeof useSession>["accounts"][number]):
     authMethod,
     username: account.username,
     fullname: account.fullname,
-    createdAt: account.lastUsedAt ?? Date.now(),
-    updatedAt: account.lastUsedAt ?? Date.now(),
-    lastUsedAt: account.lastUsedAt ?? Date.now(),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    lastUsedAt: timestamp,
     avatarUrl: account.avatarUrl,
   };
 }

@@ -7,75 +7,43 @@ import { platformColors } from "@/constants/platform-colors";
 
 import { EmptyState } from "@/components/empty-state";
 import { HeaderAccountButton } from "@/components/header-account-button";
-import { GroupHeader, InsetGroup, InsetRow, NativePage, SymbolBadge, nativePageContentContainerStyle } from "@/components/native-ui";
+import { InsetRow, NativePage, SymbolBadge, nativePageContentContainerStyle } from "@/components/native-ui";
 import type { MobileTaskItem } from "@/lib/moodle-client";
 import { useTasksQuery } from "@/lib/moodle-queries";
 
-type TaskListItem =
-  | {
-      kind: "section";
-      id: string;
-      title: string;
-      subtitle: string;
-      count: number;
-    }
-  | {
-      kind: "task";
-      id: string;
-      task: MobileTaskItem;
-      subdued?: boolean;
-      now: number;
-    };
+type TaskListItem = {
+  id: string;
+  task: MobileTaskItem;
+  subdued: boolean;
+};
 
 export default function TasksScreen() {
   const tasksQuery = useTasksQuery();
-  const now = Date.now();
 
-  const { items } = useMemo(() => {
-    const actionable = [...(tasksQuery.data?.actionable ?? [])].sort(compareByUrgency);
-    const review = [...(tasksQuery.data?.review ?? [])].sort(
-      (left, right) => right.sortTimestamp - left.sortTimestamp,
-    );
-    const items: TaskListItem[] = [];
+  const { items, referenceNow } = useMemo(() => {
+    const referenceNow = Date.now();
+    const all = [
+      ...(tasksQuery.data?.actionable ?? []),
+      ...(tasksQuery.data?.review ?? []),
+    ];
 
-    if (actionable.length > 0) {
-      items.push({
-        kind: "section",
-        id: "actionable",
-        title: "Due next",
-        subtitle: "",
-        count: actionable.length,
-      });
-      for (const task of actionable) {
-        items.push({ kind: "task", id: task.id, task, now });
-      }
-    }
+    const items: TaskListItem[] = all
+      .filter((task) => !isExpiredIncompleteTask(task, referenceNow))
+      .sort(compareByCompletionOrDueAt)
+      .map((task) => ({
+        id: task.id,
+        task,
+        subdued: task.completed === true,
+      }));
 
-    if (review.length > 0) {
-      items.push({
-        kind: "section",
-        id: "review",
-        title: "Recent activity",
-        subtitle: "",
-        count: review.length,
-      });
-      for (const task of review) {
-        items.push({ kind: "task", id: `review:${task.id}`, task, subdued: true, now });
-      }
-    }
-
-    return {
-      items,
-    };
-  }, [now, tasksQuery.data]);
+    return { items, referenceNow };
+  }, [tasksQuery.data]);
 
   return (
     <>
       <Stack.Screen
         options={{
           title: "Tasks",
-          headerLargeTitle: false,
-          headerTitleAlign: "center",
           headerRight: () => <HeaderAccountButton />,
         }}
       />
@@ -85,7 +53,6 @@ export default function TasksScreen() {
           keyExtractor={(item) => item.id}
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={nativePageContentContainerStyle}
-          ItemSeparatorComponent={TaskListSpacer}
           ListEmptyComponent={
             tasksQuery.isLoading ? (
               <EmptyState
@@ -99,38 +66,33 @@ export default function TasksScreen() {
               />
             )
           }
-          getItemType={(item) => item.kind}
-          renderItem={({ item }) =>
-            item.kind === "section" ? (
-              <GroupHeader
-                title={item.title}
-                subtitle={item.subtitle}
-                trailing={<TaskCount count={item.count} />}
-              />
-            ) : (
-              <InsetGroup>
-                <TaskRow task={item.task} now={item.now} subdued={item.subdued} />
-              </InsetGroup>
-            )
-          }
+          renderItem={({ item, index }) => (
+            <TaskRow
+              task={item.task}
+              now={referenceNow}
+              subdued={item.subdued}
+              first={index === 0}
+              last={index === items.length - 1}
+            />
+          )}
         />
       </NativePage>
     </>
   );
 }
 
-function TaskListSpacer() {
-  return <View style={{ height: 12 }} />;
-}
-
 function TaskRow({
   task,
   now,
   subdued = false,
+  first = false,
+  last = false,
 }: {
   task: MobileTaskItem;
   now: number;
   subdued?: boolean;
+  first?: boolean;
+  last?: boolean;
 }) {
   const status = formatTaskDueLabel(task, now);
   const kindTone = getKindTone(task.kind);
@@ -139,21 +101,14 @@ function TaskRow({
 
   return (
     <InsetRow
-      first
-      last
+      first={first}
+      last={last}
       title={task.title}
       subtitle={[task.courseTitle, task.subtitle, status].filter(Boolean).join("  ·  ")}
       leading={<SymbolBadge symbol={kindTone.symbol} tint={kindTone.color} backgroundColor={kindTone.backgroundColor} />}
       accessory={
-        <View
-          style={{
-            borderRadius: 999,
-            paddingHorizontal: 8,
-            paddingVertical: 4,
-            backgroundColor: subdued ? tertiaryFill : kindTone.backgroundColor,
-          }}
-        >
-          <Text selectable style={{ fontSize: 11, lineHeight: 14, fontWeight: "700", color: subdued ? secondaryColor : kindTone.color }}>
+        <View style={[styles.taskPill, { backgroundColor: subdued ? tertiaryFill : kindTone.backgroundColor }]}>
+          <Text selectable style={[styles.taskPillLabel, { color: subdued ? secondaryColor : kindTone.color }]}>
             {task.actionLabel ?? kindTone.label}
           </Text>
         </View>
@@ -163,19 +118,23 @@ function TaskRow({
   );
 }
 
-function TaskCount({ count }: { count: number }) {
-  const secondaryColor = platformColors.secondaryLabel;
+function compareByCompletionOrDueAt(left: MobileTaskItem, right: MobileTaskItem) {
+  const leftTimestamp = left.reviewAt ?? left.dueAt ?? left.closeAt ?? left.openAt ?? left.sortTimestamp;
+  const rightTimestamp = right.reviewAt ?? right.dueAt ?? right.closeAt ?? right.openAt ?? right.sortTimestamp;
 
-  return (
-    <Text selectable style={{ fontSize: 13, fontWeight: "700", color: secondaryColor }}>
-      {count}
-    </Text>
-  );
+  if (leftTimestamp !== rightTimestamp) return rightTimestamp - leftTimestamp;
+  if (left.courseTitle !== right.courseTitle) return left.courseTitle.localeCompare(right.courseTitle);
+  return left.title.localeCompare(right.title);
 }
 
-function compareByUrgency(left: MobileTaskItem, right: MobileTaskItem) {
-  if (left.sortTimestamp !== right.sortTimestamp) return left.sortTimestamp - right.sortTimestamp;
-  return right.sortTimestamp - left.sortTimestamp;
+function isExpiredIncompleteTask(task: MobileTaskItem, nowMs: number) {
+  if (task.completed) return false;
+
+  const now = Math.floor(nowMs / 1000);
+  const submissionDeadline = task.closeAt ?? task.dueAt;
+  if (!submissionDeadline) return false;
+
+  return now > submissionDeadline;
 }
 
 const shortDateFormatter = new Intl.DateTimeFormat("en", {
@@ -245,3 +204,16 @@ function getKindTone(kind: MobileTaskItem["kind"]) {
       };
   }
 }
+
+const styles = {
+  taskPill: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  taskPillLabel: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: "700" as const,
+  },
+};

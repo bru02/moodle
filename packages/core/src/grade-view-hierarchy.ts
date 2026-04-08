@@ -1,8 +1,5 @@
-// @ts-expect-error no types
-import domino from "@mixmark-io/domino";
-import { decode } from "html-entities";
-
 import type { CoreGradesGetUserGradesTableWSResponse, CoreGradesTableRow } from "./grade-types";
+import { parseGradeRows } from "./grade-row-parser";
 
 type GradeTreeNode = {
   label: string;
@@ -53,23 +50,15 @@ function buildGradeTree(rows: readonly CoreGradesTableRow[], siteUrl: string): G
   const roots: GradeTreeNode[] = [];
   const stack: GradeTreeNode[] = [];
 
-  for (const row of rows) {
-    if (!row.itemname?.content) continue;
-
-    const itemClass = row.itemname.class || "";
-    const level = parseLevel(itemClass);
-    const kind: GradeTreeNode["kind"] = /\bcategory\b/.test(itemClass) ? "category" : "item";
-    const label = extractRowLabel(row, kind);
-    if (!label) continue;
-
+  for (const row of parseGradeRows(rows, { siteUrl })) {
     const node: GradeTreeNode = {
-      label,
-      level,
-      kind,
-      grade: cleanField(row.grade?.content),
-      range: cleanField(row.range?.content),
-      percentage: cleanField(row.percentage?.content),
-      moduleId: extractModuleId(row, siteUrl),
+      label: row.label,
+      level: row.level,
+      kind: row.kind,
+      grade: row.grade,
+      range: row.range,
+      percentage: row.percentage,
+      moduleId: row.moduleId,
       children: [],
     };
 
@@ -90,57 +79,6 @@ function buildGradeTree(rows: readonly CoreGradesTableRow[], siteUrl: string): G
   }
 
   return roots;
-}
-
-function parseLevel(itemClass: string) {
-  const match = itemClass.match(/\blevel(\d+)\b/);
-  return match ? Number(match[1]) : 1;
-}
-
-function extractRowLabel(row: CoreGradesTableRow, kind: GradeTreeNode["kind"]) {
-  const doc = domino.createDocument(row.itemname?.content || "");
-
-  if (kind === "category") {
-    const direct = doc.querySelector(".category-content > span:last-child")?.textContent;
-    const text = normalizeText(direct);
-    if (text) return text;
-  }
-
-  const headerText = doc.querySelector(".gradeitemheader")?.textContent;
-  const header = normalizeText(headerText);
-  if (header) return header;
-
-  return normalizeText(doc.body?.textContent || "");
-}
-
-function normalizeText(value: string | null | undefined) {
-  const html = value || "";
-  return decode(html.replace(/<[^>]+>/g, " "))
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function cleanField(value: string | undefined) {
-  const cleaned = normalizeText(value)
-    .replace(/\bGrade analysis\b/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!cleaned || cleaned === "-" || cleaned === "–" || cleaned === "—") return undefined;
-  return cleaned;
-}
-
-function extractModuleId(row: CoreGradesTableRow, siteUrl: string) {
-  const doc = domino.createDocument(row.itemname?.content || "");
-  const href = doc.querySelector(".gradeitemheader")?.getAttribute("href");
-  if (!href) return undefined;
-
-  try {
-    const url = new URL(href, siteUrl);
-    const moduleId = Number(url.searchParams.get("id"));
-    return Number.isFinite(moduleId) ? moduleId : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 function renderNode(lines: string[], node: GradeTreeNode, depth: number) {

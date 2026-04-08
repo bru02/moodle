@@ -73,6 +73,8 @@ function symbolForModule(modname: string) {
       return "checkmark.circle";
     case "book":
       return "books.vertical";
+    case "choice":
+      return "checkmark.circle";
     case "folder":
       return "folder";
     case "forum":

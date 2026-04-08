@@ -10,7 +10,6 @@ import type { ModuleDetailProps } from "./types";
 
 export function ModuleDetail({ scope, module }: ModuleDetailProps) {
   const label2Color = platformColors.secondaryLabel;
-  const fillColor = platformColors.tertiarySystemFill;
   const files = getVisibleFiles(module);
   const DetailComponent = moduleDetailComponents[module.module.modname] ?? GenericModuleDetail;
   const shouldRenderDescriptionHeader = module.module.modname !== "label";

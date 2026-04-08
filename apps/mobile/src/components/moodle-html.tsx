@@ -1,6 +1,14 @@
 import { useRouter } from "expo-router";
 import { useMemo } from "react";
-import { Platform, Text, useWindowDimensions, type ColorValue } from "react-native";
+import {
+  Platform,
+  Text,
+  UIManager,
+  useWindowDimensions,
+  type ColorValue,
+  type GestureResponderEvent,
+} from "react-native";
+import { WebView } from "react-native-webview";
 
 import heuristicTableRenderers from "@native-html/heuristic-table-plugin";
 import { platformColors } from "@/constants/platform-colors";
@@ -12,12 +20,13 @@ import RenderHTML, {
   type CustomMixedRenderer,
 } from "@native-html/render";
 
-import type { CoreCourseModuleContentFile } from "@moodle/core";
+import type { CoreCourseModuleContentFile, CoreWSExternalFile } from "@moodle/core";
 import { handleMoodleFileUrl } from "@moodle/core";
 
 import { MaxContentWidth } from "@/constants/theme";
 import { openExternalUrl } from "@/lib/browser";
 import { MoodleMath } from "@/components/moodle-math";
+import { useTheme } from "@/hooks/use-theme";
 import {
   extractMoodleActivityModuleId,
   MOODLE_MATH_BLOCK_TAG,
@@ -32,7 +41,7 @@ import { useAppState } from "@/providers/app-provider";
 type MoodleHtmlProps = {
   html: string;
   baseUrl?: string;
-  contents?: readonly CoreCourseModuleContentFile[];
+  contents?: readonly Pick<CoreCourseModuleContentFile | CoreWSExternalFile, "filename" | "filepath" | "fileurl">[];
   scopeId?: string;
   variant?: "primary" | "secondary";
 };
@@ -65,11 +74,12 @@ export function MoodleHtml({
 }: MoodleHtmlProps) {
   const { width } = useWindowDimensions();
   const router = useRouter();
+  const theme = useTheme();
   const { activeAccount, accountSession } = useAppState();
   const session = activeAccount ? accountSession(activeAccount.id) : null;
   const textColor: ColorValue = variant === "secondary" ? platformColors.secondaryLabel : platformColors.label;
   const linkColor = platformColors.systemBlue;
-  const mathTextColor = variant === "secondary" ? "rgba(60,60,67,0.6)" : "#000000";
+  const mathTextColor = variant === "secondary" ? theme.textSecondary : theme.text;
   const contentWidth = Math.max(0, Math.min(width, MaxContentWidth) - 64);
 
   const source = useMemo(
@@ -131,6 +141,7 @@ export function MoodleHtml({
 
   return (
     <RenderHTML
+      WebView={WebView}
       contentWidth={contentWidth}
       source={source}
       customHTMLElementModels={customHTMLElementModels}
@@ -139,7 +150,7 @@ export function MoodleHtml({
         fontSize: 15,
         lineHeight: 23,
       }}
-      defaultTextProps={{ selectable: true }}
+      defaultTextProps={{ selectable: false }}
       enableExperimentalMarginCollapsing
       tagsStyles={{
         a: { color: linkColor as string, textDecorationLine: "none" },
@@ -194,12 +205,19 @@ function createAnchorRenderer(input: Omit<LinkHandlerInput, "href">): CustomMixe
         tnode={tnode}
         textProps={{
           ...textProps,
+          selectable: false,
           onLongPress: canPreview
-            ? () => {
-                void handleLinkLongPress({
-                  ...input,
-                  href,
-                });
+            ? (event: GestureResponderEvent) => {
+                void (async () => {
+                  const sourceRect = await measureEventTargetBounds(event);
+                  await handleLinkLongPress(
+                    {
+                      ...input,
+                      href,
+                    },
+                    sourceRect,
+                  );
+                })();
               }
             : undefined,
         }}
@@ -237,13 +255,46 @@ async function handleLinkPress(input: LinkHandlerInput) {
   await openExternalUrl(externalUrl);
 }
 
-async function handleLinkLongPress(input: LinkHandlerInput) {
+type PreviewSourceRect = { x: number; y: number; width?: number; height?: number };
+
+async function measureEventTargetBounds(event: GestureResponderEvent): Promise<PreviewSourceRect | undefined> {
+  const target = event.nativeEvent.target;
+  if (typeof target !== "number") {
+    return {
+      x: event.nativeEvent.pageX,
+      y: event.nativeEvent.pageY,
+      width: 1,
+      height: 1,
+    };
+  }
+
+  return await new Promise((resolve) => {
+    UIManager.measureInWindow(target, (pageX, pageY, width, height) => {
+      if (width > 0 && height > 0) {
+        resolve({ x: pageX, y: pageY, width, height });
+        return;
+      }
+
+      resolve({
+        x: event.nativeEvent.pageX,
+        y: event.nativeEvent.pageY,
+        width: 1,
+        height: 1,
+      });
+    });
+  });
+}
+
+async function handleLinkLongPress(
+  input: LinkHandlerInput,
+  sourceRect?: PreviewSourceRect,
+) {
   const externalUrl = await resolveExternalLinkUrl(input);
   if (!externalUrl) {
     return;
   }
 
-  await presentSafariLinkPreview(externalUrl);
+  await presentSafariLinkPreview(externalUrl, sourceRect);
 }
 
 async function resolveExternalLinkUrl(input: LinkHandlerInput) {

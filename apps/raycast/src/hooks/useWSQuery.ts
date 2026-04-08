@@ -1,9 +1,4 @@
-import {
-  createMoodleWSClient,
-  createRequestLimiter,
-  isAuthError,
-  isLikelyOfflineError,
-} from "@moodle/core";
+import { createMoodleWSClient, createRequestLimiter, isAuthError, isLikelyOfflineError } from "@moodle/core";
 import { Cache } from "@raycast/api";
 import { showFailureToast } from "@raycast/utils";
 import { experimental_createQueryPersister } from "@tanstack/query-persist-client-core";

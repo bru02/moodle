@@ -1,6 +1,7 @@
 import { AuthError, normalizeNetworkError } from "./errors";
 import { getMoodleErrorCode, getMoodleErrorMessage, isExpiredTokenError, isMoodleErrorPayload } from "./moodle-errors";
 import { type MoodleFetchLike, type MoodleResponseLike, type MoodleSession } from "./moodle-types";
+import { getFetch, normalizeSiteOrigin } from "./network";
 import { buildMoodleWSUrl, normalizeRequestParams } from "./utils";
 
 export type RequestResult<T> =
@@ -19,19 +20,6 @@ export type MoodleWSRequestInput = {
   limiter?: RequestLimiter;
   refreshSession?: (session: MoodleSession) => Promise<MoodleSession>;
 };
-
-function normalizeSiteOrigin(siteOrigin: string) {
-  return siteOrigin.replace(/\/$/, "");
-}
-
-function getFetch(fetcher?: MoodleFetchLike): MoodleFetchLike {
-  if (fetcher) return fetcher;
-  const globalFetch = globalThis.fetch;
-  if (!globalFetch) {
-    throw new Error("No fetch implementation available");
-  }
-  return globalFetch as unknown as MoodleFetchLike;
-}
 
 async function requestOnce<T>(input: {
   siteOrigin: string;

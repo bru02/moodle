@@ -1,56 +1,61 @@
-# Welcome to your Expo app 👋
+# Based Moodle Mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Repo-specific mobile setup notes.
 
-## Get started
+## Start the iOS compare target
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+From the repo root:
 
 ```bash
-npm run reset-project
+bash ./scripts/compare/start-mobile-ios.sh
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+What this does:
 
-### Other setup steps
+- starts Expo Metro in dev-client mode with `--host localhost`
+- waits for Metro to start listening
+- starts a `127.0.0.1:8081 -> [::1]:8081` bridge when Metro comes up IPv6-only
+- warms the exact iOS bundle URL the Expo dev client requests
+- opens the Expo dev-client deep link in the booted simulator
 
-- To lint the app, run `bun run lint` to autofix issues where possible, or `bun run lint:check` for a non-fixing check.
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+This is necessary because the iOS simulator path is flaky if Metro is only reachable on `::1` while the dev client asks for `127.0.0.1`.
 
-## Learn more
+## Open the app in the simulator
 
-To learn more about developing your project with Expo, look at the following resources:
+After the setup script reports success, the booted simulator should be sent to the Expo dev-client URL automatically.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+If it does not foreground automatically:
 
-## Join the community
+```bash
+npx agent-device --session moodle-ios --session-lock strip open me.toldy.moodle --platform ios
+```
 
-Join our community of developers creating universal apps.
+Inside the Expo dev client, open the recent server entry for:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```text
+Based Moodle, http://[::1]:8081
+```
+
+## Start the official Moodle app in a browser
+
+From the repo root:
+
+```bash
+bash ./scripts/compare/start-oma-web.sh
+```
+
+That script waits for the official app at:
+
+```text
+https://[::1]:8100
+```
+
+Use `agent-browser` against that URL, not `https://localhost:8100`, because the local dev server is bound on IPv6 loopback in this environment.
+
+## Compare workflow
+
+1. Start OMA web with `bash ./scripts/compare/start-oma-web.sh`.
+2. Start the local iOS target with `bash ./scripts/compare/start-mobile-ios.sh`.
+3. Open OMA in `agent-browser` at `https://[::1]:8100`.
+4. Open `me.toldy.moodle` in the simulator with `agent-device`.
+5. Compare the same flows against the same Moodle site and account.

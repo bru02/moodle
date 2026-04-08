@@ -1,9 +1,4 @@
-import {
-  AuthError,
-  authenticateWithCredentials,
-  authenticateWithQrLogin,
-  type MoodleSession,
-} from "@moodle/core";
+import { AuthError, authenticateWithCredentials, authenticateWithQrLogin, type MoodleSession } from "@moodle/core";
 import { Cache, LocalStorage } from "@raycast/api";
 
 import { isQrAuth, preferences, siteOrigin, siteUrl } from "./helpers/preferences";

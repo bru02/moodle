@@ -1,10 +1,8 @@
 import { Action, ActionPanel, Color, Form, Icon, List, Toast, showToast, useNavigation } from "@raycast/api";
 import { memo, useContext, useMemo, useState } from "react";
 
-import CompletionAction from "../components/CompletionAction";
 import DatesDetail from "../components/DatesDetail";
 import { OpenInBrowserAction, openInBrowserWithAuth } from "../components/OpenInBrowserAction";
-import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
 import { formatDurationSeconds, formatRelativeTime } from "../helpers/format";
 import { buildGradeAccessoryTextByModuleId } from "../helpers/grades";
@@ -17,7 +15,7 @@ import type {
   AddonModQuizQuizWSData,
   AddonModQuizStartAttemptWSParams,
 } from "../types/quiz";
-import DefaultListItem from "./default";
+import { ModuleListItemShell } from "./module-list-item-shell";
 
 function QuizListItem({ module }: { module: Module }) {
   const ctx = useContext(CourseContext);
@@ -38,11 +36,11 @@ function QuizListItem({ module }: { module: Module }) {
   const { data: accessInfo } = useWSQuery("mod_quiz_get_quiz_access_information", { quizid: module.instance });
 
   if (!currentQuiz) {
-    return <DefaultListItem module={module} />;
+    return <ModuleListItemShell module={module} course={activeCourse} />;
   }
 
   return (
-    <DefaultListItem
+    <ModuleListItemShell
       module={module}
       detail={
         <QuizListItemDetail
@@ -54,28 +52,22 @@ function QuizListItem({ module }: { module: Module }) {
         />
       }
       accessories={getQuizAccessories({ gradeText, attempts: attemptsData?.attempts, quiz: currentQuiz, accessInfo })}
-      actions={
-        <ActionPanel>
-          <StartQuizAction
-            module={module}
-            quiz={currentQuiz}
-            attempts={attemptsData?.attempts}
-            accessInfo={accessInfo}
-          />
-          <Action.Push
-            title="View Attempts"
-            icon={Icon.List}
-            target={
-              <CourseContext value={ctx}>
-                <QuizAttemptsList module={module} quiz={currentQuiz} />
-              </CourseContext>
-            }
-          />
-          <OpenInBrowserAction url={module.url!} />
-          <CompletionAction module={module} course={activeCourse} />
-          <HiddenItemActionsSection item={module} />
-        </ActionPanel>
+      course={activeCourse}
+      primaryAction={
+        <StartQuizAction module={module} quiz={currentQuiz} attempts={attemptsData?.attempts} accessInfo={accessInfo} />
       }
+      extraActions={[
+        <Action.Push
+          key="view-attempts"
+          title="View Attempts"
+          icon={Icon.List}
+          target={
+            <CourseContext value={ctx}>
+              <QuizAttemptsList module={module} quiz={currentQuiz} />
+            </CourseContext>
+          }
+        />,
+      ]}
     />
   );
 }

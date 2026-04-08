@@ -8,7 +8,6 @@ import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
 import { turndown } from "../helpers/markdown";
 import { getModuleListItemId } from "../helpers/modules";
-import { useSyllabusAnalysisContext } from "../syllabus-analysis/context";
 import { Module } from "../types";
 import { CoreCourseModuleCompletionStatus } from "../types/contents";
 
@@ -40,23 +39,8 @@ function DefaultListItem({
   const detail =
     customDetail ?? (descriptionMarkdown ? <List.Item.Detail markdown={descriptionMarkdown} /> : undefined);
   const { activeCourse } = useContext(CourseContext);
-  const syllabus = useSyllabusAnalysisContext();
   const canViewGeneratedSectionDescription =
     module.modname === "label" && module.id < 0 && Boolean(descriptionMarkdown);
-  const isSelectedSyllabus =
-    syllabus.selectedArtifact?.courseId === activeCourse.id && syllabus.selectedArtifact?.moduleId === module.id;
-  const syllabusAccessories = isSelectedSyllabus
-    ? [
-        { tag: "Syllabus" },
-        ...(syllabus.cacheState === "missing"
-          ? []
-          : [
-              {
-                tag: syllabus.cacheState === "parsed" ? "Parsed" : syllabus.cacheState === "stale" ? "Stale" : "Failed",
-              },
-            ]),
-      ]
-    : [];
   const existingAccessories = accessories ?? [];
 
   return (
@@ -64,7 +48,7 @@ function DefaultListItem({
       id={itemId}
       title={title}
       icon={getIcon(module)}
-      accessories={[...syllabusAccessories, ...existingAccessories]}
+      accessories={existingAccessories}
       actions={
         <ActionPanel>
           {canViewGeneratedSectionDescription && (

@@ -7,7 +7,7 @@ import { OpenInBrowserAction } from "../components/OpenInBrowserAction";
 import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
 import { stripHTML } from "../helpers";
-import { getFilePath } from "../helpers/files";
+import { getFilePath, handleFileUrl } from "../helpers/files";
 import { formatDurationBetween } from "../helpers/format";
 import { buildGradeAccessoryTextByModuleId } from "../helpers/grades";
 import { turndown } from "../helpers/markdown";
@@ -92,11 +92,19 @@ function AssignListItemDetail({
   submissionsData: AddonModAssignGetSubmissionStatusWSResponse | undefined;
 }) {
   const submission = submissionsData?.lastattempt?.teamsubmission ?? submissionsData?.lastattempt?.submission;
+  const feedbackMarkdown = useMemo(
+    () => buildAssignmentFeedbackMarkdown(submissionsData?.feedback?.plugins),
+    [submissionsData?.feedback?.plugins],
+  );
+  const detailMarkdown = useMemo(
+    () => [turndown(assignment.intro || ""), feedbackMarkdown ? `# Feedback\n\n${feedbackMarkdown}` : ""].filter(Boolean).join("\n\n---\n\n"),
+    [assignment.intro, feedbackMarkdown],
+  );
 
   return (
     <List.Item.Detail
       isLoading={isLoading}
-      markdown={turndown(assignment.intro || "")}
+      markdown={detailMarkdown}
       metadata={
         <List.Item.Detail.Metadata>
           {submissionsData?.feedback?.gradefordisplay ? (
@@ -138,6 +146,7 @@ function AssignmentFilesList({ module, assignment }: { module: Module; assignmen
   const { data: submissionsData } = useWSQuery("mod_assign_get_submission_status", { assignid: module.instance });
 
   const submissions = submissionsData?.lastattempt?.teamsubmission ?? submissionsData?.lastattempt?.submission;
+  const feedbackFiles = useMemo(() => getAssignmentFeedbackFiles(submissionsData?.feedback?.plugins), [submissionsData?.feedback?.plugins]);
 
   const submittedFiles = useMemo(
     () =>
@@ -153,8 +162,11 @@ function AssignmentFilesList({ module, assignment }: { module: Module; assignmen
     const submitted = submittedFiles
       .map((file) => ({ ...file, filename: "Sol – " + file.filename }))
       .map((file) => [getFilePath(file, module, course), file] as const);
-    return [...introFiles, ...submitted];
-  }, [introattachments, submittedFiles, module, course]);
+    const feedback = feedbackFiles
+      .map((file) => ({ ...file, filename: "Feedback - " + file.filename }))
+      .map((file) => [getFilePath(file, module, course), file] as const);
+    return [...introFiles, ...submitted, ...feedback];
+  }, [introattachments, submittedFiles, feedbackFiles, module, course]);
 
   useSync(allFiles);
 
@@ -168,6 +180,11 @@ function AssignmentFilesList({ module, assignment }: { module: Module; assignmen
       <List.Section title="Submitted Files">
         {submittedFiles.map((i) => (
           <ResourceListItem key={i.filename} module={module} content={i} />
+        ))}
+      </List.Section>
+      <List.Section title="Feedback Files">
+        {feedbackFiles.map((i) => (
+          <ResourceListItem key={`${i.filename}-${i.fileurl}`} module={module} content={i} />
         ))}
       </List.Section>
     </List>
@@ -263,4 +280,60 @@ function getAssignmentSubmissionDeadline(assignment: AddonModAssignAssign) {
     return assignment.duedate;
   }
   return undefined;
+}
+
+function buildAssignmentFeedbackMarkdown(
+  plugins?: NonNullable<AddonModAssignGetSubmissionStatusWSResponse["feedback"]>["plugins"],
+) {
+  return (plugins ?? [])
+    .map((plugin) => {
+      const text = getAssignmentFeedbackText(plugin);
+      const files = getAssignmentFeedbackFiles([plugin]);
+      const fileLines = files
+        .filter((file) => file.filename && file.fileurl)
+        .map((file) => `- [${file.filename}](${handleFileUrl(file.fileurl)})`)
+        .join("\n");
+      const body = [text ? turndown(text).trim() : "", fileLines].filter(Boolean).join("\n\n");
+      if (!body) {
+        return null;
+      }
+
+      const title =
+        plugin.type === "comments" ? "Feedback comments" : plugin.type === "file" ? "File feedback" : plugin.name;
+      return `## ${title}\n\n${body}`;
+    })
+    .filter((value): value is string => Boolean(value))
+    .join("\n\n---\n\n");
+}
+
+function getAssignmentFeedbackText(plugin: NonNullable<AddonModAssignGetSubmissionStatusWSResponse["feedback"]>["plugins"][number]) {
+  const files = plugin.fileareas?.flatMap((filearea) => filearea.files ?? []) ?? [];
+  return (plugin.editorfields ?? [])
+    .map((field) =>
+      field.text.replace(/@@PLUGINFILE@@[^"'\\s>)]+/gi, (match) => {
+        const normalizedPath = normalizeFeedbackPath(match.replace(/^@@PLUGINFILE@@/i, ""));
+        const file = files.find((candidate) => {
+          const fullPath = normalizeFeedbackPath(`${candidate.filepath ?? ""}${candidate.filename ?? ""}`);
+          return (
+            normalizedPath === fullPath ||
+            normalizedPath === fullPath.slice(1) ||
+            normalizedPath === candidate.filename
+          );
+        });
+        return file?.fileurl ? handleFileUrl(file.fileurl) : match;
+      }),
+    )
+    .join("")
+    .trim();
+}
+
+function getAssignmentFeedbackFiles(
+  plugins?: NonNullable<AddonModAssignGetSubmissionStatusWSResponse["feedback"]>["plugins"],
+) {
+  return (plugins ?? []).flatMap((plugin) => plugin.fileareas?.flatMap((filearea) => filearea.files ?? []) ?? []);
+}
+
+function normalizeFeedbackPath(path: string) {
+  const decodedPath = decodeURIComponent(path).replace(/\\/g, "/").replace(/\/+/g, "/");
+  return decodedPath.startsWith("/") ? decodedPath : `/${decodedPath}`;
 }

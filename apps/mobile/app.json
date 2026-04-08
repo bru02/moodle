@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "mobile",
+    "name": "Based Moodle",
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -27,7 +27,23 @@
             "ISSymbolColor": "black",
             "ISSymbolName": "graduationcap.fill"
           }
-        }
+        },
+        "NSUserActivityTypes": [
+          "$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route",
+          "me.toldy.moodle.view-course",
+          "me.toldy.moodle.view-task"
+        ],
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsLocalNetworking": true,
+          "NSExceptionDomains": {
+            "100.84.235.89": {
+              "NSIncludesSubdomains": true,
+              "NSExceptionAllowsInsecureHTTPLoads": true
+            }
+          }
+        },
+        "NSCalendarsUsageDescription": "Allow $(PRODUCT_NAME) to read your calendar so it can match courses against existing events."
       }
     },
     "android": {
@@ -38,7 +54,10 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "me.toldy.moodle"
+      "package": "me.toldy.moodle",
+      "permissions": [
+        "READ_CALENDAR"
+      ]
     },
     "web": {
       "output": "static",
@@ -48,6 +67,15 @@
       "expo-router",
       "@bacons/apple-targets",
       [
+        "expo-font",
+        {
+          "fonts": [
+            "../../node_modules/@expo-google-fonts/fira-code/400Regular/FiraCode_400Regular.ttf",
+            "../../node_modules/@expo-google-fonts/fira-code/700Bold/FiraCode_700Bold.ttf"
+          ]
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#208AEF",
@@ -55,6 +83,12 @@
             "image": "./assets/images/splash-icon.png",
             "imageWidth": 76
           }
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Allow $(PRODUCT_NAME) to read your calendar so it can match courses against existing events."
         }
       ]
     ],

@@ -1,5 +1,6 @@
 import type { CoreCourseModuleContentFile } from "@moodle/core";
 import {
+  getYouTubeThumbnail,
   handleMoodleFileUrl,
   selectMoodleLanguage,
   stripInlineDataImages,
@@ -8,7 +9,7 @@ import {
 } from "@moodle/core";
 
 type HtmlContentRef = Pick<
-  CoreCourseModuleContentFile,
+  Partial<CoreCourseModuleContentFile>,
   "filename" | "filepath" | "fileurl"
 >;
 
@@ -296,40 +297,4 @@ function escapeHtmlText(value: string) {
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
-}
-
-function getYouTubeThumbnail(src: string) {
-  const videoId = getYouTubeVideoId(src);
-  return videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null;
-}
-
-function getYouTubeVideoId(src: string) {
-  try {
-    const url = new URL(src, "https://example.invalid");
-    const hostname = url.hostname.replace(/^www\./, "");
-
-    if (hostname === "youtu.be") {
-      return normalizeYouTubeVideoId(url.pathname.slice(1));
-    }
-
-    if (
-      !["youtube.com", "m.youtube.com", "youtube-nocookie.com"].includes(
-        hostname,
-      )
-    ) {
-      return null;
-    }
-
-    if (url.pathname.startsWith("/embed/")) {
-      return normalizeYouTubeVideoId(url.pathname.split("/")[2]);
-    }
-
-    return normalizeYouTubeVideoId(url.searchParams.get("v") ?? "");
-  } catch {
-    return null;
-  }
-}
-
-function normalizeYouTubeVideoId(value: string) {
-  return /^[\w-]{11}$/.test(value) ? value : null;
 }

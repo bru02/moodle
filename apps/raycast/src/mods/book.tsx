@@ -10,12 +10,13 @@ import { getModuleFolder } from "../helpers/files";
 import { preferences } from "../helpers/preferences";
 import { useRemoteHTMLResource } from "../hooks/useRemoteHTMLService";
 import { Module } from "../types";
-import { AddonModBookTocChapterParsed } from "../types/contents";
+import { parseBookToc, resolveBookChapterContentFile } from "@moodle/core";
+
 import DefaultListItem from "./default";
 
 export function BookChapterDetail({ module, href }: { module: Module; href: string }) {
   const { activeCourse } = useContext(CourseContext);
-  const fileurl = module.contents?.find((c) => c.fileurl?.endsWith(href))?.fileurl;
+  const fileurl = resolveBookChapterContentFile(module.contents, href)?.fileurl;
   const { data: content, isLoading } = useRemoteHTMLResource(fileurl, module.contents, activeCourse.id);
 
   return <List.Item.Detail isLoading={isLoading} markdown={content} />;
@@ -23,7 +24,7 @@ export function BookChapterDetail({ module, href }: { module: Module; href: stri
 
 export function ViewBook({ module }: { module: Module }) {
   const tocContent = module.contents?.find((c) => c.filename === "structure");
-  const toc: AddonModBookTocChapterParsed[] = tocContent?.content ? JSON.parse(tocContent.content) : [];
+  const toc = parseBookToc(tocContent?.content);
 
   return (
     <List navigationTitle={module.name} isShowingDetail={true}>

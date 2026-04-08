@@ -1,16 +1,14 @@
 import { Action, ActionPanel, Color, Icon, List } from "@raycast/api";
 import { useContext } from "react";
 
-import CompletionAction from "../components/CompletionAction";
 import { OpenInBrowserAction } from "../components/OpenInBrowserAction";
-import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
 import { formatRelativeTime } from "../helpers/format";
 import { turndown } from "../helpers/markdown";
 import { useWSQuery } from "../hooks/useWSQuery";
 import { Module } from "../types";
 import type { AddonModForumData, AddonModForumDiscussion } from "../types/forum";
-import DefaultListItem from "./default";
+import { ModuleListItemShell } from "./module-list-item-shell";
 
 export default function ForumListItem({ module }: { module: Module }) {
   const ctx = useContext(CourseContext);
@@ -20,29 +18,25 @@ export default function ForumListItem({ module }: { module: Module }) {
   const currentForum = data?.find((forum) => forum.id === module.instance || forum.cmid === module.id);
 
   if (!currentForum) {
-    return <DefaultListItem module={module} />;
+    return <ModuleListItemShell module={module} course={activeCourse} />;
   }
 
   return (
-    <DefaultListItem
+    <ModuleListItemShell
       module={module}
       detail={<ForumListItemDetail forum={currentForum} isLoading={isPending} />}
       accessories={getForumAccessories(currentForum)}
-      actions={
-        <ActionPanel>
-          <Action.Push
-            title="View Discussions"
-            icon={Icon.Bubble}
-            target={
-              <CourseContext value={ctx}>
-                <ForumDiscussionsList forum={currentForum} module={module} />
-              </CourseContext>
-            }
-          />
-          <OpenInBrowserAction url={module.url!} />
-          <CompletionAction module={module} course={activeCourse} />
-          <HiddenItemActionsSection item={module} />
-        </ActionPanel>
+      course={activeCourse}
+      primaryAction={
+        <Action.Push
+          title="View Discussions"
+          icon={Icon.Bubble}
+          target={
+            <CourseContext value={ctx}>
+              <ForumDiscussionsList forum={currentForum} module={module} />
+            </CourseContext>
+          }
+        />
       }
     />
   );

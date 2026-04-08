@@ -6,7 +6,7 @@ import { Pressable, Text, View } from "react-native";
 
 import { platformColors } from "@/constants/platform-colors";
 
-import type { CoreCourseModuleContentFile, CourseScope, ScopedModule } from "@moodle/core";
+import type { CoreCourseModuleContentFile, CoreWSExternalFile, CourseScope, ScopedModule } from "@moodle/core";
 import { cleanMoodleHtml, cleanMoodleText, handleMoodleFileUrl } from "@moodle/core";
 
 import { openExternalUrl } from "@/lib/browser";
@@ -77,7 +77,12 @@ export function ModuleDateFacts({ module }: { module: ScopedModule }) {
   );
 }
 
-export function FilesSection({ title, files }: { title: string; files: readonly CoreCourseModuleContentFile[] }) {
+type RenderableFile = Pick<
+  CoreCourseModuleContentFile | CoreWSExternalFile,
+  "filename" | "filepath" | "filesize" | "fileurl" | "timemodified" | "mimetype"
+>;
+
+export function FilesSection({ title, files }: { title: string; files: readonly RenderableFile[] }) {
   const { activeAccount, accountSession } = useAppState();
   const labelColor = platformColors.label;
   const label2Color = platformColors.secondaryLabel;
@@ -202,6 +207,27 @@ export function FactSection({
   );
 }
 
+export function ModuleDetailCard({
+  title,
+  rows,
+  description,
+  emptyCopy,
+  children,
+}: {
+  title: string;
+  rows: readonly { label: string; value: string }[];
+  description?: ReactNode;
+  emptyCopy: string;
+  children?: ReactNode;
+}) {
+  return (
+    <View style={{ gap: 12 }}>
+      <FactSection title={title} rows={rows} description={description} emptyCopy={emptyCopy} />
+      {children ?? null}
+    </View>
+  );
+}
+
 export function ReadableTextBlock({
   title,
   content,
@@ -320,10 +346,6 @@ export function useRemoteModuleHtml(content: CoreCourseModuleContentFile | undef
         return "";
       }
 
-      if (content.content) {
-        return content.content;
-      }
-
       const response = await fetch(
         handleMoodleFileUrl({
           url: content.fileurl,
@@ -356,6 +378,30 @@ export function getFactRow(label: string, value?: string) {
   }
 
   return { label, value };
+}
+
+export function compactFactRows(
+  ...rows: Array<ReturnType<typeof getFactRow>>
+) {
+  return rows.filter((item): item is { label: string; value: string } => Boolean(item));
+}
+
+export function useModuleDetailAdapter() {
+  const { activeAccount, accountSession, refreshAccountSession } = useAppState();
+  const session = activeAccount ? accountSession(activeAccount.id) : null;
+
+  return {
+    activeAccount,
+    session,
+    adapter:
+      activeAccount && session
+        ? {
+            siteOrigin: activeAccount.origin,
+            session,
+            refreshSession: async () => await refreshAccountSession(activeAccount.id),
+          }
+        : null,
+  };
 }
 
 export function getDateFact(label: string | undefined, timestamp: number | undefined) {
@@ -449,6 +495,8 @@ export function formatModuleKind(modname: string) {
       return "Page";
     case "book":
       return "Book";
+    case "choice":
+      return "Choice";
     case "url":
       return "Link";
     default:

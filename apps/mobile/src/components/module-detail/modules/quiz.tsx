@@ -1,15 +1,19 @@
+import { Text, View } from "react-native";
+
 import { MoodleHtml } from "@/components/moodle-html";
+import { StatPill } from "@/components/native-ui";
+import { platformColors } from "@/constants/platform-colors";
 import { useWSQuery } from "@/lib/useWSQuery";
-import { useAppState } from "@/providers/app-provider";
 
 import {
-  FactSection,
+  compactFactRows,
   formatAttemptsSummary,
   formatDuration,
   formatFactDate,
   formatStatusLabel,
   getFactRow,
   trimNumber,
+  useModuleDetailAdapter,
 } from "../shared";
 import type { ModuleDetailProps } from "../types";
 
@@ -48,15 +52,7 @@ type QuizBestGrade = {
 };
 
 export function QuizDetail({ scope, module }: ModuleDetailProps) {
-  const { activeAccount, accountSession, refreshAccountSession } = useAppState();
-  const session = activeAccount ? accountSession(activeAccount.id) : null;
-  const adapter = activeAccount && session
-    ? {
-        siteOrigin: activeAccount.origin,
-        session,
-        refreshSession: async () => await refreshAccountSession(activeAccount.id),
-      }
-    : null;
+  const { adapter } = useModuleDetailAdapter();
   const quizzesQuery = useWSQuery<{ quizzes: QuizSummary[] }>(
     adapter,
     "mod_quiz_get_quizzes_by_courses",
@@ -89,18 +85,7 @@ export function QuizDetail({ scope, module }: ModuleDetailProps) {
     (item: QuizSummary) => item.id === module.module.instance || item.coursemodule === module.module.id,
   );
   const lastAttempt = attemptsData?.attempts.at(-1);
-  const rows = [
-    getFactRow(
-      "Attempts",
-      typeof quiz?.attempts === "number"
-        ? formatAttemptsSummary(attemptsData?.attempts.length ?? 0, quiz.attempts)
-        : String(attemptsData?.attempts.length ?? 0),
-    ),
-    getFactRow("Last attempt", lastAttempt?.state ? formatStatusLabel(lastAttempt.state) : undefined),
-    getFactRow(
-      "Best grade",
-      bestGradeData?.hasgrade && typeof bestGradeData.grade === "number" ? trimNumber(bestGradeData.grade) : undefined,
-    ),
+  const secondaryFacts = compactFactRows(
     getFactRow("Pass grade", typeof bestGradeData?.gradetopass === "number" ? trimNumber(bestGradeData.gradetopass) : undefined),
     getFactRow("Can attempt", accessData ? (accessData.canattempt ? "Yes" : "No") : undefined),
     getFactRow("Restriction", accessData?.preventaccessreasons?.[0]),
@@ -110,19 +95,57 @@ export function QuizDetail({ scope, module }: ModuleDetailProps) {
       "Time limit",
       typeof quiz?.timelimit === "number" && quiz.timelimit > 0 ? formatDuration(quiz.timelimit) : undefined,
     ),
-  ].filter((item): item is { label: string; value: string } => Boolean(item));
+  );
 
   return (
-    <FactSection
-      title="Quiz"
-      rows={rows}
-      description={
-        quiz?.intro ? (
-          <MoodleHtml html={quiz.intro} baseUrl={module.module.url} contents={module.module.contents} variant="secondary" />
-        ) : undefined
-      }
-      isLoading={quizzesQuery.isLoading || attemptsQuery.isLoading || accessQuery.isLoading || bestGradeQuery.isLoading}
-      emptyCopy="Quiz details are only available in Moodle."
-    />
+    <View style={{ gap: 14 }}>
+      {(quizzesQuery.isLoading || attemptsQuery.isLoading || accessQuery.isLoading || bestGradeQuery.isLoading) && !quiz && !attemptsData ? (
+        <Text selectable style={{ fontSize: 14, lineHeight: 21, color: platformColors.secondaryLabel }}>
+          Loading…
+        </Text>
+      ) : (
+        <>
+          <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap" }}>
+            {bestGradeData?.hasgrade && typeof bestGradeData.grade === "number" ? (
+              <StatPill
+                label="Best grade"
+                value={trimNumber(bestGradeData.grade)}
+                tint={typeof bestGradeData.gradetopass === "number" && bestGradeData.grade >= bestGradeData.gradetopass ? "#34C759" : undefined}
+              />
+            ) : attemptsData ? (
+              <StatPill label="Best grade" value="No grade" />
+            ) : null}
+            {typeof quiz?.attempts === "number" ? (
+              <StatPill label="Attempts" value={formatAttemptsSummary(attemptsData?.attempts.length ?? 0, quiz.attempts)} />
+            ) : attemptsData ? (
+              <StatPill label="Attempts" value={String(attemptsData.attempts.length)} />
+            ) : null}
+            {lastAttempt?.state ? (
+              <StatPill label="Last attempt" value={formatStatusLabel(lastAttempt.state)} />
+            ) : null}
+          </View>
+
+          {secondaryFacts.length > 0 ? (
+            <View style={{ gap: 6 }}>
+              {secondaryFacts.map((fact) => (
+                <Text key={fact.label} selectable style={{ fontSize: 14, lineHeight: 20, color: platformColors.secondaryLabel }}>
+                  <Text style={{ fontWeight: "600" }}>{fact.label}</Text>
+                  {"  "}
+                  {fact.value}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+        </>
+      )}
+
+      {quiz?.intro ? (
+        <MoodleHtml html={quiz.intro} baseUrl={module.module.url} contents={module.module.contents} variant="secondary" />
+      ) : !quiz && !quizzesQuery.isLoading ? (
+        <Text selectable style={{ fontSize: 14, lineHeight: 21, color: platformColors.secondaryLabel }}>
+          Quiz details are only available in Moodle.
+        </Text>
+      ) : null}
+    </View>
   );
 }

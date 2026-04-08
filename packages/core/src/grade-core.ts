@@ -1,5 +1,6 @@
 import type { CoreGradesGetUserGradesTableWSResponse, CoreGradesTableRow } from "./grade-types";
-import { cleanMoodleHtml } from "./utils";
+import { isPlaceholderGradeValue, normalizeGradeText } from "./grade-text";
+import { normalizeGradeAccessoryValue, parseGradeRows } from "./grade-row-parser";
 
 type GradeCoreOptions = {
   siteUrl: string;
@@ -24,8 +25,8 @@ export function buildGradeAccessoryTextByModuleIdFromTables(
   const result = new Map<number, string>();
 
   for (const courseData of data) {
-    for (const row of courseData.tables?.[0]?.tabledata ?? []) {
-      const moduleId = getModuleIdFromGradeRow(row, options);
+    for (const row of parseGradeRows(courseData.tables?.[0]?.tabledata, options)) {
+      const moduleId = row.moduleId;
       if (!moduleId || result.has(moduleId)) continue;
 
       const gradeText = getGradeAccessoryText(row);
@@ -44,77 +45,25 @@ export function toGradeRowSummaries(
 ): GradeRowSummary[] {
   if (!rows) return [];
 
-  return rows
-    .map((row) => {
-      const label = stripHtml(row.itemname?.content || "")
-        .replace(/\s+/g, " ")
-        .trim();
-      const grade = cleanField(row.grade?.content);
-      const range = cleanField(row.range?.content);
-      const percentage = cleanField(row.percentage?.content);
-      const moduleId = getModuleIdFromGradeRow(row, options);
-      return {
-        label,
-        grade,
-        range,
-        percentage,
-        moduleId,
-      } satisfies GradeRowSummary;
-    })
-    .filter((row) => row.label.length > 0);
+  return parseGradeRows(rows, options).map((row) => ({
+    label: row.label,
+    grade: row.grade,
+    range: row.range,
+    percentage: row.percentage,
+    moduleId: row.moduleId,
+  }));
 }
 
-function getModuleIdFromGradeRow(row: CoreGradesTableRow, options: GradeCoreOptions): number | undefined {
-  const linkedActivity = extractHrefFromItemName(row.itemname?.content || "");
-  if (!linkedActivity) return undefined;
+function getGradeAccessoryText(row: Pick<GradeRowSummary, "grade" | "range" | "percentage">): string | undefined {
+  const grade = normalizeGradeAccessoryValue(row.grade);
+  const range = normalizeGradeText(row.range);
+  let text = normalizeGradeText(row.percentage);
 
-  try {
-    const url = new URL(linkedActivity, options.siteUrl);
-    const moduleId = Number(url.searchParams.get("id"));
-    if (!Number.isFinite(moduleId)) return undefined;
-    return moduleId;
-  } catch {
-    return undefined;
-  }
-}
-
-function getGradeAccessoryText(row: CoreGradesTableRow): string | undefined {
-  const grade =
-    stripHtml(row.grade?.content || "")
-      .split("\n")
-      .shift()
-      ?.trim() ?? "";
-  const range = stripHtml(row.range?.content || "");
-
-  let text = stripHtml(row.percentage?.content || "");
-
-  if (!isPlaceholder(grade) && range) {
+  if (!isPlaceholderGradeValue(grade) && range) {
     const hi = range.split("–")[1]?.trim() ?? "∞";
     text = `${grade.replace(".00", "")} / ${hi}`;
   }
 
-  if (isPlaceholder(text)) return undefined;
+  if (isPlaceholderGradeValue(text)) return undefined;
   return text;
-}
-
-function extractHrefFromItemName(itemNameHtml: string): string | undefined {
-  const hrefMatch = itemNameHtml.match(/href\s*=\s*["']([^"']+)["']/i);
-  return hrefMatch?.[1];
-}
-
-function cleanField(value: string | undefined): string | undefined {
-  const cleaned = stripHtml(value || "")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (isPlaceholder(cleaned)) return undefined;
-  return cleaned;
-}
-
-function stripHtml(html: string) {
-  return cleanMoodleHtml(html);
-}
-
-function isPlaceholder(value: string) {
-  const trimmed = value.trim();
-  return trimmed.length === 0 || trimmed === "-" || trimmed === "–" || trimmed === "—";
 }

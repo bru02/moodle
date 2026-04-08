@@ -19,7 +19,8 @@ export async function openInBrowserWithAuth(url: string, onOpen?: () => void) {
   });
 
   if (new URL(externalUrl).origin !== siteOrigin) return direct(externalUrl);
-  if (externalUrl.includes("/pluginfile.php") || externalUrl.includes("/tokenpluginfile.php/")) return direct(externalUrl);
+  if (externalUrl.includes("/pluginfile.php") || externalUrl.includes("/tokenpluginfile.php/"))
+    return direct(externalUrl);
 
   timestamp ??= (await LocalStorage.getItem<string>("lastAutoLoginTimestamp")) ?? undefined;
   const lastLogin = timestamp ? Number(timestamp) : NaN;

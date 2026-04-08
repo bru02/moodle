@@ -7,39 +7,14 @@ import {
   type MoodleAutologinKeyResponse,
   type MoodleFetchLike,
   type MoodlePublicConfig,
-  type MoodleResponseLike,
   type MoodleSession,
   type MoodleSiteCheckResult,
   type MoodleSiteInfo,
   type MoodleTokenResponse,
   TypeOfLogin,
 } from "./moodle-types";
+import { fetchJson, normalizeSiteOrigin } from "./network";
 import { buildMoodleWSUrl } from "./utils";
-
-function normalizeSiteOrigin(siteOrigin: string) {
-  const trimmed = siteOrigin.trim();
-  if (!trimmed) return "";
-  if (/^https?:\/\//i.test(trimmed)) {
-    return trimmed.replace(/\/$/, "");
-  }
-  return `https://${trimmed.replace(/\/$/, "")}`;
-}
-
-function getFetch(fetcher?: MoodleFetchLike): MoodleFetchLike {
-  if (fetcher) return fetcher;
-  const globalFetch = globalThis.fetch;
-  if (!globalFetch) {
-    throw new Error("No fetch implementation available");
-  }
-  return globalFetch as unknown as MoodleFetchLike;
-}
-
-async function fetchJson(input: { fetcher?: MoodleFetchLike; url: string; init?: Parameters<MoodleFetchLike>[1] }) {
-  const fetcher = getFetch(input.fetcher);
-  const response: MoodleResponseLike = await fetcher(input.url, input.init);
-  const payload = await response.json().catch(() => undefined);
-  return { response, payload };
-}
 
 function createSession(input: {
   siteOrigin: string;
@@ -206,6 +181,30 @@ function toggleWww(siteOrigin: string) {
   return parsed.toString().replace(/\/$/, "");
 }
 
+async function createSessionFromTokenResponse(input: {
+  siteOrigin: string;
+  token: string;
+  privateToken?: string;
+  fetcher?: MoodleFetchLike;
+  now?: number;
+  authMethod: AuthMethod;
+}) {
+  const siteInfo = await fetchSiteInfo({
+    siteOrigin: input.siteOrigin,
+    token: input.token,
+    fetcher: input.fetcher,
+  });
+
+  return createSession({
+    siteOrigin: input.siteOrigin,
+    token: input.token,
+    privateToken: input.privateToken,
+    siteInfo,
+    now: input.now,
+    authMethod: input.authMethod,
+  });
+}
+
 async function fetchPublicConfigAttempt(input: {
   siteOrigin: string;
   fetcher?: MoodleFetchLike;
@@ -348,17 +347,11 @@ export async function authenticateWithCredentials(input: {
     throwOnAuthPayload(payload, "Login failed", "login_failed");
   }
 
-  const siteInfo = await fetchSiteInfo({
-    siteOrigin,
-    token: tokenResponse.token,
-    fetcher: input.fetcher,
-  });
-
-  return createSession({
+  return await createSessionFromTokenResponse({
     siteOrigin,
     token: tokenResponse.token,
     privateToken: tokenResponse.privatetoken,
-    siteInfo,
+    fetcher: input.fetcher,
     now: input.now,
     authMethod: AuthMethod.PASSWORD,
   });
@@ -429,17 +422,11 @@ export async function authenticateWithQrLogin(input: {
     throwOnAuthPayload(payload, "QR login failed", "qr_login_failed");
   }
 
-  const siteInfo = await fetchSiteInfo({
-    siteOrigin,
-    token: tokenResponse.token,
-    fetcher: input.fetcher,
-  });
-
-  return createSession({
+  return await createSessionFromTokenResponse({
     siteOrigin,
     token: tokenResponse.token,
     privateToken: tokenResponse.privatetoken,
-    siteInfo,
+    fetcher: input.fetcher,
     now: input.now,
     authMethod: AuthMethod.QR,
   });
