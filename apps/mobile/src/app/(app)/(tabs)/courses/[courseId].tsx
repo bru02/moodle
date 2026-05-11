@@ -1,29 +1,22 @@
 import { Image } from "expo-image";
 import { useFocusEffect } from "@react-navigation/native";
-import { Stack, router, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
-import {
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { Stack, router, useLocalSearchParams, useRouter, type Href } from "expo-router";
+import SegmentedControl from "@react-native-segmented-control/segmented-control";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import PagerView from "react-native-pager-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Animated, { interpolate, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
+import Animated, { Extrapolation, interpolate, useAnimatedStyle } from "react-native-reanimated";
 import { BlurView } from "expo-blur";
-import { FadingView, Header, ScrollViewWithHeaders } from "@codeherence/react-native-header";
-import type { ScrollHeaderProps } from "@codeherence/react-native-header";
+import HeaderMotion, { useActiveScrollId, useMotionProgress } from "react-native-header-motion";
 
 import { platformColors } from "@/constants/platform-colors";
 
 import { EmptyState } from "@/components/empty-state";
 import { ModuleRow } from "@/components/module-row";
+import { NativeIconButton } from "@/components/native-icon-button";
 import { GroupHeader, InsetGroup, InsetRow, SymbolBadge } from "@/components/native-ui";
+import { getCourseIconTint, getCourseImageHue } from "@/lib/course-image-colors";
 import { readCourseEngagement, recordCourseEngagement } from "@/lib/course-activity";
 import { resolveMoodleImageUrl } from "@/lib/moodle-images";
 import { useCourseContentsQuery, useCourseGradesQuery, useCourseScope } from "@/lib/moodle-queries";
@@ -31,25 +24,31 @@ import { clearCurrentUserActivity, donateUserActivity } from "@/lib/user-activit
 import { useAppState } from "@/providers/app-provider";
 import { toGradeRowSummaries } from "@moodle/core";
 
-const HERO_HEIGHT = 220;
+const HERO_HEIGHT = 260;
+const NAV_BAR_HEIGHT = 44;
+// Distance the header collapses by. The nav bar stays pinned while the hero
+// slides up behind it, so the segmented control settles right under the nav bar.
+const PROGRESS_THRESHOLD = HERO_HEIGHT - NAV_BAR_HEIGHT;
+const FALLBACK_COURSE_ICON_HUE = 211;
 const canUseBlurView =
   Platform.OS === "ios" || (Platform.OS === "android" && Number(Platform.Version) >= 31);
+
+type TabId = "content" | "grades";
+
+const TAB_IDS: readonly TabId[] = ["content", "grades"];
 
 export default function CourseDetailScreen() {
   const params = useLocalSearchParams<{ courseId?: string }>();
   const scope = useCourseScope(typeof params.courseId === "string" ? params.courseId : "");
   const { activeAccount, accountSession } = useAppState();
   const [recentActivityCutoffAt, setRecentActivityCutoffAt] = useState<number | null>(null);
-  const [selectedPage, setSelectedPage] = useState(0);
-  const [pageHeights, setPageHeights] = useState<Record<number, number>>({ 0: 1, 1: 1 });
+  const [activeScrollId, setActiveScrollId] = useActiveScrollId<TabId>("content");
+  const [hasOpenedGrades, setHasOpenedGrades] = useState(false);
+  const [courseIconHue, setCourseIconHue] = useState(FALLBACK_COURSE_ICON_HUE);
   const pagerRef = useRef<PagerView>(null);
-  const scrollRef = useRef<Animated.ScrollView>(null);
-  const selectedPageRef = useRef(0);
-  const currentScrollOffsetRef = useRef(0);
-  const tabScrollOffsetsRef = useRef<Record<number, number>>({ 0: 0, 1: 0 });
 
   const contentsQuery = useCourseContentsQuery(scope, { recentActivityCutoffAt });
-  const gradesQuery = useCourseGradesQuery(scope);
+  const gradesQuery = useCourseGradesQuery(scope, { enabled: hasOpenedGrades });
 
   useEffect(() => {
     let cancelled = false;
@@ -108,6 +107,27 @@ export default function CourseDetailScreen() {
   );
 
   const display = useMemo(() => contentsQuery.data?.displayLayout ?? null, [contentsQuery.data?.displayLayout]);
+  const session = activeAccount ? accountSession(activeAccount.id) : null;
+  const coverImageUrl = scope
+    ? resolveMoodleImageUrl({
+        url: scope.mergedCourse.courseimage,
+        siteOrigin: activeAccount?.origin,
+        accessKey: session?.accessKey,
+      })
+    : undefined;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void getCourseImageHue(coverImageUrl).then((hue) => {
+      if (cancelled) return;
+      setCourseIconHue(hue);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [coverImageUrl]);
 
   const gradeSections = useMemo(
     () =>
@@ -138,51 +158,23 @@ export default function CourseDetailScreen() {
     return result;
   }, [contentsQuery.data?.sections]);
 
-  const setMeasuredHeight = useCallback((page: number, height: number) => {
-    setPageHeights((current) => {
-      if (Math.abs((current[page] ?? 0) - height) < 1) return current;
-      return { ...current, [page]: Math.max(height, 1) };
-    });
-  }, []);
-
-  const captureScrollOffset = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const y = event.nativeEvent.contentOffset.y;
-    currentScrollOffsetRef.current = y;
-    tabScrollOffsetsRef.current[selectedPageRef.current] = y;
-  }, []);
-
-  const restoreScrollOffset = useCallback((page: number) => {
-    const targetOffset = tabScrollOffsetsRef.current[page] ?? 0;
-    setTimeout(() => {
-      scrollRef.current?.scrollTo({ y: targetOffset, animated: false });
-      currentScrollOffsetRef.current = targetOffset;
-    }, 0);
-  }, []);
-
-  const selectPage = useCallback((page: number) => {
-    const currentPage = selectedPageRef.current;
-    if (page === currentPage) return;
-
-    tabScrollOffsetsRef.current[currentPage] = currentScrollOffsetRef.current;
-    setSelectedPage(page);
-    pagerRef.current?.setPage(page);
-    restoreScrollOffset(page);
-  }, [restoreScrollOffset]);
-
-  useEffect(() => {
-    selectedPageRef.current = selectedPage;
-  }, [selectedPage]);
+  const selectTab = useCallback(
+    (id: TabId) => {
+      if (id === "grades") {
+        setHasOpenedGrades(true);
+      }
+      setActiveScrollId(id);
+      const pageIndex = TAB_IDS.indexOf(id);
+      if (pageIndex >= 0) {
+        pagerRef.current?.setPage(pageIndex);
+      }
+    },
+    [setActiveScrollId],
+  );
 
   if (!scope) {
     return <EmptyState title="Course not found" description="This course is no longer available." />;
   }
-
-  const session = activeAccount ? accountSession(activeAccount.id) : null;
-  const coverImageUrl = resolveMoodleImageUrl({
-    url: scope.mergedCourse.courseimage,
-    siteOrigin: activeAccount?.origin,
-    accessKey: session?.accessKey,
-  });
 
   const contentPage = (
     <>
@@ -200,8 +192,10 @@ export default function CourseDetailScreen() {
                   key={module.id}
                   module={module}
                   courseId={scope.id}
+                  tint={getCourseIconTint({ hue: courseIconHue, seminarGroup: module.course.seminarGroup })}
                   first={index === 0}
                   last={index === display.surfacedModules.length - 1}
+                  showSection
                 />
               ))}
             </InsetGroup>
@@ -215,6 +209,7 @@ export default function CourseDetailScreen() {
                   key={module.id}
                   module={module}
                   courseId={scope.id}
+                  tint={getCourseIconTint({ hue: courseIconHue, seminarGroup: module.course.seminarGroup })}
                   first={index === 0}
                   last={index === section.modules.length - 1}
                 />
@@ -275,7 +270,7 @@ export default function CourseDetailScreen() {
                             router.push({
                               pathname: "/courses/[courseId]/content/[contentId]",
                               params: { courseId: scope.id, contentId: scopedModuleId },
-                            })
+                            } as unknown as Href)
                         : undefined
                     }
                   />
@@ -289,328 +284,287 @@ export default function CourseDetailScreen() {
   );
 
   return (
-    <>
-      <Stack.Screen options={{ headerShown: false, fullScreenGestureEnabled: false, gestureResponseDistance: { start: 24 } }} />
-      <CourseScrollPage
-        coverImageUrl={coverImageUrl}
-        title={scope.title}
-        semester={scope.mergedCourse.semester}
-        scrollRef={scrollRef}
-        onScrollEndDrag={captureScrollOffset}
-        onMomentumScrollEnd={captureScrollOffset}
+    <HeaderMotion activeScrollId={activeScrollId.sv} progressThreshold={PROGRESS_THRESHOLD}>
+      <HeaderMotion.Bridge>
+        {(value) => (
+          <Stack.Screen
+            options={{
+              fullScreenGestureEnabled: false,
+              gestureResponseDistance: { start: 24 },
+              header: () => (
+                <HeaderMotion.NavigationBridge value={value}>
+                  <CourseCollapsibleHeader
+                    coverImageUrl={coverImageUrl}
+                    title={scope.title}
+                    semester={scope.mergedCourse.semester}
+                    selectedTab={activeScrollId.state}
+                    onSelectTab={selectTab}
+                  />
+                </HeaderMotion.NavigationBridge>
+              ),
+            }}
+          />
+        )}
+      </HeaderMotion.Bridge>
+      <PagerView
+        ref={pagerRef}
+        style={styles.pager}
+        initialPage={0}
+        onPageSelected={(event) => {
+          const next = TAB_IDS[event.nativeEvent.position];
+          if (next) {
+            if (next === "grades") {
+              setHasOpenedGrades(true);
+            }
+            setActiveScrollId(next);
+          }
+        }}
       >
-        <CoursePageTabs selectedPage={selectedPage} onSelectPage={selectPage} />
-
-        <PagerView
-          ref={pagerRef}
-          style={[styles.bodyPager, { height: pageHeights[selectedPage] ?? 1 }]}
-          initialPage={0}
-          overdrag={false}
-          onPageSelected={(event) => {
-            const nextPage = event.nativeEvent.position;
-            const currentPage = selectedPageRef.current;
-            tabScrollOffsetsRef.current[currentPage] = currentScrollOffsetRef.current;
-            setSelectedPage(nextPage);
-            restoreScrollOffset(nextPage);
-          }}
+        <HeaderMotion.ScrollView
+          key="content"
+          scrollId="content"
+          style={styles.pageScrollView}
+          contentContainerStyle={styles.pageContent}
         >
-          <View key="content" collapsable={false} style={styles.pagerPage}>
-            <View style={styles.pageBody} onLayout={(event) => setMeasuredHeight(0, event.nativeEvent.layout.height)}>
-              {contentPage}
-            </View>
-          </View>
-
-          <View key="grades" collapsable={false} style={styles.pagerPage}>
-            <View style={styles.pageBody} onLayout={(event) => setMeasuredHeight(1, event.nativeEvent.layout.height)}>
-              {gradesPage}
-            </View>
-          </View>
-        </PagerView>
-      </CourseScrollPage>
-    </>
+          {contentPage}
+        </HeaderMotion.ScrollView>
+        <HeaderMotion.ScrollView
+          key="grades"
+          scrollId="grades"
+          style={styles.pageScrollView}
+          contentContainerStyle={styles.pageContent}
+        >
+          {gradesPage}
+        </HeaderMotion.ScrollView>
+      </PagerView>
+    </HeaderMotion>
   );
 }
 
-function CourseScrollPage({
+interface CourseCollapsibleHeaderProps {
+  coverImageUrl: string | undefined;
+  title: string;
+  semester: string | null | undefined;
+  selectedTab: TabId;
+  onSelectTab: (id: TabId) => void;
+}
+
+function CourseCollapsibleHeader({
   coverImageUrl,
   title,
   semester,
-  scrollRef,
-  onScrollEndDrag,
-  onMomentumScrollEnd,
-  children,
-}: {
-  coverImageUrl: string | undefined;
-  title: string;
-  semester: string | null | undefined;
-  scrollRef?: RefObject<Animated.ScrollView | null>;
-  onScrollEndDrag?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
-  onMomentumScrollEnd?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
-  children: ReactNode;
-}) {
-  return (
-    <ScrollViewWithHeaders
-      ref={scrollRef}
-      HeaderComponent={(props) => (
-        <CourseHeader {...props} coverImageUrl={coverImageUrl} title={title} semester={semester} />
-      )}
-      absoluteHeader
-      disableAutoFixScroll
-      ignoreLeftSafeArea
-      ignoreRightSafeArea
-      headerFadeInThreshold={0.3}
-      onScrollEndDrag={onScrollEndDrag}
-      onMomentumScrollEnd={onMomentumScrollEnd}
-      style={{ backgroundColor: platformColors.systemGroupedBackground }}
-      contentContainerStyle={{ paddingBottom: 112 }}
-      containerStyle={{ backgroundColor: platformColors.systemGroupedBackground }}
-    >
-      <View style={styles.contentContainer}>{children}</View>
-    </ScrollViewWithHeaders>
-  );
-}
-
-function CoursePageTabs({
-  selectedPage,
-  onSelectPage,
-}: {
-  selectedPage: number;
-  onSelectPage: (page: number) => void;
-}) {
-  return (
-    <View style={styles.tabsRoot}>
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => onSelectPage(0)}
-        style={[styles.tabButton, selectedPage === 0 ? styles.tabButtonActive : null]}
-      >
-        <Text style={[styles.tabLabel, selectedPage === 0 ? styles.tabLabelActive : null]}>Content</Text>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => onSelectPage(1)}
-        style={[styles.tabButton, selectedPage === 1 ? styles.tabButtonActive : null]}
-      >
-        <Text style={[styles.tabLabel, selectedPage === 1 ? styles.tabLabelActive : null]}>Grades</Text>
-      </Pressable>
-    </View>
-  );
-}
-
-interface CourseHeaderProps extends ScrollHeaderProps {
-  coverImageUrl: string | undefined;
-  title: string;
-  semester: string | null | undefined;
-}
-
-function CourseHeader({ showNavBar, scrollY, coverImageUrl, title, semester }: CourseHeaderProps) {
+  selectedTab,
+  onSelectTab,
+}: CourseCollapsibleHeaderProps) {
   const screenRouter = useRouter();
   const { top, left, right } = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
-  const bannerHeight = useSharedValue(HERO_HEIGHT);
+  const { progress, progressThreshold } = useMotionProgress();
 
-  const blurStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(Math.abs(scrollY.get()), [0, 60], [0, 1], "clamp");
-    return { opacity };
-  });
-
-  const bannerTranslationStyle = useAnimatedStyle(() => {
-    const translateY = interpolate(scrollY.get(), [0, HERO_HEIGHT], [0, -HERO_HEIGHT * 0.8], "clamp");
+  // Slide entire header up by the collapse threshold, leaving the nav bar at top.
+  const containerStyle = useAnimatedStyle(() => {
+    const threshold = progressThreshold.get();
+    const translateY = interpolate(progress.get(), [0, 1], [0, -threshold], Extrapolation.CLAMP);
     return { transform: [{ translateY }] };
   });
 
-  const animatedScaleStyle = useAnimatedStyle(() => {
-    const currentBannerHeight = bannerHeight.get();
-    const ratio = height / currentBannerHeight;
-    const scale = interpolate(scrollY.get(), [0, -(height + currentBannerHeight)], [1, ratio], "clamp");
-    return { transform: [{ scaleY: scale }, { scaleX: scale }] };
-  }, [height]);
-
-  const titleOpacityStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(scrollY.get(), [0, HERO_HEIGHT * 0.6], [1, 0], "clamp");
-    return { opacity };
+  // Counter-translate the nav bar so it stays pinned to the top as the container slides up.
+  const navBarStyle = useAnimatedStyle(() => {
+    const threshold = progressThreshold.get();
+    const translateY = interpolate(progress.get(), [0, 1], [0, threshold], Extrapolation.CLAMP);
+    return { transform: [{ translateY }] };
   });
 
-  const heroTotalHeight = HERO_HEIGHT + top;
+  // Nav bar background fades in as the header collapses.
+  const navBarBackgroundStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.get(), [0.4, 1], [0, 1], Extrapolation.CLAMP),
+  }));
+
+  // Nav bar title fades in when collapsed.
+  const navTitleStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.get(), [0.55, 1], [0, 1], Extrapolation.CLAMP),
+  }));
+
+  // Hero overlay (semester + course title) fades + scales out as the user scrolls.
+  const heroOverlayStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.get(), [0, 0.6], [1, 0], Extrapolation.CLAMP),
+    transform: [
+      { translateY: interpolate(progress.get(), [0, 1], [0, progressThreshold.get() * 0.5], Extrapolation.CLAMP) },
+      { scale: interpolate(progress.get(), [0, 1], [1, 0.92], Extrapolation.CLAMP) },
+    ],
+  }));
+
+  // Hero image gets a slow parallax + slight zoom on overscroll.
+  const heroImageStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: interpolate(progress.get(), [0, 1], [0, progressThreshold.get() * 0.3], Extrapolation.CLAMP) },
+      { scale: interpolate(progress.get(), [-0.3, 0], [1.15, 1], Extrapolation.CLAMP) },
+    ],
+  }));
 
   return (
-    <View style={[styles.headerRoot, { height: heroTotalHeight }]}>
-      <Animated.View style={[StyleSheet.absoluteFill, bannerTranslationStyle]}>
-        <Animated.View
-          onLayout={(event) => {
-            bannerHeight.set(event.nativeEvent.layout.height);
-          }}
-          style={animatedScaleStyle}
-        >
+    <HeaderMotion.Header style={containerStyle}>
+      <HeaderMotion.Header.Dynamic style={[styles.heroContainer, { height: HERO_HEIGHT + top }]}>
+        <Animated.View style={[StyleSheet.absoluteFill, heroImageStyle]}>
           {coverImageUrl ? (
-            <Image source={coverImageUrl} style={[styles.heroImage, { width, height: heroTotalHeight }]} contentFit="cover" />
+            <Image source={coverImageUrl} style={StyleSheet.absoluteFill} contentFit="cover" />
           ) : (
-            <View style={[styles.heroPlaceholder, { width, height: heroTotalHeight }]}>
+            <View style={[StyleSheet.absoluteFill, styles.heroPlaceholder]}>
               <SymbolBadge symbol="book.closed.fill" />
             </View>
           )}
-
-          {canUseBlurView ? (
-            <Animated.View style={[StyleSheet.absoluteFill, { zIndex: 1 }, blurStyle]}>
-              <BlurView style={StyleSheet.absoluteFill} intensity={60} tint="dark" />
-            </Animated.View>
-          ) : (
-            <Animated.View
-              style={[StyleSheet.absoluteFill, { zIndex: 1, backgroundColor: "rgba(0,0,0,0.5)" }, blurStyle]}
-            />
-          )}
         </Animated.View>
-      </Animated.View>
 
-      <Header
-        showNavBar={showNavBar}
-        headerStyle={styles.transparentHeader}
-        headerCenterFadesIn={false}
-        noBottomBorder
-        headerLeft={
-          <View style={styles.headerLeftContainer}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Go back"
-              onPress={() => screenRouter.back()}
-              style={styles.headerButton}
-            >
-              <Image source="sf:chevron.left" style={styles.headerBackIcon} contentFit="contain" />
-            </Pressable>
-            <FadingView opacity={showNavBar} style={styles.fadingTitleContainer}>
-              <Text numberOfLines={1} style={styles.navBarTitle}>
-                {title}
-              </Text>
-            </FadingView>
-          </View>
-        }
-        headerLeftStyle={{ paddingLeft: Math.max(left, 8), flex: 1 }}
-        headerRightStyle={{ paddingRight: Math.max(right, 8) }}
-      />
+        <View style={styles.heroGradient} pointerEvents="none" />
+
+        <Animated.View
+          style={[styles.heroTitleOverlay, { paddingHorizontal: Math.max(left, 20) }, heroOverlayStyle]}
+          pointerEvents="none"
+        >
+          <Text selectable style={styles.semesterLabel}>
+            {(semester ?? "Course").toUpperCase()}
+          </Text>
+          <Text selectable style={styles.courseTitle}>
+            {title}
+          </Text>
+        </Animated.View>
+      </HeaderMotion.Header.Dynamic>
+
+      <View
+        style={[
+          styles.tabBarContainer,
+          { paddingLeft: Math.max(left, 16), paddingRight: Math.max(right, 16) },
+        ]}
+      >
+        <SegmentedControl
+          values={["Content", "Grades"]}
+          selectedIndex={TAB_IDS.indexOf(selectedTab)}
+          onChange={({ nativeEvent }) => {
+            const next = TAB_IDS[nativeEvent.selectedSegmentIndex];
+            if (next) onSelectTab(next);
+          }}
+        />
+      </View>
 
       <Animated.View
         style={[
-          styles.heroTitleOverlay,
-          {
-            paddingHorizontal: Math.max(left, 20),
-          },
-          titleOpacityStyle,
+          styles.navBar,
+          { paddingTop: top, paddingLeft: Math.max(left, 12), paddingRight: Math.max(right, 12) },
+          navBarStyle,
         ]}
-        pointerEvents="none"
       >
-        <View style={styles.scrim}>
-          <View style={styles.heroTextGroup}>
-            <Text selectable style={styles.semesterLabel}>
-              {(semester ?? "Course").toUpperCase()}
-            </Text>
-            <Text selectable style={styles.courseTitle}>
-              {title}
-            </Text>
-          </View>
+        <Animated.View style={[StyleSheet.absoluteFill, navBarBackgroundStyle]} pointerEvents="none">
+          {canUseBlurView ? (
+            <BlurView style={StyleSheet.absoluteFill} intensity={80} tint="systemChromeMaterial" />
+          ) : (
+            <View style={[StyleSheet.absoluteFill, styles.navBarFallback]} />
+          )}
+          <View style={styles.navBarHairline} />
+        </Animated.View>
+
+        <View style={styles.navBarRow}>
+          <NativeIconButton
+            label="Go back"
+            systemImage="chevron.left"
+            tintColor={platformColors.label}
+            onPress={() => screenRouter.back()}
+            style={styles.headerButton}
+          />
+          <Animated.Text numberOfLines={1} style={[styles.navBarTitle, navTitleStyle]}>
+            {title}
+          </Animated.Text>
+          <View style={styles.navBarSpacer} />
         </View>
       </Animated.View>
-    </View>
+    </HeaderMotion.Header>
   );
 }
 
 const styles = StyleSheet.create({
-  bodyPager: {
+  pager: {
+    flex: 1,
+  },
+  pageScrollView: {
+    backgroundColor: platformColors.systemGroupedBackground,
+  },
+  pageContent: {
     width: "100%",
-  },
-  pagerPage: {
-    width: "100%",
-    height: "100%",
-  },
-  pageBody: {
-    gap: 20,
-  },
-  tabsRoot: {
+    maxWidth: 800,
     alignSelf: "center",
-    flexDirection: "row",
-    borderRadius: 12,
-    borderCurve: "continuous",
-    padding: 4,
-    backgroundColor: platformColors.secondarySystemGroupedBackground,
-    marginBottom: 8,
-  },
-  tabButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderCurve: "continuous",
-  },
-  tabButtonActive: {
-    backgroundColor: platformColors.systemBackground,
-  },
-  tabLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: platformColors.secondaryLabel,
-  },
-  tabLabelActive: {
-    color: platformColors.label,
+    paddingHorizontal: 16,
+    paddingBottom: 112,
+    marginTop: 16,
+    gap: 12,
   },
   totalLabel: {
     fontSize: 13,
     fontWeight: "700",
     color: platformColors.systemBlue,
   },
-  headerRoot: {
-    position: "relative",
-    zIndex: 1,
+  heroContainer: {
+    width: "100%",
+    overflow: "hidden",
+    backgroundColor: platformColors.secondarySystemGroupedBackground,
   },
-  transparentHeader: {
-    backgroundColor: "transparent",
+  heroGradient: {
+    ...StyleSheet.absoluteFillObject,
+    experimental_backgroundImage:
+      "linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.25) 45%, rgba(0,0,0,0.15) 100%)",
   },
-  headerLeftContainer: {
+  tabBarContainer: {
+    paddingTop: 10,
+    paddingBottom: 12,
+    backgroundColor: platformColors.systemGroupedBackground,
+  },
+  navBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
+  },
+  navBarRow: {
+    height: NAV_BAR_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    flex: 1,
+  },
+  navBarFallback: {
+    backgroundColor: platformColors.systemBackground,
+  },
+  navBarHairline: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: platformColors.separator,
+  },
+  navBarSpacer: {
+    width: 36,
   },
   headerButton: {
-    justifyContent: "center",
-    alignItems: "center",
-    minWidth: 28,
-    height: 32,
-    marginLeft: -2,
-  },
-  headerBackIcon: {
-    width: 13,
-    height: 22,
-    tintColor: "#FFFFFF",
+    width: 44,
+    height: 44,
   },
   navBarTitle: {
+    flex: 1,
     fontSize: 17,
     fontWeight: "600",
-    color: "#FFFFFF",
-  },
-  fadingTitleContainer: {
-    flex: 1,
-  },
-  heroImage: {
-    height: HERO_HEIGHT,
+    color: platformColors.label,
+    textAlign: "center",
   },
   heroPlaceholder: {
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: platformColors.secondarySystemGroupedBackground,
   },
-  scrim: {
-    backgroundColor: "rgba(0,0,0,0.45)",
-    borderRadius: 16,
-    padding: 16,
-  },
   heroTitleOverlay: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    paddingBottom: 24,
-    zIndex: 2,
-  },
-  heroTextGroup: {
-    gap: 6,
+    paddingBottom: 28,
+    gap: 4,
   },
   semesterLabel: {
     fontSize: 13,
@@ -624,18 +578,5 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#FFFFFF",
     letterSpacing: -0.4,
-  },
-  contentContainer: {
-    width: "100%",
-    maxWidth: 800,
-    alignSelf: "center",
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    gap: 12,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderCurve: "continuous",
-    backgroundColor: platformColors.systemGroupedBackground,
-    marginTop: -30,
   },
 });

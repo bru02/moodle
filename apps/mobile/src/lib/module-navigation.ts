@@ -1,6 +1,6 @@
 import type { CoreCourseGetContentsWSModule } from "@moodle/core";
 import { handleMoodleFileUrl } from "@moodle/core";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 
 import { openExternalUrl } from "@/lib/browser";
 import { recordCourseEngagement } from "@/lib/course-activity";
@@ -39,14 +39,14 @@ export async function openModule(input: {
     return;
   }
 
-  await recordCourseEngagement({
-    accountId: input.accountId,
-    scopeId: input.courseId,
-    source: "course-module",
-  });
   router.push({
     pathname: "/courses/[courseId]/content/[contentId]",
     params: { courseId: input.courseId, contentId: input.contentId },
+  } as unknown as Href);
+  void recordCourseEngagement({
+    accountId: input.accountId,
+    scopeId: input.courseId,
+    source: "course-module",
   });
 }
 

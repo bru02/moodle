@@ -42,9 +42,18 @@ import type {
   AddonModChoiceSubmitChoiceResponseWSParams,
   AddonModChoiceSubmitChoiceResponseWSResponse,
 } from "./choice";
-import type { CoreCommentsGetCommentsWSParams, CoreCommentsGetCommentsWSResponse } from "./comment";
-import { CoreCourseGetContentsParams, CoreCourseGetContentsWSResponse } from "./contents";
-import type { CoreEnrolGetUsersCoursesWSParams, CoreEnrolGetUsersCoursesWSResponse } from "./course";
+import type {
+  CoreCommentsGetCommentsWSParams,
+  CoreCommentsGetCommentsWSResponse,
+} from "./comment";
+import {
+  CoreCourseGetContentsParams,
+  CoreCourseGetContentsWSResponse,
+} from "./contents";
+import type {
+  CoreEnrolGetUsersCoursesWSParams,
+  CoreEnrolGetUsersCoursesWSResponse,
+} from "./course";
 import type {
   AddonModForumGetDiscussionPostsWSParams,
   AddonModForumGetDiscussionPostsWSResponse,

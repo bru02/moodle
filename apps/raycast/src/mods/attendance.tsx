@@ -1,5 +1,13 @@
 import { normalizeNetworkError } from "@moodle/core";
-import { Action, ActionPanel, Color, Icon, List, Toast, showToast } from "@raycast/api";
+import {
+  Action,
+  ActionPanel,
+  Color,
+  Icon,
+  List,
+  Toast,
+  showToast,
+} from "@raycast/api";
 import { useQuery } from "@tanstack/react-query";
 import { memo, useContext, useMemo } from "react";
 
@@ -10,7 +18,10 @@ import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
 import { stripHTML } from "../helpers";
 import { turndown } from "../helpers/markdown";
-import { getMoodleErrorMessage, isMoodleErrorPayload } from "../helpers/moodle-errors";
+import {
+  getMoodleErrorMessage,
+  isMoodleErrorPayload,
+} from "../helpers/moodle-errors";
 import { siteOrigin } from "../helpers/preferences";
 import { queryClient } from "../hooks/useWSQuery";
 import { Module } from "../types";
@@ -29,8 +40,10 @@ type MobileSessionItem = {
 
 const ATTENDANCE_TRANSLATIONS: Record<string, string> = {
   "plugin.mod_attendance.sessionscompleted": "Sessions Completed",
-  "plugin.mod_attendance.pointssessionscompleted": "Points (Completed Sessions)",
-  "plugin.mod_attendance.percentagesessionscompleted": "Percentage (Completed Sessions)",
+  "plugin.mod_attendance.pointssessionscompleted":
+    "Points (Completed Sessions)",
+  "plugin.mod_attendance.percentagesessionscompleted":
+    "Percentage (Completed Sessions)",
   "plugin.mod_attendance.sessionstotal": "Sessions Total",
   "plugin.mod_attendance.pointsallsessions": "Points (All Sessions)",
   "plugin.mod_attendance.percentageallsessions": "Percentage (All Sessions)",
@@ -44,8 +57,14 @@ function AttendanceListItem({ module }: { module: Module }) {
   const { activeCourse } = ctx;
   const mobileViewQuery = useAttendanceMobileViewData(module, activeCourse.id);
 
-  const summaryItems = useMemo(() => extractAttendanceSummaryItems(mobileViewQuery.data), [mobileViewQuery.data]);
-  const mobileSessions = useMemo(() => extractMobileSessions(mobileViewQuery.data), [mobileViewQuery.data]);
+  const summaryItems = useMemo(
+    () => extractAttendanceSummaryItems(mobileViewQuery.data),
+    [mobileViewQuery.data],
+  );
+  const mobileSessions = useMemo(
+    () => extractMobileSessions(mobileViewQuery.data),
+    [mobileViewQuery.data],
+  );
 
   return (
     <DefaultListItem
@@ -91,8 +110,11 @@ function AttendanceListItemDetail({
   mobileError: Error | null;
   isLoading: boolean;
 }) {
-  const openMobileSession = mobileSessions.find((item) => item.sessionid != null);
-  const sessionTime = openMobileSession?.time ?? mobileSessions[0]?.time ?? "Unavailable";
+  const openMobileSession = mobileSessions.find(
+    (item) => item.sessionid != null,
+  );
+  const sessionTime =
+    openMobileSession?.time ?? mobileSessions[0]?.time ?? "Unavailable";
   const intro = turndown(module.description || "").trim();
 
   return (
@@ -104,15 +126,27 @@ function AttendanceListItemDetail({
           <List.Item.Detail.Metadata.Label
             title="Session Open"
             text={
-              openMobileSession ? { value: "Yes", color: Color.Green } : { value: "No", color: Color.SecondaryText }
+              openMobileSession
+                ? { value: "Yes", color: Color.Green }
+                : { value: "No", color: Color.SecondaryText }
             }
           />
-          <List.Item.Detail.Metadata.Label title="Session Time" text={sessionTime} />
+          <List.Item.Detail.Metadata.Label
+            title="Session Time"
+            text={sessionTime}
+          />
           {summaryItems.map((item) => (
-            <List.Item.Detail.Metadata.Label key={`${item.title}:${item.value}`} title={item.title} text={item.value} />
+            <List.Item.Detail.Metadata.Label
+              key={`${item.title}:${item.value}`}
+              title={item.title}
+              text={item.value}
+            />
           ))}
           {summaryItems.length === 0 && mobileError && (
-            <List.Item.Detail.Metadata.Label title="Mobile Summary" text={mobileError.message || "Failed to load"} />
+            <List.Item.Detail.Metadata.Label
+              title="Mobile Summary"
+              text={mobileError.message || "Failed to load"}
+            />
           )}
           <DatesDetail module={module} />
         </List.Item.Detail.Metadata>
@@ -124,7 +158,13 @@ function AttendanceListItemDetail({
 function useAttendanceMobileViewData(module: Module, courseid: number) {
   return useQuery(
     {
-      queryKey: ["tool_mobile_get_content", "mod_attendance", "mobile_view_activity", module.id, courseid],
+      queryKey: [
+        "tool_mobile_get_content",
+        "mod_attendance",
+        "mobile_view_activity",
+        module.id,
+        courseid,
+      ],
       retry: false,
       queryFn: async () => {
         const user = await getUser();
@@ -167,24 +207,31 @@ function MarkAsAttendedAction({
         let sessionid = extractFirstOpenSessionId(mobileViewData);
         const toast = await showToast({
           style: Toast.Style.Animated,
-          title: sessionid ? "Marking attendance" : "Refreshing attendance sessions",
+          title: sessionid
+            ? "Marking attendance"
+            : "Refreshing attendance sessions",
         });
 
         if (!sessionid) {
           try {
-            const refreshedMobileViewData = await requestAttendanceMobileViaToolMobileGetContent({
-              cmid: module.id,
-              courseid,
-              method: "mobile_view_activity",
-              extraArgs: [["userid", user.id]],
-            });
+            const refreshedMobileViewData =
+              await requestAttendanceMobileViaToolMobileGetContent({
+                cmid: module.id,
+                courseid,
+                method: "mobile_view_activity",
+                extraArgs: [["userid", user.id]],
+              });
 
-            queryClient.setQueryData(mobileViewQueryKey, refreshedMobileViewData);
+            queryClient.setQueryData(
+              mobileViewQueryKey,
+              refreshedMobileViewData,
+            );
             sessionid = extractFirstOpenSessionId(refreshedMobileViewData);
           } catch (error) {
             toast.style = Toast.Style.Failure;
             toast.title = "Failed to refresh attendance";
-            toast.message = error instanceof Error ? error.message : "Unknown error";
+            toast.message =
+              error instanceof Error ? error.message : "Unknown error";
             return;
           }
 
@@ -199,38 +246,43 @@ function MarkAsAttendedAction({
         }
 
         try {
-          const mobileUserForm = await requestAttendanceMobileViaToolMobileGetContent({
-            cmid: module.id,
-            courseid,
-            method: "mobile_user_form",
-            extraArgs: [
-              ["sessid", sessionid],
-              ["userid", user.id],
-            ],
-          });
+          const mobileUserForm =
+            await requestAttendanceMobileViaToolMobileGetContent({
+              cmid: module.id,
+              courseid,
+              method: "mobile_user_form",
+              extraArgs: [
+                ["sessid", sessionid],
+                ["userid", user.id],
+              ],
+            });
 
-          const statusid = extractFirstAvailableStatusIdFromMobileUserForm(mobileUserForm);
+          const statusid =
+            extractFirstAvailableStatusIdFromMobileUserForm(mobileUserForm);
           if (!statusid) {
             throw new Error("No available attendance status for this session.");
           }
 
-          const updatedMobileViewData = await requestAttendanceMobileViaToolMobileGetContent({
-            cmid: module.id,
-            courseid,
-            method: "mobile_view_activity",
-            extraArgs: [
-              ["sessid", sessionid],
-              ["status", statusid],
-              ["userid", user.id],
-            ],
-          });
+          const updatedMobileViewData =
+            await requestAttendanceMobileViaToolMobileGetContent({
+              cmid: module.id,
+              courseid,
+              method: "mobile_view_activity",
+              extraArgs: [
+                ["sessid", sessionid],
+                ["status", statusid],
+                ["userid", user.id],
+              ],
+            });
           queryClient.setQueryData(mobileViewQueryKey, updatedMobileViewData);
 
           await Promise.all([
             queryClient.invalidateQueries({
               queryKey: mobileViewQueryKey,
             }),
-            queryClient.invalidateQueries({ queryKey: ["core_course_get_contents"] }),
+            queryClient.invalidateQueries({
+              queryKey: ["core_course_get_contents"],
+            }),
           ]);
 
           toast.style = Toast.Style.Success;
@@ -239,7 +291,8 @@ function MarkAsAttendedAction({
         } catch (error) {
           toast.style = Toast.Style.Failure;
           toast.title = "Failed to mark attendance";
-          toast.message = error instanceof Error ? error.message : "Unknown error";
+          toast.message =
+            error instanceof Error ? error.message : "Unknown error";
         }
       }}
     />
@@ -295,7 +348,7 @@ async function requestAttendanceMobileViaToolMobileGetContent({
     response = await fetch(`${siteOrigin}/webservice/rest/server.php`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body,
+      body: body.toString(),
     });
   } catch (error) {
     throw normalizeNetworkError(error);
@@ -309,14 +362,23 @@ async function requestAttendanceMobileViaToolMobileGetContent({
   }
 
   if (!response.ok || isMoodleErrorPayload(payload)) {
-    throw new Error(getMoodleErrorMessage(payload) ?? response.statusText ?? "Failed to load attendance data");
+    throw new Error(
+      getMoodleErrorMessage(payload) ??
+        response.statusText ??
+        "Failed to load attendance data",
+    );
   }
 
   return payload as AddonModAttendanceMobileViewActivityWSResponse;
 }
 
-function extractFirstOpenSessionId(data: AddonModAttendanceMobileViewActivityWSResponse | undefined) {
-  return extractMobileSessions(data).find((item) => item.sessionid != null)?.sessionid ?? null;
+function extractFirstOpenSessionId(
+  data: AddonModAttendanceMobileViewActivityWSResponse | undefined,
+) {
+  return (
+    extractMobileSessions(data).find((item) => item.sessionid != null)
+      ?.sessionid ?? null
+  );
 }
 
 function extractFirstAvailableStatusIdFromMobileUserForm(
@@ -359,13 +421,16 @@ function extractAttendanceSummaryItems(
   return items;
 }
 
-function extractMobileSessions(data: AddonModAttendanceMobileViewActivityWSResponse | undefined): MobileSessionItem[] {
+function extractMobileSessions(
+  data: AddonModAttendanceMobileViewActivityWSResponse | undefined,
+): MobileSessionItem[] {
   const html = getMobileTemplatesHtml(data);
   if (!html) return [];
 
   const sessions: MobileSessionItem[] = [];
   const seen = new Set<string>();
-  const itemPattern = /<ion-item>[\s\S]*?<h2>([\s\S]*?)<\/h2>[\s\S]*?<\/ion-item>/gi;
+  const itemPattern =
+    /<ion-item>[\s\S]*?<h2>([\s\S]*?)<\/h2>[\s\S]*?<\/ion-item>/gi;
 
   for (const match of html.matchAll(itemPattern)) {
     const block = match[0] ?? "";
@@ -403,10 +468,15 @@ function humanizeAttendanceKey(key: string): string {
     .replace(/^./, (char) => char.toUpperCase());
 }
 
-function getMobileTemplatesHtml(data: AddonModAttendanceMobileViewActivityWSResponse | undefined): string {
+function getMobileTemplatesHtml(
+  data: AddonModAttendanceMobileViewActivityWSResponse | undefined,
+): string {
   return (data?.templates ?? [])
     .map((template) => template?.html)
-    .filter((html): html is string => typeof html === "string" && html.trim().length > 0)
+    .filter(
+      (html): html is string =>
+        typeof html === "string" && html.trim().length > 0,
+    )
     .join("\n");
 }
 

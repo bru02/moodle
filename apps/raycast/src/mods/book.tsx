@@ -1,5 +1,6 @@
 import { mkdir } from "fs/promises";
 
+import { parseBookToc, resolveBookChapterContentFile } from "@moodle/core";
 import { Action, ActionPanel, Icon, List, open } from "@raycast/api";
 import { useContext } from "react";
 
@@ -10,14 +11,22 @@ import { getModuleFolder } from "../helpers/files";
 import { preferences } from "../helpers/preferences";
 import { useRemoteHTMLResource } from "../hooks/useRemoteHTMLService";
 import { Module } from "../types";
-import { parseBookToc, resolveBookChapterContentFile } from "@moodle/core";
-
 import DefaultListItem from "./default";
 
-export function BookChapterDetail({ module, href }: { module: Module; href: string }) {
+export function BookChapterDetail({
+  module,
+  href,
+}: {
+  module: Module;
+  href: string;
+}) {
   const { activeCourse } = useContext(CourseContext);
   const fileurl = resolveBookChapterContentFile(module.contents, href)?.fileurl;
-  const { data: content, isLoading } = useRemoteHTMLResource(fileurl, module.contents, activeCourse.id);
+  const { data: content, isLoading } = useRemoteHTMLResource(
+    fileurl,
+    module.contents,
+    activeCourse.id,
+  );
 
   return <List.Item.Detail isLoading={isLoading} markdown={content} />;
 }
@@ -36,7 +45,9 @@ export function ViewBook({ module }: { module: Module }) {
             detail={<BookChapterDetail module={module} href={content.href} />}
             actions={
               <ActionPanel>
-                <OpenInBrowserAction url={`${module.url}&chapterid=${content.href.match(/\d+/)?.[0]}`} />
+                <OpenInBrowserAction
+                  url={`${module.url}&chapterid=${content.href.match(/\d+/)?.[0]}`}
+                />
               </ActionPanel>
             }
           />

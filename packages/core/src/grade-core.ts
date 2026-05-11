@@ -1,6 +1,12 @@
-import type { CoreGradesGetUserGradesTableWSResponse, CoreGradesTableRow } from "./grade-types";
+import {
+  normalizeGradeAccessoryValue,
+  parseGradeRows,
+} from "./grade-row-parser";
 import { isPlaceholderGradeValue, normalizeGradeText } from "./grade-text";
-import { normalizeGradeAccessoryValue, parseGradeRows } from "./grade-row-parser";
+import type {
+  CoreGradesGetUserGradesTableWSResponse,
+  CoreGradesTableRow,
+} from "./grade-types";
 
 type GradeCoreOptions = {
   siteUrl: string;
@@ -25,7 +31,10 @@ export function buildGradeAccessoryTextByModuleIdFromTables(
   const result = new Map<number, string>();
 
   for (const courseData of data) {
-    for (const row of parseGradeRows(courseData.tables?.[0]?.tabledata, options)) {
+    for (const row of parseGradeRows(
+      courseData.tables?.[0]?.tabledata,
+      options,
+    )) {
       const moduleId = row.moduleId;
       if (!moduleId || result.has(moduleId)) continue;
 
@@ -54,7 +63,9 @@ export function toGradeRowSummaries(
   }));
 }
 
-function getGradeAccessoryText(row: Pick<GradeRowSummary, "grade" | "range" | "percentage">): string | undefined {
+function getGradeAccessoryText(
+  row: Pick<GradeRowSummary, "grade" | "range" | "percentage">,
+): string | undefined {
   const grade = normalizeGradeAccessoryValue(row.grade);
   const range = normalizeGradeText(row.range);
   let text = normalizeGradeText(row.percentage);

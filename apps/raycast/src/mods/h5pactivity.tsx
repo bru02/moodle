@@ -26,12 +26,18 @@ function H5PActivityListItem({ module }: { module: Module }) {
   const ctx = useContext(CourseContext);
   const { scope, activeCourse } = ctx;
   const user = useUser();
-  const { data, isPending } = useWSQuery("mod_h5pactivity_get_h5pactivities_by_courses", {
-    courseids: scope.courseIds,
-  });
-  const { data: accessInfo } = useWSQuery("mod_h5pactivity_get_h5pactivity_access_information", {
-    h5pactivityid: module.instance,
-  });
+  const { data, isPending } = useWSQuery(
+    "mod_h5pactivity_get_h5pactivities_by_courses",
+    {
+      courseids: scope.courseIds,
+    },
+  );
+  const { data: accessInfo } = useWSQuery(
+    "mod_h5pactivity_get_h5pactivity_access_information",
+    {
+      h5pactivityid: module.instance,
+    },
+  );
   const { data: attemptsData } = useWSQuery("mod_h5pactivity_get_attempts", {
     h5pactivityid: module.instance,
     userids: [user.id],
@@ -42,9 +48,13 @@ function H5PActivityListItem({ module }: { module: Module }) {
   );
 
   const currentActivity = data?.h5pactivities.find(
-    (activity) => activity.id === module.instance || activity.coursemodule === module.id,
+    (activity) =>
+      activity.id === module.instance || activity.coursemodule === module.id,
   );
-  const gradeTextByModuleId = useMemo(() => buildGradeAccessoryTextByModuleId(gradeTables), [gradeTables]);
+  const gradeTextByModuleId = useMemo(
+    () => buildGradeAccessoryTextByModuleId(gradeTables),
+    [gradeTables],
+  );
   const gradeText = gradeTextByModuleId.get(module.id);
 
   if (!currentActivity) {
@@ -70,7 +80,11 @@ function H5PActivityListItem({ module }: { module: Module }) {
           {module.url && (
             <OpenInBrowserAction
               url={module.url}
-              title={accessInfo?.cansubmit === false ? "Preview Activity" : "Open Activity"}
+              title={
+                accessInfo?.cansubmit === false
+                  ? "Preview Activity"
+                  : "Open Activity"
+              }
               icon={Icon.Play}
             />
           )}
@@ -105,7 +119,9 @@ function H5PActivityListItemDetail({
   module,
 }: {
   activity: AddonModH5PActivityWSData;
-  accessInfo: AddonModH5pactivityGetH5pactivityAccessInformationWSResponse | undefined;
+  accessInfo:
+    | AddonModH5pactivityGetH5pactivityAccessInformationWSResponse
+    | undefined;
   attemptsData: AddonModH5pactivityGetAttemptsWSResponse | undefined;
   globalSettings: AddonModH5pactivityGlobalSettings | undefined;
   isLoading: boolean;
@@ -120,12 +136,21 @@ function H5PActivityListItemDetail({
       markdown={turndown(activity.intro || "")}
       metadata={
         <List.Item.Detail.Metadata>
-          <List.Item.Detail.Metadata.Label title="Attempts" text={String(attempts.length)} />
+          <List.Item.Detail.Metadata.Label
+            title="Attempts"
+            text={String(attempts.length)}
+          />
           {latestAttempt && (
-            <List.Item.Detail.Metadata.Label title="Latest Score" text={formatAttemptScore(latestAttempt)} />
+            <List.Item.Detail.Metadata.Label
+              title="Latest Score"
+              text={formatAttemptScore(latestAttempt)}
+            />
           )}
           {latestAttempt && (
-            <List.Item.Detail.Metadata.Label title="Latest Outcome" text={getAttemptOutcomeLabel(latestAttempt)} />
+            <List.Item.Detail.Metadata.Label
+              title="Latest Outcome"
+              text={getAttemptOutcomeLabel(latestAttempt)}
+            />
           )}
           {latestAttempt?.timemodified ? (
             <List.Item.Detail.Metadata.Label
@@ -140,10 +165,19 @@ function H5PActivityListItemDetail({
             />
           ) : null}
           {typeof activity.grade === "number" && activity.grade > 0 && (
-            <List.Item.Detail.Metadata.Label title="Max Grade" text={String(activity.grade)} />
+            <List.Item.Detail.Metadata.Label
+              title="Max Grade"
+              text={String(activity.grade)}
+            />
           )}
-          <List.Item.Detail.Metadata.Label title="Grading" text={formatGradeMethod(activity.grademethod)} />
-          <List.Item.Detail.Metadata.Label title="Tracking" text={activity.enabletracking ? "Enabled" : "Disabled"} />
+          <List.Item.Detail.Metadata.Label
+            title="Grading"
+            text={formatGradeMethod(activity.grademethod)}
+          />
+          <List.Item.Detail.Metadata.Label
+            title="Tracking"
+            text={activity.enabletracking ? "Enabled" : "Disabled"}
+          />
           {globalSettings && (
             <List.Item.Detail.Metadata.Label
               title="Save State"
@@ -151,7 +185,10 @@ function H5PActivityListItemDetail({
             />
           )}
           {accessInfo && (
-            <List.Item.Detail.Metadata.Label title="Mode" text={accessInfo.cansubmit ? "Attempt" : "Preview"} />
+            <List.Item.Detail.Metadata.Label
+              title="Mode"
+              text={accessInfo.cansubmit ? "Attempt" : "Preview"}
+            />
           )}
           {accessInfo && (
             <List.Item.Detail.Metadata.Label
@@ -166,7 +203,13 @@ function H5PActivityListItemDetail({
   );
 }
 
-function H5PAttemptsList({ activity, module }: { activity: AddonModH5PActivityWSData; module: Module }) {
+function H5PAttemptsList({
+  activity,
+  module,
+}: {
+  activity: AddonModH5PActivityWSData;
+  module: Module;
+}) {
   const user = useUser();
   const { data, isPending } = useWSQuery("mod_h5pactivity_get_attempts", {
     h5pactivityid: activity.id,
@@ -174,11 +217,17 @@ function H5PAttemptsList({ activity, module }: { activity: AddonModH5PActivityWS
   });
 
   const attempts = getAttempts(data).toSorted(
-    (a, b) => (b.timemodified ?? b.timecreated ?? 0) - (a.timemodified ?? a.timecreated ?? 0),
+    (a, b) =>
+      (b.timemodified ?? b.timecreated ?? 0) -
+      (a.timemodified ?? a.timecreated ?? 0),
   );
 
   return (
-    <List navigationTitle={`${module.name} Attempts`} isLoading={isPending} isShowingDetail={true}>
+    <List
+      navigationTitle={`${module.name} Attempts`}
+      isLoading={isPending}
+      isShowingDetail={true}
+    >
       {attempts.map((attempt) => (
         <List.Item
           key={attempt.id}
@@ -188,7 +237,13 @@ function H5PAttemptsList({ activity, module }: { activity: AddonModH5PActivityWS
           detail={<H5PAttemptDetail attempt={attempt} />}
           actions={
             <ActionPanel>
-              {module.url && <OpenInBrowserAction url={module.url} title="Open Activity" icon={Icon.Play} />}
+              {module.url && (
+                <OpenInBrowserAction
+                  url={module.url}
+                  title="Open Activity"
+                  icon={Icon.Play}
+                />
+              )}
             </ActionPanel>
           }
         />
@@ -197,34 +252,62 @@ function H5PAttemptsList({ activity, module }: { activity: AddonModH5PActivityWS
   );
 }
 
-function H5PAttemptDetail({ attempt }: { attempt: AddonModH5PActivityWSAttempt }) {
+function H5PAttemptDetail({
+  attempt,
+}: {
+  attempt: AddonModH5PActivityWSAttempt;
+}) {
   return (
     <List.Item.Detail
       metadata={
         <List.Item.Detail.Metadata>
-          <List.Item.Detail.Metadata.Label title="Outcome" text={getAttemptOutcomeLabel(attempt)} />
-          <List.Item.Detail.Metadata.Label title="Score" text={formatAttemptScore(attempt)} />
-          <List.Item.Detail.Metadata.Label title="Duration" text={formatDurationSeconds(attempt.duration)} />
-          <List.Item.Detail.Metadata.Label title="Updated" text={formatRelativeTime(attempt.timemodified)} />
-          <List.Item.Detail.Metadata.Label title="Started" text={formatRelativeTime(attempt.timecreated)} />
+          <List.Item.Detail.Metadata.Label
+            title="Outcome"
+            text={getAttemptOutcomeLabel(attempt)}
+          />
+          <List.Item.Detail.Metadata.Label
+            title="Score"
+            text={formatAttemptScore(attempt)}
+          />
+          <List.Item.Detail.Metadata.Label
+            title="Duration"
+            text={formatDurationSeconds(attempt.duration)}
+          />
+          <List.Item.Detail.Metadata.Label
+            title="Updated"
+            text={formatRelativeTime(attempt.timemodified)}
+          />
+          <List.Item.Detail.Metadata.Label
+            title="Started"
+            text={formatRelativeTime(attempt.timecreated)}
+          />
         </List.Item.Detail.Metadata>
       }
     />
   );
 }
 
-function getAttempts(attemptsData: AddonModH5pactivityGetAttemptsWSResponse | undefined) {
+function getAttempts(
+  attemptsData: AddonModH5pactivityGetAttemptsWSResponse | undefined,
+) {
   return attemptsData?.usersattempts[0]?.attempts ?? [];
 }
 
 function getLatestAttempt(attempts: AddonModH5PActivityWSAttempt[]) {
   return [...attempts].sort(
-    (a, b) => (b.timemodified ?? b.timecreated ?? 0) - (a.timemodified ?? a.timecreated ?? 0),
+    (a, b) =>
+      (b.timemodified ?? b.timecreated ?? 0) -
+      (a.timemodified ?? a.timecreated ?? 0),
   )[0];
 }
 
-function getAttemptAccessories(attempt: AddonModH5PActivityWSAttempt): List.Item.Accessory[] {
-  return [{ text: formatAttemptScore(attempt) }, { text: getAttemptOutcomeLabel(attempt) }];
+function getAttemptAccessories(
+  attempt: AddonModH5PActivityWSAttempt,
+): List.Item.Accessory[] {
+  return [
+    { text: formatAttemptScore(attempt) },
+    { text: getAttemptOutcomeLabel(attempt) },
+  ];
 }
 
 function getH5PAccessories({
@@ -232,7 +315,9 @@ function getH5PAccessories({
   attemptsData,
   gradeText,
 }: {
-  accessInfo: AddonModH5pactivityGetH5pactivityAccessInformationWSResponse | undefined;
+  accessInfo:
+    | AddonModH5pactivityGetH5pactivityAccessInformationWSResponse
+    | undefined;
   attemptsData: AddonModH5pactivityGetAttemptsWSResponse | undefined;
   gradeText?: string;
 }): List.Item.Accessory[] {
@@ -242,11 +327,21 @@ function getH5PAccessories({
 
   const latestAttempt = getLatestAttempt(getAttempts(attemptsData));
   if (latestAttempt) {
-    return [{ text: getCompactOutcomeLabel(latestAttempt), tooltip: "Latest attempt" }];
+    return [
+      {
+        text: getCompactOutcomeLabel(latestAttempt),
+        tooltip: "Latest attempt",
+      },
+    ];
   }
 
   if (accessInfo?.cansubmit === false) {
-    return [{ text: { value: "Preview", color: Color.Blue }, tooltip: "Preview mode" }];
+    return [
+      {
+        text: { value: "Preview", color: Color.Blue },
+        tooltip: "Preview mode",
+      },
+    ];
   }
 
   return [{ text: "Open", tooltip: "No attempts yet" }];

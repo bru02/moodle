@@ -17,11 +17,17 @@ export function handleMoodleFileUrl(input: {
   siteOrigin?: string;
   courseSvgProxyUrl?: string;
 }) {
-  const resolved = resolveUrl(input.url, input.siteOrigin ? normalizeSiteOrigin(input.siteOrigin) : undefined);
+  const resolved = resolveUrl(
+    input.url,
+    input.siteOrigin ? normalizeSiteOrigin(input.siteOrigin) : undefined,
+  );
   let url = resolved.toString();
 
   if (input.accessKey) {
-    url = url.replace(/(\/webservice)?\/pluginfile\.php/g, `/tokenpluginfile.php/${input.accessKey}`);
+    url = url.replace(
+      /(\/webservice)?\/pluginfile\.php/g,
+      `/tokenpluginfile.php/${input.accessKey}`,
+    );
   }
 
   url = url.replaceAll("?forcedownload=1", "");
@@ -102,7 +108,10 @@ export async function buildAuthenticatedExternalOpenUrl(input: {
     return externalUrl;
   }
 
-  if (externalUrl.includes("/pluginfile.php") || externalUrl.includes("/tokenpluginfile.php/")) {
+  if (
+    externalUrl.includes("/pluginfile.php") ||
+    externalUrl.includes("/tokenpluginfile.php/")
+  ) {
     return externalUrl;
   }
 

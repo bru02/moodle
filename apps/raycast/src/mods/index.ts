@@ -17,8 +17,11 @@ import ResourceListItem from "./resource";
 
 type ModuleFC = FC<{ module: Module }>;
 
-const ModuleListItems: Partial<Record<Modname, ModuleFC>> & { default: ModuleFC } = {
+const ModuleListItems: Partial<Record<Modname, ModuleFC>> & {
+  default: ModuleFC;
+} = {
   resource: ResourceListItem,
+  pdfannotator: ResourceListItem,
   folder: FolderListItem,
   book: BookListItem,
   page: PageListItem,

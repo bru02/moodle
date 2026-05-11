@@ -41,13 +41,20 @@ export type CalendarScopeMatcher = {
   };
 };
 
-export function matchCalendarEventsToCourseScopes(courseRows: readonly MoodleCourseLike[], events: readonly CalendarEvent[]) {
+export function matchCalendarEventsToCourseScopes(
+  courseRows: readonly MoodleCourseLike[],
+  events: readonly CalendarEvent[],
+) {
   return buildCalendarScopeMatcher(courseRows).matchEvents(events);
 }
 
-export function buildCalendarScopeMatcher(courseRows: readonly MoodleCourseLike[]): CalendarScopeMatcher {
+export function buildCalendarScopeMatcher(
+  courseRows: readonly MoodleCourseLike[],
+): CalendarScopeMatcher {
   const scopes = buildCourseScopes(courseRows.map(toSimpleCourse));
-  const rowsByCourseId = new Map(courseRows.map((row) => [Number(row.id), row] as const));
+  const rowsByCourseId = new Map(
+    courseRows.map((row) => [Number(row.id), row] as const),
+  );
   const titleIndex = new Map<string, ScopeIndexEntry[]>();
 
   for (const scope of scopes) {
@@ -100,11 +107,16 @@ export function toCalendarEvent(input: DeviceCalendarEventLike): CalendarEvent {
   };
 }
 
-function matchEventToScope(event: CalendarEvent, titleIndex: ReadonlyMap<string, readonly ScopeIndexEntry[]>): CalendarScopeMatch | undefined {
+function matchEventToScope(
+  event: CalendarEvent,
+  titleIndex: ReadonlyMap<string, readonly ScopeIndexEntry[]>,
+): CalendarScopeMatch | undefined {
   const eventTitle = extractEventBaseTitle(event.summary);
   const normalizedEventTitle = normalize(eventTitle);
   const eventSection = extractEventSection(event.description);
-  const normalizedEventSection = eventSection ? normalizeSectionCode(eventSection) : undefined;
+  const normalizedEventSection = eventSection
+    ? normalizeSectionCode(eventSection)
+    : undefined;
   const candidates = titleIndex.get(normalizedEventTitle);
 
   if (!candidates || candidates.length === 0) {
@@ -115,7 +127,10 @@ function matchEventToScope(event: CalendarEvent, titleIndex: ReadonlyMap<string,
 
   for (const entry of candidates) {
     const sectionMatches =
-      normalizedEventSection != null && entry.sectionCodes.some((sectionCode) => sectionCode === normalizedEventSection);
+      normalizedEventSection != null &&
+      entry.sectionCodes.some(
+        (sectionCode) => sectionCode === normalizedEventSection,
+      );
     const score = sectionMatches ? 3 : 2;
     if (!bestMatch || score > bestMatch.score) {
       bestMatch = {
@@ -139,15 +154,32 @@ type ScopeIndexEntry = {
   sectionCodes: string[];
 };
 
-function indexScope(scope: CourseScope, rowsByCourseId: ReadonlyMap<number, MoodleCourseLike>): ScopeIndexEntry {
-  const sectionCodes = [...new Set(scope.courseIds.flatMap((courseId) => listCourseSectionCodes(rowsByCourseId.get(courseId))))];
+function indexScope(
+  scope: CourseScope,
+  rowsByCourseId: ReadonlyMap<number, MoodleCourseLike>,
+): ScopeIndexEntry {
+  const sectionCodes = [
+    ...new Set(
+      scope.courseIds.flatMap((courseId) =>
+        listCourseSectionCodes(rowsByCourseId.get(courseId)),
+      ),
+    ),
+  ];
   const rawTitles = scope.courseIds.flatMap((courseId) => {
     const row = rowsByCourseId.get(courseId);
     if (!row) return [];
     return [row.displayname, row.fullname].filter(Boolean);
   });
   const normalizedTitles = [
-    ...new Set([scope.title, extractCourseBaseTitle(scope.title), ...rawTitles.map(extractCourseBaseTitle)].map(normalize).filter(Boolean)),
+    ...new Set(
+      [
+        scope.title,
+        extractCourseBaseTitle(scope.title),
+        ...rawTitles.map(extractCourseBaseTitle),
+      ]
+        .map(normalize)
+        .filter(Boolean),
+    ),
   ];
 
   return {
@@ -163,14 +195,16 @@ function listCourseSectionCodes(course?: MoodleCourseLike) {
   const sectionCodes = new Set<string>();
   const shortnameMatch = cleanMoodleText(course.shortname)
     .trim()
-    .match(/_(?:Előadás|Gyakorlat|Lecture):(.+?)(?:\s+\(\d{4}\/\d{2}\/\d\)|\s*$)/i);
+    .match(
+      /_(?:Előadás|Gyakorlat|Lecture):(.+?)(?:\s+\(\d{4}\/\d{2}\/\d\)|\s*$)/i,
+    );
   if (shortnameMatch?.[1]) {
     sectionCodes.add(shortnameMatch[1].trim());
   }
 
-  const titleMatch = cleanMoodleText(course.displayname || course.fullname).match(
-    /\b(?:Előadás|Gyakorlat|Lecture)\s*\(([^)]+)\)\s*$/i,
-  );
+  const titleMatch = cleanMoodleText(
+    course.displayname || course.fullname,
+  ).match(/\b(?:Előadás|Gyakorlat|Lecture)\s*\(([^)]+)\)\s*$/i);
   if (titleMatch?.[1]) {
     sectionCodes.add(titleMatch[1].trim());
   }
@@ -181,12 +215,16 @@ function listCourseSectionCodes(course?: MoodleCourseLike) {
 function extractEventBaseTitle(summary: string) {
   const cleanedSummary = cleanMoodleText(summary);
 
-  const examMatch = cleanedSummary.match(/^(.*?)\s+\((?:Írásbeli|Szóbeli)\)\s+-\s+.+\s+-\s+Vizsga$/i);
+  const examMatch = cleanedSummary.match(
+    /^(.*?)\s+\((?:Írásbeli|Szóbeli)\)\s+-\s+.+\s+-\s+Vizsga$/i,
+  );
   if (examMatch?.[1]) {
     return examMatch[1].trim();
   }
 
-  const deadlineMatch = cleanedSummary.match(/^(.*?)\s+-\s+Feladat\s+-\s+Határidő:.*$/i);
+  const deadlineMatch = cleanedSummary.match(
+    /^(.*?)\s+-\s+Feladat\s+-\s+Határidő:.*$/i,
+  );
   if (deadlineMatch?.[1]) {
     return deadlineMatch[1].trim();
   }
@@ -195,8 +233,13 @@ function extractEventBaseTitle(summary: string) {
 }
 
 function extractCourseBaseTitle(title: string) {
-  const cleanedTitle = cleanMoodleText(title).replace(/\s*\(([A-Z0-9_]{6,})\)/g, "");
-  const match = cleanedTitle.match(/^(.*?)\s+(?:Előadás|Gyakorlat|Lecture)\s*\([^)]+\)\s*$/i);
+  const cleanedTitle = cleanMoodleText(title).replace(
+    /\s*\(([A-Z0-9_]{6,})\)/g,
+    "",
+  );
+  const match = cleanedTitle.match(
+    /^(.*?)\s+(?:Előadás|Gyakorlat|Lecture)\s*\([^)]+\)\s*$/i,
+  );
   return match?.[1]?.trim() || cleanedTitle;
 }
 

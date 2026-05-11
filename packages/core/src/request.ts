@@ -1,6 +1,15 @@
 import { AuthError, normalizeNetworkError } from "./errors";
-import { getMoodleErrorCode, getMoodleErrorMessage, isExpiredTokenError, isMoodleErrorPayload } from "./moodle-errors";
-import { type MoodleFetchLike, type MoodleResponseLike, type MoodleSession } from "./moodle-types";
+import {
+  getMoodleErrorCode,
+  getMoodleErrorMessage,
+  isExpiredTokenError,
+  isMoodleErrorPayload,
+} from "./moodle-errors";
+import {
+  type MoodleFetchLike,
+  type MoodleResponseLike,
+  type MoodleSession,
+} from "./moodle-types";
 import { getFetch, normalizeSiteOrigin } from "./network";
 import { buildMoodleWSUrl, normalizeRequestParams } from "./utils";
 
@@ -29,7 +38,9 @@ async function requestOnce<T>(input: {
   fetcher?: MoodleFetchLike;
   limiter?: RequestLimiter;
 }): Promise<RequestResult<T>> {
-  const run = input.limiter?.run ?? (async <TValue>(fn: () => Promise<TValue>) => await fn());
+  const run =
+    input.limiter?.run ??
+    (async <TValue>(fn: () => Promise<TValue>) => await fn());
 
   return await run(async () => {
     let response: MoodleResponseLike;
@@ -58,10 +69,18 @@ async function requestOnce<T>(input: {
     }
 
     if (!response.ok || isMoodleErrorPayload(payload)) {
-      const message = getMoodleErrorMessage(payload) ?? response.statusText ?? "Request failed";
+      const message =
+        getMoodleErrorMessage(payload) ??
+        response.statusText ??
+        "Request failed";
       const code = getMoodleErrorCode(payload);
-      const shouldRefresh = isExpiredTokenError(payload) || response.status === 401 || response.status === 403;
-      const error = shouldRefresh ? new AuthError(message, { code, status: response.status }) : new Error(message);
+      const shouldRefresh =
+        isExpiredTokenError(payload) ||
+        response.status === 401 ||
+        response.status === 403;
+      const error = shouldRefresh
+        ? new AuthError(message, { code, status: response.status })
+        : new Error(message);
       return { ok: false, error, payload, shouldRefresh };
     }
 
@@ -69,9 +88,13 @@ async function requestOnce<T>(input: {
   });
 }
 
-export async function executeMoodleWSRequest<T>(input: MoodleWSRequestInput): Promise<RequestResult<T>> {
+export async function executeMoodleWSRequest<T>(
+  input: MoodleWSRequestInput,
+): Promise<RequestResult<T>> {
   const session = input.session;
-  const siteOrigin = normalizeSiteOrigin(session?.siteOrigin ?? input.siteOrigin ?? "");
+  const siteOrigin = normalizeSiteOrigin(
+    session?.siteOrigin ?? input.siteOrigin ?? "",
+  );
   const token = session?.token ?? input.token;
 
   if (!siteOrigin) {
@@ -91,7 +114,12 @@ export async function executeMoodleWSRequest<T>(input: MoodleWSRequestInput): Pr
     limiter: input.limiter,
   });
 
-  if (!initialResult.ok && initialResult.shouldRefresh && session && input.refreshSession) {
+  if (
+    !initialResult.ok &&
+    initialResult.shouldRefresh &&
+    session &&
+    input.refreshSession
+  ) {
     const refreshedSession = await input.refreshSession(session);
     return await requestOnce<T>({
       siteOrigin: normalizeSiteOrigin(refreshedSession.siteOrigin),
@@ -142,12 +170,22 @@ export function createRequestLimiter(maxConcurrentRequests = 4) {
   };
 }
 
-export function buildMoodleWSQueryKey(service: string, requestParams: Record<string, unknown> = {}) {
+export function buildMoodleWSQueryKey(
+  service: string,
+  requestParams: Record<string, unknown> = {},
+) {
   return [service, normalizeRequestParams(requestParams)] as const;
 }
 
-export function buildMoodleWSBatchQueryKey(service: string, requestParamsList: readonly Record<string, unknown>[]) {
-  return [service, "batch", requestParamsList.map((params) => normalizeRequestParams(params))] as const;
+export function buildMoodleWSBatchQueryKey(
+  service: string,
+  requestParamsList: readonly Record<string, unknown>[],
+) {
+  return [
+    service,
+    "batch",
+    requestParamsList.map((params) => normalizeRequestParams(params)),
+  ] as const;
 }
 
 export const moodleQueryKeys = {
@@ -155,21 +193,55 @@ export const moodleQueryKeys = {
     return ["moodle", "auth", normalizeSiteOrigin(siteOrigin), userId] as const;
   },
   siteInfo(siteOrigin: string, userId?: number) {
-    return ["moodle", "site-info", normalizeSiteOrigin(siteOrigin), userId ?? null] as const;
+    return [
+      "moodle",
+      "site-info",
+      normalizeSiteOrigin(siteOrigin),
+      userId ?? null,
+    ] as const;
   },
   courses(siteOrigin: string, userId: number, mergeSimilarCourses: boolean) {
-    return ["moodle", "courses", normalizeSiteOrigin(siteOrigin), userId, mergeSimilarCourses] as const;
+    return [
+      "moodle",
+      "courses",
+      normalizeSiteOrigin(siteOrigin),
+      userId,
+      mergeSimilarCourses,
+    ] as const;
   },
   courseContents(siteOrigin: string, courseIds: readonly number[]) {
-    return ["moodle", "course-contents", normalizeSiteOrigin(siteOrigin), ...courseIds] as const;
+    return [
+      "moodle",
+      "course-contents",
+      normalizeSiteOrigin(siteOrigin),
+      ...courseIds,
+    ] as const;
   },
   tasks(siteOrigin: string, userId: number) {
-    return ["moodle", "tasks", normalizeSiteOrigin(siteOrigin), userId] as const;
+    return [
+      "moodle",
+      "tasks",
+      normalizeSiteOrigin(siteOrigin),
+      userId,
+    ] as const;
   },
   ws(service: string, requestParams: Record<string, unknown> = {}) {
-    return ["moodle", "ws", service, normalizeRequestParams(requestParams)] as const;
+    return [
+      "moodle",
+      "ws",
+      service,
+      normalizeRequestParams(requestParams),
+    ] as const;
   },
-  wsBatch(service: string, requestParamsList: readonly Record<string, unknown>[]) {
-    return ["moodle", "ws-batch", service, requestParamsList.map((params) => normalizeRequestParams(params))] as const;
+  wsBatch(
+    service: string,
+    requestParamsList: readonly Record<string, unknown>[],
+  ) {
+    return [
+      "moodle",
+      "ws-batch",
+      service,
+      requestParamsList.map((params) => normalizeRequestParams(params)),
+    ] as const;
   },
 };

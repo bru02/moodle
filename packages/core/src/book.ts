@@ -34,14 +34,21 @@ export function parseBookToc(content?: string): BookTocChapter[] {
   }
 }
 
-export function resolveBookChapterContentFile<T extends BookContentLike>(contents: readonly T[] | undefined, chapterHref: string) {
+export function resolveBookChapterContentFile<T extends BookContentLike>(
+  contents: readonly T[] | undefined,
+  chapterHref: string,
+) {
   if (!contents || !chapterHref) {
     return undefined;
   }
 
-  const candidates = contents.filter((content) => content.filename !== "structure");
+  const candidates = contents.filter(
+    (content) => content.filename !== "structure",
+  );
 
-  const directMatch = candidates.find((content) => content.fileurl?.endsWith(chapterHref));
+  const directMatch = candidates.find((content) =>
+    content.fileurl?.endsWith(chapterHref),
+  );
   if (directMatch) {
     return directMatch;
   }
@@ -49,12 +56,18 @@ export function resolveBookChapterContentFile<T extends BookContentLike>(content
   const normalizedHref = normalizePath(chapterHref);
   const hrefBasename = normalizedHref.split("/").at(-1);
 
-  const byPathMatch = candidates.find((content) => normalizePath(`${content.filepath ?? ""}${content.filename ?? ""}`) === normalizedHref);
+  const byPathMatch = candidates.find(
+    (content) =>
+      normalizePath(`${content.filepath ?? ""}${content.filename ?? ""}`) ===
+      normalizedHref,
+  );
   if (byPathMatch) {
     return byPathMatch;
   }
 
-  const byFilenameMatch = hrefBasename ? candidates.find((content) => content.filename === hrefBasename) : undefined;
+  const byFilenameMatch = hrefBasename
+    ? candidates.find((content) => content.filename === hrefBasename)
+    : undefined;
   if (byFilenameMatch) {
     return byFilenameMatch;
   }
@@ -66,7 +79,11 @@ export function resolveBookChapterContentFile<T extends BookContentLike>(content
 
   return candidates.find((content) => {
     const fileUrl = content.fileurl ?? "";
-    return fileUrl.includes(`/mod_book/chapter/${chapterId}`) || (/[?&]chapterid=\d+/.test(fileUrl) && fileUrl.includes(`chapterid=${chapterId}`));
+    return (
+      fileUrl.includes(`/mod_book/chapter/${chapterId}`) ||
+      (/[?&]chapterid=\d+/.test(fileUrl) &&
+        fileUrl.includes(`chapterid=${chapterId}`))
+    );
   });
 }
 
@@ -87,6 +104,8 @@ export function extractBookChapterId(chapterHref: string) {
 
 function normalizePath(path: string) {
   const [withoutQuery] = path.split(/[?#]/, 1);
-  const normalized = decodeURIComponent(withoutQuery).replace(/\\/g, "/").replace(/\/+/g, "/");
+  const normalized = decodeURIComponent(withoutQuery)
+    .replace(/\\/g, "/")
+    .replace(/\/+/g, "/");
   return normalized.startsWith("/") ? normalized : `/${normalized}`;
 }

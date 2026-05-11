@@ -1,5 +1,9 @@
 import { gfm } from "@bwat47/turndown-plugin-gfm";
-import { getYouTubeThumbnail, selectMoodleLanguage, stripInlineDataImages } from "@moodle/core";
+import {
+  getYouTubeThumbnail,
+  selectMoodleLanguage,
+  stripInlineDataImages,
+} from "@moodle/core";
 import TurndownService from "turndown";
 
 import { handleFileUrl } from "./files";
@@ -34,7 +38,10 @@ function isWordCharacter(value: string | null): boolean {
   return wordCharacter.test(value);
 }
 
-function getBoundaryCharacter(node: NodeWithSiblings, direction: "previousSibling" | "nextSibling"): string | null {
+function getBoundaryCharacter(
+  node: NodeWithSiblings,
+  direction: "previousSibling" | "nextSibling",
+): string | null {
   let sibling = node[direction] ?? null;
 
   while (sibling) {
@@ -70,8 +77,14 @@ turndownService.addRule("strong", {
 
     const delimiter = options.strongDelimiter || "**";
     const normalizedNode = node as unknown as NodeWithSiblings;
-    const previousBoundaryChar = getBoundaryCharacter(normalizedNode, "previousSibling");
-    const nextBoundaryChar = getBoundaryCharacter(normalizedNode, "nextSibling");
+    const previousBoundaryChar = getBoundaryCharacter(
+      normalizedNode,
+      "previousSibling",
+    );
+    const nextBoundaryChar = getBoundaryCharacter(
+      normalizedNode,
+      "nextSibling",
+    );
     const previous = getMeaningfulSibling(normalizedNode, "previousSibling");
     const next = getMeaningfulSibling(normalizedNode, "nextSibling");
 
@@ -82,7 +95,8 @@ turndownService.addRule("strong", {
     let emphasized = content;
 
     if (open && isWordCharacter(previousBoundaryChar)) {
-      const leading = emphasized.match(leadingPunctuationOrWhitespace)?.[0] ?? "";
+      const leading =
+        emphasized.match(leadingPunctuationOrWhitespace)?.[0] ?? "";
       if (leading) {
         before = leading;
         emphasized = emphasized.slice(leading.length);
@@ -90,7 +104,8 @@ turndownService.addRule("strong", {
     }
 
     if (close && isWordCharacter(nextBoundaryChar)) {
-      const trailing = emphasized.match(trailingPunctuationOrWhitespace)?.[0] ?? "";
+      const trailing =
+        emphasized.match(trailingPunctuationOrWhitespace)?.[0] ?? "";
       if (trailing) {
         after = trailing;
         emphasized = emphasized.slice(0, emphasized.length - trailing.length);
@@ -108,9 +123,10 @@ turndownService.addRule("strong", {
 turndownService.addRule("iframe", {
   filter: ["iframe"],
   replacement: (content, node) => {
-    const src = node.getAttribute("src");
+    const el = node as unknown as { getAttribute(name: string): string | null };
+    const src = el.getAttribute("src");
     if (!src) return "";
-    const title = node.getAttribute("title") || src;
+    const title = el.getAttribute("title") || src;
     const thumbnail = getYouTubeThumbnail(src);
 
     if (thumbnail) {
@@ -124,20 +140,30 @@ turndownService.addRule("iframe", {
 turndownService.addRule("img", {
   filter: ["img"],
   replacement: (content, node) => {
-    const src = node.getAttribute("src");
+    const el = node as unknown as { getAttribute(name: string): string | null };
+    const src = el.getAttribute("src");
     if (!src) return "";
-    const alt = node.getAttribute("alt") || "";
+    const alt = el.getAttribute("alt") || "";
     return `![${alt}](${handleFileUrl(src)})`;
   },
 });
 
-const htmlLoaders: MarkdownLoader[] = [stripInlineDataImagesLoader, multilang2Loader];
+const htmlLoaders: MarkdownLoader[] = [
+  stripInlineDataImagesLoader,
+  multilang2Loader,
+];
 const markdownLoaders: MarkdownLoader[] = [mathjaxNotationLoader];
 
 export function turndown(html: string) {
-  const normalizedHtml = htmlLoaders.reduce((content, loader) => loader(content), html);
+  const normalizedHtml = htmlLoaders.reduce(
+    (content, loader) => loader(content),
+    html,
+  );
   const markdown = turndownService.turndown(normalizedHtml);
-  const result = markdownLoaders.reduce((content, loader) => loader(content), markdown);
+  const result = markdownLoaders.reduce(
+    (content, loader) => loader(content),
+    markdown,
+  );
   return result;
 }
 
@@ -151,7 +177,8 @@ function multilang2Loader(content: string): string {
 
 function mathjaxNotationLoader(content: string): string {
   const escapedBackslash = /\\\\\\\\/g;
-  const normalize = (expression: string) => expression.replace(escapedBackslash, "\\").trim();
+  const normalize = (expression: string) =>
+    expression.replace(escapedBackslash, "\\").trim();
 
   const spanWrapper = "(?:<span[^>]*>\\s*)?";
   const closingSpan = "(?:\\s*<\\/span>)?";

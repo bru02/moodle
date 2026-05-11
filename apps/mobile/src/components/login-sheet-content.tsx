@@ -1,16 +1,16 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import { useState } from "react";
 import { Image } from "expo-image";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 import { platformColors } from "@/constants/platform-colors";
 
+import { NativeIconButton } from "@/components/native-icon-button";
 import { PrimaryButton } from "@/components/primary-button";
 import { TextField } from "@/components/text-field";
-import { prepareBrowserSSOLogin } from "@/lib/deep-links";
+import { parseIncomingMoodleLink, prepareBrowserSSOLogin } from "@/lib/deep-links";
 import { openExternalUrl } from "@/lib/browser";
-import { parseMoodleQrLoginPayload } from "@/lib/qr-login";
 import { useSession } from "@/providers/session-provider";
 
 interface ResolvedSite {
@@ -57,16 +57,36 @@ export function LoginSheetContent() {
       }
       handled = true;
       subscription.remove();
-
-      try {
-        const parsed = parseMoodleQrLoginPayload(data);
-        setSiteUrl(parsed.siteUrl);
-        setError(null);
-      } catch {
-        setError("Invalid QR code format");
-      }
-
       void CameraView.dismissScanner();
+
+      void (async () => {
+        const parsed = parseIncomingMoodleLink(data);
+        if (!parsed) {
+          setError("This QR code isn't a recognized Moodle link.");
+          return;
+        }
+
+        if (parsed.kind === "qr") {
+          try {
+            setBusy(true);
+            setError(null);
+            setSiteUrl(parsed.siteUrl);
+            await session.signInWithQrPayload(
+              `${parsed.siteUrl}?qrlogin=${encodeURIComponent(parsed.qrLoginKey)}&userid=${encodeURIComponent(parsed.userId)}`,
+            );
+            router.replace("/courses" as Href);
+          } catch (e) {
+            setBusy(false);
+            setError(e instanceof Error ? e.message : "Could not sign in with this QR code.");
+          }
+          return;
+        }
+
+        if (parsed.kind === "site") {
+          setSiteUrl(parsed.siteUrl);
+          setError(null);
+        }
+      })();
     });
 
     try {
@@ -133,7 +153,7 @@ export function LoginSheetContent() {
         username: usernameValue,
         password: passwordValue,
       });
-      router.replace("/courses");
+      router.replace("/courses" as Href);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sign in failed");
     } finally {
@@ -301,22 +321,18 @@ export function LoginSheetContent() {
           />
         </View>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Scan QR code"
+        <NativeIconButton
+          label="Scan QR code"
+          systemImage="qrcode.viewfinder"
           onPress={handleQrScan}
-          style={({ pressed }) => ({
+          tintColor={platformColors.systemBlue}
+          style={{
             width: 50,
-            borderRadius: 12,
-            borderCurve: "continuous",
-            backgroundColor: platformColors.tertiarySystemFill,
+            height: 50,
             alignItems: "center",
             justifyContent: "center",
-            opacity: pressed ? 0.6 : 1,
-          })}
-        >
-          <Image source="sf:qrcode.viewfinder" style={{ width: 24, height: 24, tintColor: platformColors.systemBlue }} contentFit="contain" />
-        </Pressable>
+          }}
+        />
       </View>
 
       {error ? (

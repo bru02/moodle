@@ -7,15 +7,22 @@ import { formatRelativeTime } from "../helpers/format";
 import { turndown } from "../helpers/markdown";
 import { useWSQuery } from "../hooks/useWSQuery";
 import { Module } from "../types";
-import type { AddonModForumData, AddonModForumDiscussion } from "../types/forum";
+import type {
+  AddonModForumData,
+  AddonModForumDiscussion,
+} from "../types/forum";
 import { ModuleListItemShell } from "./module-list-item-shell";
 
 export default function ForumListItem({ module }: { module: Module }) {
   const ctx = useContext(CourseContext);
   const { scope, activeCourse } = ctx;
-  const { data, isPending } = useWSQuery("mod_forum_get_forums_by_courses", { courseids: scope.courseIds });
+  const { data, isPending } = useWSQuery("mod_forum_get_forums_by_courses", {
+    courseids: scope.courseIds,
+  });
 
-  const currentForum = data?.find((forum) => forum.id === module.instance || forum.cmid === module.id);
+  const currentForum = data?.find(
+    (forum) => forum.id === module.instance || forum.cmid === module.id,
+  );
 
   if (!currentForum) {
     return <ModuleListItemShell module={module} course={activeCourse} />;
@@ -24,13 +31,15 @@ export default function ForumListItem({ module }: { module: Module }) {
   return (
     <ModuleListItemShell
       module={module}
-      detail={<ForumListItemDetail forum={currentForum} isLoading={isPending} />}
+      detail={
+        <ForumListItemDetail forum={currentForum} isLoading={isPending} />
+      }
       accessories={getForumAccessories(currentForum)}
       course={activeCourse}
       primaryAction={
         <Action.Push
           title="View Discussions"
-          icon={Icon.Bubble}
+          icon={Icon.SpeechBubbleActive}
           target={
             <CourseContext value={ctx}>
               <ForumDiscussionsList forum={currentForum} module={module} />
@@ -42,11 +51,28 @@ export default function ForumListItem({ module }: { module: Module }) {
   );
 }
 
-function ForumListItemDetail({ forum, isLoading }: { forum: AddonModForumData; isLoading: boolean }) {
-  return <List.Item.Detail isLoading={isLoading} markdown={turndown(forum.intro || "")} />;
+function ForumListItemDetail({
+  forum,
+  isLoading,
+}: {
+  forum: AddonModForumData;
+  isLoading: boolean;
+}) {
+  return (
+    <List.Item.Detail
+      isLoading={isLoading}
+      markdown={turndown(forum.intro || "")}
+    />
+  );
 }
 
-function ForumDiscussionsList({ forum, module }: { forum: AddonModForumData; module: Module }) {
+function ForumDiscussionsList({
+  forum,
+  module,
+}: {
+  forum: AddonModForumData;
+  module: Module;
+}) {
   const { data, isPending } = useWSQuery("mod_forum_get_forum_discussions", {
     forumid: forum.id,
     page: 0,
@@ -56,17 +82,32 @@ function ForumDiscussionsList({ forum, module }: { forum: AddonModForumData; mod
   const discussions = data?.discussions ?? [];
 
   return (
-    <List navigationTitle={`${module.name} Discussions`} isLoading={isPending} isShowingDetail={true}>
+    <List
+      navigationTitle={`${module.name} Discussions`}
+      isLoading={isPending}
+      isShowingDetail={true}
+    >
       {discussions.map((discussion) => (
         <List.Item
           key={discussion.discussion ?? discussion.id}
           title={discussion.name || discussion.subject}
-          subtitle={typeof discussion.userfullname === "string" ? discussion.userfullname : undefined}
+          subtitle={
+            typeof discussion.userfullname === "string"
+              ? discussion.userfullname
+              : undefined
+          }
           accessories={getDiscussionAccessories(discussion)}
           detail={<ForumDiscussionDetail discussion={discussion} />}
           actions={
             <ActionPanel>
-              <OpenInBrowserAction url={module.url!} />
+              {module.url && (
+                <OpenInBrowserAction
+                  url={module.url.replace(
+                    /view\.php.*$/,
+                    `discuss.php?id=${discussion.discussion}`,
+                  )}
+                />
+              )}
             </ActionPanel>
           }
         />
@@ -75,7 +116,11 @@ function ForumDiscussionsList({ forum, module }: { forum: AddonModForumData; mod
   );
 }
 
-function ForumDiscussionDetail({ discussion }: { discussion: AddonModForumDiscussion }) {
+function ForumDiscussionDetail({
+  discussion,
+}: {
+  discussion: AddonModForumDiscussion;
+}) {
   const detail = (
     <List.Item.Detail
       markdown={turndown(discussion.message || "")}
@@ -83,16 +128,36 @@ function ForumDiscussionDetail({ discussion }: { discussion: AddonModForumDiscus
         <List.Item.Detail.Metadata>
           <List.Item.Detail.Metadata.Label
             title="Author"
-            text={typeof discussion.userfullname === "string" ? discussion.userfullname : "Unknown"}
+            text={
+              typeof discussion.userfullname === "string"
+                ? discussion.userfullname
+                : "Unknown"
+            }
           />
-          <List.Item.Detail.Metadata.Label title="Replies" text={String(discussion.numreplies)} />
+          <List.Item.Detail.Metadata.Label
+            title="Replies"
+            text={String(discussion.numreplies)}
+          />
           {discussion.numunread > 0 && (
-            <List.Item.Detail.Metadata.Label title="Unread" text={formatUnreadCount(discussion.numunread)} />
+            <List.Item.Detail.Metadata.Label
+              title="Unread"
+              text={formatUnreadCount(discussion.numunread)}
+            />
           )}
-          <List.Item.Detail.Metadata.Label title="Created" text={formatRelativeTime(discussion.created)} />
-          <List.Item.Detail.Metadata.Label title="Last Updated" text={formatRelativeTime(discussion.timemodified)} />
-          {discussion.pinned ? <List.Item.Detail.Metadata.Label title="Pinned" text="Yes" /> : null}
-          {discussion.locked ? <List.Item.Detail.Metadata.Label title="Locked" text="Yes" /> : null}
+          <List.Item.Detail.Metadata.Label
+            title="Created"
+            text={formatRelativeTime(discussion.created)}
+          />
+          <List.Item.Detail.Metadata.Label
+            title="Last Updated"
+            text={formatRelativeTime(discussion.timemodified)}
+          />
+          {discussion.pinned ? (
+            <List.Item.Detail.Metadata.Label title="Pinned" text="Yes" />
+          ) : null}
+          {discussion.locked ? (
+            <List.Item.Detail.Metadata.Label title="Locked" text="Yes" />
+          ) : null}
         </List.Item.Detail.Metadata>
       }
     />
@@ -113,11 +178,20 @@ function getForumAccessories(forum: AddonModForumData): List.Item.Accessory[] {
     return [];
   }
 
-  return [{ text: formatUnreadCount(forum.unreadpostscount), tooltip: "Unread posts" }];
+  return [
+    {
+      text: formatUnreadCount(forum.unreadpostscount),
+      tooltip: "Unread posts",
+    },
+  ];
 }
 
-function getDiscussionAccessories(discussion: AddonModForumDiscussion): List.Item.Accessory[] {
-  const accessories: List.Item.Accessory[] = [{ text: `${discussion.numreplies} replies` }];
+function getDiscussionAccessories(
+  discussion: AddonModForumDiscussion,
+): List.Item.Accessory[] {
+  const accessories: List.Item.Accessory[] = [
+    { text: `${discussion.numreplies} replies` },
+  ];
   if (discussion.numunread > 0) {
     accessories.push({ text: formatUnreadCount(discussion.numunread) });
   }

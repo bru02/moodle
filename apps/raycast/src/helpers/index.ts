@@ -12,13 +12,20 @@ export const formatBytes = (bytes: number, decimals = 2) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 };
 
-export const shortcut = (key: Keyboard.KeyEquivalent, additionalModifiers: Keyboard.KeyModifier[] = []) =>
+export const shortcut = (
+  key: Keyboard.KeyEquivalent,
+  additionalModifiers: Keyboard.KeyModifier[] = [],
+) =>
   ({
     macOS: { modifiers: ["cmd", ...additionalModifiers], key },
     Windows: { modifiers: ["ctrl", ...additionalModifiers], key },
   }) satisfies Keyboard.Shortcut;
 
-export const getUrlForService = (service: string, token: string, params: object = {}) =>
+export const getUrlForService = (
+  service: string,
+  token: string,
+  params: object = {},
+) =>
   buildMoodleWSUrl({
     siteOrigin,
     service,

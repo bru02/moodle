@@ -53,20 +53,24 @@ export function CourseContentScreen() {
 
     hasOpenedDirectModuleRef.current = true;
     void (async () => {
-      const directTarget = await getDirectModuleTarget({
-        courseId: scope.id,
-        module: module.module,
-        siteOrigin: activeAccount?.origin,
-        session,
-      });
-      if (directTarget?.kind === "url") {
-        await openExternalUrl(directTarget.url);
-      } else if (directTarget?.kind === "resource") {
-        await previewRemoteDocument({
-          url: directTarget.url,
-          fileName: directTarget.fileName,
-          mimeType: directTarget.mimeType,
+      try {
+        const directTarget = await getDirectModuleTarget({
+          courseId: scope.id,
+          module: module.module,
+          siteOrigin: activeAccount?.origin,
+          session,
         });
+        if (directTarget?.kind === "url") {
+          await openExternalUrl(directTarget.url);
+        } else if (directTarget?.kind === "resource") {
+          await previewRemoteDocument({
+            url: directTarget.url,
+            fileName: directTarget.fileName,
+            mimeType: directTarget.mimeType,
+          });
+        }
+      } catch {
+        hasOpenedDirectModuleRef.current = false;
       }
     })();
   }, [activeAccount?.origin, module, scope, session]);

@@ -1,12 +1,14 @@
-import { useRouter } from "expo-router";
-import { useMemo } from "react";
+import { useRouter, type Href } from "expo-router";
+import { useMemo, useRef } from "react";
 import {
+  findNodeHandle,
   Platform,
   Text,
   UIManager,
   useWindowDimensions,
   type ColorValue,
   type GestureResponderEvent,
+  type TextLayoutEvent,
 } from "react-native";
 import { WebView } from "react-native-webview";
 
@@ -65,6 +67,19 @@ type LinkHandlerInput = {
   session: MoodleSession | null;
 };
 
+type PreviewLineRect = { x: number; y: number; width: number; height: number };
+
+type PreviewRect = { x: number; y: number; width: number; height: number };
+
+type PreviewSourceRect = {
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  lineRects?: PreviewLineRect[];
+  previewRect?: PreviewRect;
+};
+
 export function MoodleHtml({
   html,
   baseUrl,
@@ -98,10 +113,12 @@ export function MoodleHtml({
     () => ({
       a: createAnchorRenderer({
         routerPush: (courseId, contentId) =>
-          router.push({
-            pathname: "/courses/[courseId]/content/[contentId]",
-            params: { courseId, contentId },
-          }),
+          router.push(
+            {
+              pathname: "/courses/[courseId]/content/[contentId]",
+              params: { courseId, contentId },
+            } as unknown as Href,
+          ),
         scopeId,
         siteOrigin: activeAccount?.origin,
         session,
@@ -198,6 +215,8 @@ function createAnchorRenderer(input: Omit<LinkHandlerInput, "href">): CustomMixe
   return function AnchorRenderer({ TDefaultRenderer, tnode, textProps, ...props }) {
     const href = useNormalizedUrl(tnode.attributes.href);
     const canPreview = Platform.OS === "ios" && typeof href === "string" && !href.startsWith("#");
+    const lineRectsRef = useRef<PreviewLineRect[]>([]);
+    const measuredBoundsRef = useRef<PreviewSourceRect | undefined>(undefined);
 
     return (
       <TDefaultRenderer
@@ -206,10 +225,24 @@ function createAnchorRenderer(input: Omit<LinkHandlerInput, "href">): CustomMixe
         textProps={{
           ...textProps,
           selectable: false,
+          onLayout: (event) => {
+            void updateMeasuredBounds(findNodeHandle(event.target as never) ?? undefined, measuredBoundsRef);
+            textProps?.onLayout?.(event);
+          },
+          onTextLayout: (event: TextLayoutEvent) => {
+            lineRectsRef.current = event.nativeEvent.lines
+              .map(({ x, y, width, height }) => ({ x, y, width, height }))
+              .filter((rect) => rect.width > 0 && rect.height > 0);
+            textProps?.onTextLayout?.(event);
+          },
           onLongPress: canPreview
             ? (event: GestureResponderEvent) => {
                 void (async () => {
-                  const sourceRect = await measureEventTargetBounds(event);
+                  const sourceRect = (await measureEventTargetBounds(event)) ?? measuredBoundsRef.current;
+                  if (sourceRect && lineRectsRef.current.length > 0) {
+                    sourceRect.lineRects = lineRectsRef.current;
+                    sourceRect.previewRect = resolvePreviewRect(sourceRect, lineRectsRef.current);
+                  }
                   await handleLinkLongPress(
                     {
                       ...input,
@@ -255,17 +288,29 @@ async function handleLinkPress(input: LinkHandlerInput) {
   await openExternalUrl(externalUrl);
 }
 
-type PreviewSourceRect = { x: number; y: number; width?: number; height?: number };
-
 async function measureEventTargetBounds(event: GestureResponderEvent): Promise<PreviewSourceRect | undefined> {
-  const target = event.nativeEvent.target;
+  const target = normalizeNativeTarget(event.nativeEvent.target);
+  return await resolveTargetBounds(target, {
+    x: event.nativeEvent.pageX,
+    y: event.nativeEvent.pageY,
+    width: 1,
+    height: 1,
+  });
+}
+
+async function updateMeasuredBounds(
+  target: number | string | undefined,
+  boundsRef: { current: PreviewSourceRect | undefined },
+) {
+  boundsRef.current = await resolveTargetBounds(normalizeNativeTarget(target), boundsRef.current);
+}
+
+async function resolveTargetBounds(
+  target: number | undefined,
+  fallback?: PreviewSourceRect,
+): Promise<PreviewSourceRect | undefined> {
   if (typeof target !== "number") {
-    return {
-      x: event.nativeEvent.pageX,
-      y: event.nativeEvent.pageY,
-      width: 1,
-      height: 1,
-    };
+    return fallback;
   }
 
   return await new Promise((resolve) => {
@@ -275,14 +320,53 @@ async function measureEventTargetBounds(event: GestureResponderEvent): Promise<P
         return;
       }
 
-      resolve({
-        x: event.nativeEvent.pageX,
-        y: event.nativeEvent.pageY,
-        width: 1,
-        height: 1,
-      });
+      resolve(fallback);
     });
   });
+}
+
+function normalizeNativeTarget(target: number | string | undefined) {
+  if (typeof target === "number") {
+    return target;
+  }
+
+  if (typeof target === "string") {
+    const numericTarget = Number(target);
+    return Number.isFinite(numericTarget) ? numericTarget : undefined;
+  }
+
+  return undefined;
+}
+
+function resolvePreviewRect(sourceRect: PreviewSourceRect, lineRects: readonly PreviewLineRect[]): PreviewRect | undefined {
+  if (!lineRects.length) {
+    return undefined;
+  }
+
+  const absoluteLineRects = lineRects
+    .map((lineRect) => ({
+      x: sourceRect.x + lineRect.x,
+      y: sourceRect.y + lineRect.y,
+      width: lineRect.width,
+      height: lineRect.height,
+    }))
+    .filter((lineRect) => lineRect.width > 0 && lineRect.height > 0);
+
+  if (!absoluteLineRects.length) {
+    return undefined;
+  }
+
+  const minX = Math.min(...absoluteLineRects.map((lineRect) => lineRect.x));
+  const minY = Math.min(...absoluteLineRects.map((lineRect) => lineRect.y));
+  const maxX = Math.max(...absoluteLineRects.map((lineRect) => lineRect.x + lineRect.width));
+  const maxY = Math.max(...absoluteLineRects.map((lineRect) => lineRect.y + lineRect.height));
+
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(maxX - minX, 1),
+    height: Math.max(maxY - minY, 1),
+  };
 }
 
 async function handleLinkLongPress(

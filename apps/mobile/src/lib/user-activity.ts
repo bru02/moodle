@@ -1,51 +1,21 @@
-import { NativeModules, Platform } from "react-native";
+import { Platform } from "react-native";
+import { donateUserActivity as nativeDonate, clearCurrentUserActivity as nativeClear } from "../../modules/universal-links";
+import type { DonateUserActivityInput } from "../../modules/universal-links";
 
-type DonateUserActivityInput = {
-  activityType: string;
-  title: string;
-  description?: string;
-  route?: string;
-  url?: string;
-  userInfo?: Record<string, string | number | boolean | null | undefined>;
-  keywords?: string[];
-  persistentIdentifier?: string;
-  eligibleForSearch?: boolean;
-  eligibleForPrediction?: boolean;
-  isPubliclyIndexable?: boolean;
-};
-
-type UniversalLinksModuleShape = {
-  donateUserActivity(payload: DonateUserActivityInput): Promise<void>;
-  clearCurrentUserActivity(): Promise<void>;
-};
-
-const universalLinksModule = NativeModules.UniversalLinksModule as UniversalLinksModuleShape | undefined;
+export type { DonateUserActivityInput };
 
 export async function donateUserActivity(input: DonateUserActivityInput) {
-  if (
-    Platform.OS !== "ios" ||
-    !universalLinksModule ||
-    typeof universalLinksModule.donateUserActivity !== "function"
-  ) {
+  if (Platform.OS !== "ios") {
     return;
   }
 
-  await universalLinksModule.donateUserActivity({
-    ...input,
-    eligibleForSearch: input.eligibleForSearch ?? true,
-    eligibleForPrediction: input.eligibleForPrediction ?? true,
-    isPubliclyIndexable: input.isPubliclyIndexable ?? false,
-  });
+  await nativeDonate(input);
 }
 
 export async function clearCurrentUserActivity() {
-  if (
-    Platform.OS !== "ios" ||
-    !universalLinksModule ||
-    typeof universalLinksModule.clearCurrentUserActivity !== "function"
-  ) {
+  if (Platform.OS !== "ios") {
     return;
   }
 
-  await universalLinksModule.clearCurrentUserActivity();
+  await nativeClear();
 }

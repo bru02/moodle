@@ -8,7 +8,11 @@ import type { CourseScope } from "./course-types";
 const SECONDS_WEEK = 7 * 24 * 60 * 60;
 const DST_OFFSET_SECONDS = 2 * 60 * 60;
 
-export type CourseDisplaySectionCategory = "current-week" | "past-week" | "future-week" | "other";
+export type CourseDisplaySectionCategory =
+  | "current-week"
+  | "past-week"
+  | "future-week"
+  | "other";
 
 export type CourseDisplaySection = {
   id: string;
@@ -34,19 +38,32 @@ export function buildCourseDisplayLayout(
   } = {},
 ): CourseDisplayLayout {
   const now = options.now ?? Math.floor(Date.now() / 1000);
-  const dismissedRecentItemIds = options.dismissedRecentItemIds ?? new Set<string>();
+  const dismissedRecentItemIds =
+    options.dismissedRecentItemIds ?? new Set<string>();
   const currentWeekNumber = getCourseWeekNumberAtTimestamp(scope, now);
-  const lastVisitedWeekNumber = getCourseWeekNumberAtTimestamp(scope, scope.mergedCourse.lastaccess);
+  const lastVisitedWeekNumber = getCourseWeekNumberAtTimestamp(
+    scope,
+    scope.mergedCourse.lastaccess,
+  );
   const anchorWeekNumber = currentWeekNumber ?? lastVisitedWeekNumber;
   const recentActivityCutoffAt =
-    options.recentActivityCutoffAt === undefined ? scope.mergedCourse.lastaccess ?? null : options.recentActivityCutoffAt;
+    options.recentActivityCutoffAt === undefined
+      ? (scope.mergedCourse.lastaccess ?? null)
+      : options.recentActivityCutoffAt;
   const surfacedModuleIds = new Set<string>();
 
   const surfacedModules = sections
     .flatMap((section) =>
       section.modules.filter((module) => {
         if (dismissedRecentItemIds.has(module.id)) return false;
-        if (shouldSurfaceRecentNonWeekModule(scope, section, module, recentActivityCutoffAt)) {
+        if (
+          shouldSurfaceRecentNonWeekModule(
+            scope,
+            section,
+            module,
+            recentActivityCutoffAt,
+          )
+        ) {
           surfacedModuleIds.add(module.id);
           return true;
         }
@@ -63,7 +80,9 @@ export function buildCourseDisplayLayout(
     .map((section, index) => ({
       section,
       index,
-      modules: section.modules.filter((module) => !surfacedModuleIds.has(module.id)),
+      modules: section.modules.filter(
+        (module) => !surfacedModuleIds.has(module.id),
+      ),
     }))
     .filter((entry) => entry.modules.length > 0)
     .map((entry) => ({
@@ -84,7 +103,10 @@ export function buildCourseDisplayLayout(
   };
 }
 
-export function getCourseWeekNumberAtTimestamp(scope: CourseScope, timestamp?: number | null) {
+export function getCourseWeekNumberAtTimestamp(
+  scope: CourseScope,
+  timestamp?: number | null,
+) {
   const { startdate, enddate } = scope.mergedCourse;
   if (
     scope.mergedCourse.format !== "weeks" ||
@@ -96,11 +118,21 @@ export function getCourseWeekNumberAtTimestamp(scope: CourseScope, timestamp?: n
     return null;
   }
 
-  return Math.floor((timestamp - (startdate + DST_OFFSET_SECONDS)) / SECONDS_WEEK) + 1;
+  return (
+    Math.floor((timestamp - (startdate + DST_OFFSET_SECONDS)) / SECONDS_WEEK) +
+    1
+  );
 }
 
-function isWeekSection(scope: CourseScope, section: Pick<ScopedRenderedSection, "section">) {
-  return scope.mergedCourse.format === "weeks" && typeof section.section === "number" && section.section >= 1;
+function isWeekSection(
+  scope: CourseScope,
+  section: Pick<ScopedRenderedSection, "section">,
+) {
+  return (
+    scope.mergedCourse.format === "weeks" &&
+    typeof section.section === "number" &&
+    section.section >= 1
+  );
 }
 
 function getModuleUpdatedAt(module: ScopedModule) {
@@ -109,9 +141,10 @@ function getModuleUpdatedAt(module: ScopedModule) {
       (value): value is number => typeof value === "number" && value > 0,
     ),
   );
-  const timestamps = [module.module.contentsinfo?.lastmodified, ...(contentTimestamps ?? [])].filter(
-    (value): value is number => typeof value === "number" && value > 0,
-  );
+  const timestamps = [
+    module.module.contentsinfo?.lastmodified,
+    ...(contentTimestamps ?? []),
+  ].filter((value): value is number => typeof value === "number" && value > 0);
 
   if (timestamps.length === 0) return null;
   return Math.max(...timestamps);
@@ -123,23 +156,31 @@ function shouldSurfaceRecentNonWeekModule(
   module: ScopedModule,
   recentActivityCutoffAt: number | null,
 ) {
-  if (recentActivityCutoffAt == null || isWeekSection(scope, section)) return false;
+  if (recentActivityCutoffAt == null || isWeekSection(scope, section))
+    return false;
   const updatedAt = getModuleUpdatedAt(module);
   return updatedAt != null && updatedAt >= recentActivityCutoffAt;
 }
 
 function shouldSurfaceClosingSoonModule(module: ScopedModule, now: number) {
-  const closeAt = module.module.dates?.find((date) => date.dataid === "timeclose")?.timestamp;
+  const closeAt = module.module.dates?.find(
+    (date) => date.dataid === "timeclose",
+  )?.timestamp;
   if (!closeAt || closeAt <= now || closeAt > now + 24 * 60 * 60) return false;
   const state = module.module.completiondata?.state;
-  return state == null || state === CoreCourseModuleCompletionStatus.COMPLETION_INCOMPLETE;
+  return (
+    state == null ||
+    state === CoreCourseModuleCompletionStatus.COMPLETION_INCOMPLETE
+  );
 }
 
 function compareSurfacedModules(left: ScopedModule, right: ScopedModule) {
   const leftCloseAt =
-    left.module.dates?.find((date) => date.dataid === "timeclose")?.timestamp ?? Number.POSITIVE_INFINITY;
+    left.module.dates?.find((date) => date.dataid === "timeclose")?.timestamp ??
+    Number.POSITIVE_INFINITY;
   const rightCloseAt =
-    right.module.dates?.find((date) => date.dataid === "timeclose")?.timestamp ?? Number.POSITIVE_INFINITY;
+    right.module.dates?.find((date) => date.dataid === "timeclose")
+      ?.timestamp ?? Number.POSITIVE_INFINITY;
   if (leftCloseAt !== rightCloseAt) {
     return leftCloseAt - rightCloseAt;
   }
@@ -177,7 +218,8 @@ function compareSections(
   left: CourseDisplaySection & { index: number; sectionNumber: number },
   right: CourseDisplaySection & { index: number; sectionNumber: number },
 ) {
-  const categoryDelta = categoryRank(left.category) - categoryRank(right.category);
+  const categoryDelta =
+    categoryRank(left.category) - categoryRank(right.category);
   if (categoryDelta !== 0) return categoryDelta;
 
   if (left.category === "past-week") {

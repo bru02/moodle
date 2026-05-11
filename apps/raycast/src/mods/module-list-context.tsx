@@ -7,8 +7,18 @@ export type ModuleListContextValue = {
 
 const ModuleListContext = createContext<ModuleListContextValue | null>(null);
 
-export function ModuleListContextProvider({ value, children }: { value: ModuleListContextValue; children: ReactNode }) {
-  return <ModuleListContext.Provider value={value}>{children}</ModuleListContext.Provider>;
+export function ModuleListContextProvider({
+  value,
+  children,
+}: {
+  value: ModuleListContextValue;
+  children: ReactNode;
+}) {
+  return (
+    <ModuleListContext.Provider value={value}>
+      {children}
+    </ModuleListContext.Provider>
+  );
 }
 
 export function useModuleListContext(): ModuleListContextValue | null {

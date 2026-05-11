@@ -1,18 +1,21 @@
-import { CoreCourseGetContentsWSModule, CoreCourseModuleContentFile } from "./contents";
+import {
+  CoreCourseGetContentsWSModule,
+  CoreCourseModuleContentFile,
+} from "./contents";
 import { CoreEnrolledCourseData } from "./course";
 
-type AppendArrayIndex<K extends PropertyKey> = K extends string ? `${K}[${number}]` : K;
+type AppendArrayIndex<K extends PropertyKey> = K extends string
+  ? `${K}[${number}]`
+  : K;
 
 /**
  * Helper that remaps array properties so their keys include `[number]` and values become the element type.
  * Useful for representing structures like WS params when serialising arrays as indexed query params.
  */
 export type ArrayValuesToIndexedAccess<T> = {
-  [K in keyof T as NonNullable<T[K]> extends readonly unknown[] ? AppendArrayIndex<K> : K]: NonNullable<
-    T[K]
-  > extends readonly (infer U)[]
-    ? U
-    : T[K];
+  [K in keyof T as NonNullable<T[K]> extends readonly unknown[]
+    ? AppendArrayIndex<K>
+    : K]: NonNullable<T[K]> extends readonly (infer U)[] ? U : T[K];
 };
 /**
  * Structure of warnings returned by WS.

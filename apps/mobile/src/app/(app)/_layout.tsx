@@ -1,7 +1,6 @@
 import { router, Stack } from "expo-router";
-import { Button, Host } from "@expo/ui/swift-ui";
-import { buttonStyle, controlSize } from "@expo/ui/swift-ui/modifiers";
 
+import { NativeIconButton } from "@/components/native-icon-button";
 import { platformColors } from "@/constants/platform-colors";
 
 export default function AppLayout() {
@@ -22,6 +21,7 @@ export default function AppLayout() {
         name="resource-preview"
         options={{
           presentation: process.env.EXPO_OS === "ios" ? "fullScreenModal" : "modal",
+          gestureEnabled: true,
           headerShown: true,
           title: "Preview",
           headerTitleAlign: "center",
@@ -29,14 +29,8 @@ export default function AppLayout() {
           headerShadowVisible: false,
           headerBackButtonDisplayMode: "minimal",
           contentStyle: { backgroundColor: platformColors.systemGroupedBackground },
-          headerLeft: () => (
-            <Host matchContents style={{ marginLeft: 8 }}>
-              <Button
-                label="Close"
-                onPress={() => router.back()}
-                modifiers={[buttonStyle("bordered"), controlSize("large")]}
-              />
-            </Host>
+          headerRight: () => (
+            <NativeIconButton label="Close preview" systemImage="xmark" onPress={() => router.back()} style={{ marginRight: 8 }} />
           ),
         }}
       />
@@ -45,7 +39,7 @@ export default function AppLayout() {
         options={{
           presentation: "formSheet",
           sheetAllowedDetents: [0.5, 0.9],
-          sheetGrabberVisible: true,
+          gestureEnabled: false,
           headerShown: false,
         }}
       />

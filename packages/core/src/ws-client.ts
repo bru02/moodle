@@ -1,4 +1,10 @@
-import { buildMoodleWSBatchQueryKey, buildMoodleWSQueryKey, createRequestLimiter, executeMoodleWSRequest, type RequestResult } from "./request";
+import {
+  buildMoodleWSBatchQueryKey,
+  buildMoodleWSQueryKey,
+  createRequestLimiter,
+  executeMoodleWSRequest,
+  type RequestResult,
+} from "./request";
 import type { RequestParams } from "./utils";
 
 export const createWSRequestLimiter = createRequestLimiter;
@@ -20,7 +26,10 @@ export function createMoodleWSClient<TSession>(input: {
   resolveRequestParams?: RequestParamsResolver<TSession>;
   limiter?: ReturnType<typeof createWSRequestLimiter>;
 }) {
-  async function request<T>(service: string, requestParams: WSRequestParams = {}): Promise<T> {
+  async function request<T>(
+    service: string,
+    requestParams: WSRequestParams = {},
+  ): Promise<T> {
     const session = await input.getSession();
     const resolvedParams = input.resolveRequestParams
       ? input.resolveRequestParams({
@@ -68,7 +77,10 @@ export function createMoodleWSClient<TSession>(input: {
     throw initialResult.error;
   }
 
-  function getQueryOptions<T>(service: string, requestParams: WSRequestParams = {}) {
+  function getQueryOptions<T>(
+    service: string,
+    requestParams: WSRequestParams = {},
+  ) {
     const queryParams = { ...requestParams };
 
     return {
@@ -77,12 +89,18 @@ export function createMoodleWSClient<TSession>(input: {
     };
   }
 
-  function getBatchQueryOptions<T>(service: string, requestParamsList: readonly WSRequestParams[]) {
+  function getBatchQueryOptions<T>(
+    service: string,
+    requestParamsList: readonly WSRequestParams[],
+  ) {
     const queryParams = requestParamsList.map((params) => ({ ...params }));
 
     return {
       queryKey: buildMoodleWSBatchQueryKey(service, queryParams),
-      queryFn: async () => await Promise.all(queryParams.map(async (params) => await request<T>(service, params))),
+      queryFn: async () =>
+        await Promise.all(
+          queryParams.map(async (params) => await request<T>(service, params)),
+        ),
     };
   }
 

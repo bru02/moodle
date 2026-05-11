@@ -34,45 +34,57 @@ type FileSyncExceptionsState = {
 
 type HiddenItemsState = {
   itemsByNamespace: Record<string, HiddenItemsEntry>;
-  toggleItem: (namespace: string, itemKey: HiddenItemKey, pinned: boolean) => void;
-  setItems: (namespace: string, itemKeys: readonly HiddenItemKey[], pinned: boolean, value: boolean) => void;
+  toggleItem: (
+    namespace: string,
+    itemKey: HiddenItemKey,
+    pinned: boolean,
+  ) => void;
+  setItems: (
+    namespace: string,
+    itemKeys: readonly HiddenItemKey[],
+    pinned: boolean,
+    value: boolean,
+  ) => void;
 };
 
 const persistedStorage = createJSONStorage(() => ({
-  getItem: (name: string) => LocalStorage.getItem(name).then((v) => v?.toString() ?? null),
+  getItem: (name: string) =>
+    LocalStorage.getItem(name).then((v) => v?.toString() ?? null),
   setItem: (name: string, value: string) => LocalStorage.setItem(name, value),
   removeItem: (name: string) => LocalStorage.removeItem(name),
 }));
 
-export const useFileSyncProgressStore = create<FileSyncProgressState>((set) => ({
-  progress: new Map(),
-  setDownloadProgress: (fileId, progress) => {
-    set((state) => {
-      const existing = state.progress.get(fileId);
-      if (existing?.progress === progress) {
-        return state;
-      }
-      state.progress.set(fileId, {
-        progress,
-        convertProgress: existing?.convertProgress,
+export const useFileSyncProgressStore = create<FileSyncProgressState>(
+  (set) => ({
+    progress: new Map(),
+    setDownloadProgress: (fileId, progress) => {
+      set((state) => {
+        const existing = state.progress.get(fileId);
+        if (existing?.progress === progress) {
+          return state;
+        }
+        state.progress.set(fileId, {
+          progress,
+          convertProgress: existing?.convertProgress,
+        });
+        return { progress: state.progress };
       });
-      return { progress: state.progress };
-    });
-  },
-  setConvertProgress: (fileId, progress) => {
-    set((state) => {
-      const existing = state.progress.get(fileId);
-      if (existing?.convertProgress === progress) {
-        return state;
-      }
-      state.progress.set(fileId, {
-        progress: existing?.progress ?? 0,
-        convertProgress: progress,
+    },
+    setConvertProgress: (fileId, progress) => {
+      set((state) => {
+        const existing = state.progress.get(fileId);
+        if (existing?.convertProgress === progress) {
+          return state;
+        }
+        state.progress.set(fileId, {
+          progress: existing?.progress ?? 0,
+          convertProgress: progress,
+        });
+        return { progress: state.progress };
       });
-      return { progress: state.progress };
-    });
-  },
-}));
+    },
+  }),
+);
 
 export const useFileSyncExceptionsStore = create<FileSyncExceptionsState>()(
   persist(
@@ -96,8 +108,12 @@ export const useHiddenItemsStore = create<HiddenItemsState>()(
       itemsByNamespace: {},
       toggleItem: (namespace, itemKey, pinned) =>
         set((state) => {
-          const existing = state.itemsByNamespace[namespace] ?? EMPTY_HIDDEN_ITEMS;
-          const nextValues = toggleItemInList(pinned ? existing.pinned : existing.hidden, itemKey);
+          const existing =
+            state.itemsByNamespace[namespace] ?? EMPTY_HIDDEN_ITEMS;
+          const nextValues = toggleItemInList(
+            pinned ? existing.pinned : existing.hidden,
+            itemKey,
+          );
           const nextItems = pinned
             ? {
                 hidden: existing.hidden,
@@ -107,7 +123,8 @@ export const useHiddenItemsStore = create<HiddenItemsState>()(
                 hidden: nextValues,
                 pinned: existing.pinned,
               };
-          const isEmptyPayload = nextItems.hidden.length === 0 && nextItems.pinned.length === 0;
+          const isEmptyPayload =
+            nextItems.hidden.length === 0 && nextItems.pinned.length === 0;
           if (isEmptyPayload) {
             if (!(namespace in state.itemsByNamespace)) {
               return state;
@@ -131,8 +148,13 @@ export const useHiddenItemsStore = create<HiddenItemsState>()(
             return state;
           }
 
-          const existing = state.itemsByNamespace[namespace] ?? EMPTY_HIDDEN_ITEMS;
-          const nextValues = setItemsInList(pinned ? existing.pinned : existing.hidden, itemKeys, value);
+          const existing =
+            state.itemsByNamespace[namespace] ?? EMPTY_HIDDEN_ITEMS;
+          const nextValues = setItemsInList(
+            pinned ? existing.pinned : existing.hidden,
+            itemKeys,
+            value,
+          );
           const nextItems = pinned
             ? {
                 hidden: existing.hidden,
@@ -142,7 +164,8 @@ export const useHiddenItemsStore = create<HiddenItemsState>()(
                 hidden: nextValues,
                 pinned: existing.pinned,
               };
-          const isEmptyPayload = nextItems.hidden.length === 0 && nextItems.pinned.length === 0;
+          const isEmptyPayload =
+            nextItems.hidden.length === 0 && nextItems.pinned.length === 0;
           if (isEmptyPayload) {
             if (!(namespace in state.itemsByNamespace)) {
               return state;
@@ -168,8 +191,13 @@ export const useHiddenItemsStore = create<HiddenItemsState>()(
   ),
 );
 
-function toggleItemInList(list: readonly HiddenItemKey[], itemKey: HiddenItemKey): HiddenItemKey[] {
-  return list.includes(itemKey) ? list.filter((item) => item !== itemKey) : [...list, itemKey];
+function toggleItemInList(
+  list: readonly HiddenItemKey[],
+  itemKey: HiddenItemKey,
+): HiddenItemKey[] {
+  return list.includes(itemKey)
+    ? list.filter((item) => item !== itemKey)
+    : [...list, itemKey];
 }
 
 function setItemsInList(

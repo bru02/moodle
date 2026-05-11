@@ -42,7 +42,7 @@ export function PrimaryButton({ label, style, variant = "filled", ...rest }: Pri
 
   return (
     <GestureDetector gesture={tapGesture}>
-      <Animated.View style={[animStyle, style]}>
+      <Animated.View style={[animStyle, style] as never}>
         <AnimatedPressable style={[styles.button, { backgroundColor: bgColor, opacity: disabled ? 0.5 : 1 }]} {...rest}>
           <Text style={[styles.label, { color: textColor }]}>{label}</Text>
         </AnimatedPressable>

@@ -1,5 +1,5 @@
 import { ExtensionStorage } from "@bacons/apple-targets";
-import { Link } from "expo-router";
+import { Link, type Href } from "expo-router";
 
 import type { SpotlightCourseRecord } from "./mobile-types";
 
@@ -122,7 +122,7 @@ export function buildCourseDeeplink(scopeId: string) {
     Link.resolveHref({
       pathname: "/courses/[courseId]",
       params: { courseId: scopeId },
-    }),
+    } as unknown as Href),
   );
 }
 

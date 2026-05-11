@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams } from "expo-router";
 import { startTransition, useEffect, useMemo, useState } from "react";
-import { ScrollView, Text, View, useColorScheme } from "react-native";
+import { Platform, ScrollView, Text, View, useColorScheme } from "react-native";
 import { createHighlighter, createJavaScriptRegexEngine } from "shiki";
 import { EnrichedMarkdownText } from "react-native-enriched-markdown";
 import { createNativeEngine, isNativeEngineAvailable } from "react-native-shiki-engine";
@@ -37,8 +37,14 @@ const SHIKI_THEME_DARK = "github-dark";
 const SHIKI_MAX_HIGHLIGHT_CHARACTERS = 20_000;
 const SHIKI_MAX_HIGHLIGHT_LINES = 400;
 const SHIKI_RESULT_CACHE_LIMIT = 32;
-const CODE_FONT_FAMILY = "FiraCode_400Regular";
-const CODE_FONT_FAMILY_BOLD = "FiraCode_700Bold";
+const CODE_FONT_FAMILY = Platform.select({
+  ios: "FiraCode-Regular",
+  default: "FiraCode_400Regular",
+});
+const CODE_FONT_FAMILY_BOLD = Platform.select({
+  ios: "FiraCode-Bold",
+  default: "FiraCode_700Bold",
+});
 
 type ShikiHighlighter = Awaited<ReturnType<typeof createHighlighter>>;
 const nativeHighlighterRuntime: HighlighterRuntime = {

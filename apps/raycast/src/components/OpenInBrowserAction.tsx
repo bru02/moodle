@@ -1,4 +1,7 @@
-import { buildAuthenticatedExternalOpenUrl, buildExternalOpenUrl } from "@moodle/core";
+import {
+  buildAuthenticatedExternalOpenUrl,
+  buildExternalOpenUrl,
+} from "@moodle/core";
 import { Action, Icon, LocalStorage, open } from "@raycast/api";
 
 import { getUser } from "../client";
@@ -19,12 +22,17 @@ export async function openInBrowserWithAuth(url: string, onOpen?: () => void) {
   });
 
   if (new URL(externalUrl).origin !== siteOrigin) return direct(externalUrl);
-  if (externalUrl.includes("/pluginfile.php") || externalUrl.includes("/tokenpluginfile.php/"))
+  if (
+    externalUrl.includes("/pluginfile.php") ||
+    externalUrl.includes("/tokenpluginfile.php/")
+  )
     return direct(externalUrl);
 
-  timestamp ??= (await LocalStorage.getItem<string>("lastAutoLoginTimestamp")) ?? undefined;
+  timestamp ??=
+    (await LocalStorage.getItem<string>("lastAutoLoginTimestamp")) ?? undefined;
   const lastLogin = timestamp ? Number(timestamp) : NaN;
-  const recentlyLoggedIn = Number.isFinite(lastLogin) && lastLogin + 6 * 60000 >= Date.now();
+  const recentlyLoggedIn =
+    Number.isFinite(lastLogin) && lastLogin + 6 * 60000 >= Date.now();
 
   const authenticatedUrl = await buildAuthenticatedExternalOpenUrl({
     url,

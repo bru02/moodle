@@ -1,5 +1,9 @@
 import { AuthError } from "./errors";
-import { getMoodleErrorCode, getMoodleErrorMessage, isMoodleErrorPayload } from "./moodle-errors";
+import {
+  getMoodleErrorCode,
+  getMoodleErrorMessage,
+  isMoodleErrorPayload,
+} from "./moodle-errors";
 import {
   AuthMethod,
   type CoreWSExternalWarning,
@@ -64,7 +68,11 @@ function parseTokenResponse(payload: unknown): MoodleTokenResponse {
   return (payload as MoodleTokenResponse) ?? {};
 }
 
-function throwOnAuthPayload(payload: unknown, fallbackMessage: string, code?: string): never {
+function throwOnAuthPayload(
+  payload: unknown,
+  fallbackMessage: string,
+  code?: string,
+): never {
   const message = getMoodleErrorMessage(payload) ?? fallbackMessage;
   const errorCode = getMoodleErrorCode(payload) ?? code;
   throw new AuthError(message, { code: errorCode });
@@ -124,7 +132,9 @@ async function fetchAjaxJson(input: {
 
 function parseAjaxResponse<T>(payload: unknown): T {
   if (!payload || typeof payload !== "object") {
-    throw new AuthError("Invalid Moodle response", { code: "invalid_response" });
+    throw new AuthError("Invalid Moodle response", {
+      code: "invalid_response",
+    });
   }
 
   if ("error" in payload && (payload as { error?: unknown }).error) {
@@ -132,9 +142,13 @@ function parseAjaxResponse<T>(payload: unknown): T {
   }
 
   if (Array.isArray(payload)) {
-    const first = payload[0] as { error?: unknown; data?: T; exception?: unknown } | undefined;
+    const first = payload[0] as
+      | { error?: unknown; data?: T; exception?: unknown }
+      | undefined;
     if (!first) {
-      throw new AuthError("Invalid Moodle response", { code: "invalid_response" });
+      throw new AuthError("Invalid Moodle response", {
+        code: "invalid_response",
+      });
     }
     if (first.error || first.exception) {
       throwOnAuthPayload(first, "Moodle request failed");
@@ -149,7 +163,10 @@ function parseAjaxResponse<T>(payload: unknown): T {
   return payload as T;
 }
 
-function validatePublicConfig(siteOrigin: string, config: MoodlePublicConfig): MoodlePublicConfig {
+function validatePublicConfig(
+  siteOrigin: string,
+  config: MoodlePublicConfig,
+): MoodlePublicConfig {
   if (!config.enablewebservices) {
     throw new AuthError(`Web services are not enabled for ${siteOrigin}`, {
       code: "webservicesnotenabled",
@@ -163,9 +180,12 @@ function validatePublicConfig(siteOrigin: string, config: MoodlePublicConfig): M
   }
 
   if (config.maintenanceenabled) {
-    throw new AuthError(config.maintenancemessage || "This Moodle site is in maintenance mode", {
-      code: "siteinmaintenance",
-    });
+    throw new AuthError(
+      config.maintenancemessage || "This Moodle site is in maintenance mode",
+      {
+        code: "siteinmaintenance",
+      },
+    );
   }
 
   return config;
@@ -219,7 +239,11 @@ async function fetchPublicConfigAttempt(input: {
       noLogin: true,
     });
     if (!response.ok) {
-      throwOnAuthPayload(payload, response.statusText || "Failed to fetch Moodle site config", "site_config_failed");
+      throwOnAuthPayload(
+        payload,
+        response.statusText || "Failed to fetch Moodle site config",
+        "site_config_failed",
+      );
     }
     return parseAjaxResponse<MoodlePublicConfig>(payload);
   } catch (error) {
@@ -235,7 +259,11 @@ async function fetchPublicConfigAttempt(input: {
       if (error instanceof Error) {
         throw error;
       }
-      throwOnAuthPayload(payload, response.statusText || "Failed to fetch Moodle site config", "site_config_failed");
+      throwOnAuthPayload(
+        payload,
+        response.statusText || "Failed to fetch Moodle site config",
+        "site_config_failed",
+      );
     }
 
     return parseAjaxResponse<MoodlePublicConfig>(payload);
@@ -273,7 +301,11 @@ export async function checkSite(input: {
         siteOrigin: candidate,
         fetcher: input.fetcher,
       });
-      const siteUrl = (config.httpswwwroot || config.wwwroot || candidate).replace(/\/$/, "");
+      const siteUrl = (
+        config.httpswwwroot ||
+        config.wwwroot ||
+        candidate
+      ).replace(/\/$/, "");
       return {
         code: config.typeoflogin || TypeOfLogin.APP,
         siteUrl,
@@ -309,8 +341,16 @@ export async function fetchSiteInfo(input: {
     }),
   });
 
-  if (!response.ok || isMoodleErrorPayload(payload) || (payload && typeof payload === "object" && "message" in payload)) {
-    throwOnAuthPayload(payload, response.statusText || "Failed to fetch Moodle site info", "site_info_failed");
+  if (
+    !response.ok ||
+    isMoodleErrorPayload(payload) ||
+    (payload && typeof payload === "object" && "message" in payload)
+  ) {
+    throwOnAuthPayload(
+      payload,
+      response.statusText || "Failed to fetch Moodle site info",
+      "site_info_failed",
+    );
   }
 
   return payload as MoodleSiteInfo;
@@ -325,7 +365,9 @@ export async function authenticateWithCredentials(input: {
 }) {
   const siteOrigin = normalizeSiteOrigin(input.siteOrigin);
   if (!input.username || !input.password) {
-    throw new AuthError("Missing username or password", { code: "missing_credentials" });
+    throw new AuthError("Missing username or password", {
+      code: "missing_credentials",
+    });
   }
 
   const { response, payload } = await fetchJson({
@@ -473,7 +515,11 @@ export async function fetchAutologinKey(input: {
     !("autologinurl" in payload) ||
     !("key" in payload)
   ) {
-    throwOnAuthPayload(payload, response.statusText || "Failed to fetch Moodle autologin key", "autologin_key_failed");
+    throwOnAuthPayload(
+      payload,
+      response.statusText || "Failed to fetch Moodle autologin key",
+      "autologin_key_failed",
+    );
   }
 
   return payload as MoodleAutologinKeyResponse;
@@ -492,7 +538,10 @@ export async function buildAuthenticatedOpenUrl(input: {
   const now = input.now ?? Date.now();
   const autoLoginWindowMs = 6 * 60 * 1000;
 
-  if (input.lastAutoLoginAt != null && now - input.lastAutoLoginAt < autoLoginWindowMs) {
+  if (
+    input.lastAutoLoginAt != null &&
+    now - input.lastAutoLoginAt < autoLoginWindowMs
+  ) {
     return input.destinationUrl;
   }
 

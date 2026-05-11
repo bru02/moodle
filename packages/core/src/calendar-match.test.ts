@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
 
-import { matchCalendarEventsToCourseScopes, toCalendarEvent } from "./calendar-match";
+import {
+  matchCalendarEventsToCourseScopes,
+  toCalendarEvent,
+} from "./calendar-match";
 import type { MoodleCourseLike } from "./course-types";
 
 const courses: MoodleCourseLike[] = [
@@ -31,7 +34,8 @@ const courses: MoodleCourseLike[] = [
   {
     id: 215603,
     fullname: "Data Wrangling - Project Course (ADIN015NABB) Gyakorlat (G02)",
-    displayname: "Data Wrangling - Project Course (ADIN015NABB) Gyakorlat (G02)",
+    displayname:
+      "Data Wrangling - Project Course (ADIN015NABB) Gyakorlat (G02)",
     shortname: "ADIN015NABB_Gyakorlat:G02 (2025/26/2)",
     courseimage: "",
     timemodified: 1,

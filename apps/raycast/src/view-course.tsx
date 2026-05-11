@@ -24,7 +24,13 @@ import { useSync } from "./sync";
 import { Module } from "./types";
 import { Modname } from "./types/contents";
 
-export default function ViewCourse({ scope, preselectItem }: { scope: CourseScope; preselectItem?: number }) {
+export default function ViewCourse({
+  scope,
+  preselectItem,
+}: {
+  scope: CourseScope;
+  preselectItem?: number;
+}) {
   const {
     data: contentRows,
     isFetching,
@@ -38,7 +44,10 @@ export default function ViewCourse({ scope, preselectItem }: { scope: CourseScop
     },
   );
 
-  const scopedSections = useMemo(() => buildScopedSections(scope, contentRows), [contentRows, scope]);
+  const scopedSections = useMemo(
+    () => buildScopedSections(scope, contentRows),
+    [contentRows, scope],
+  );
 
   const files = useMemo(
     () =>
@@ -47,7 +56,12 @@ export default function ViewCourse({ scope, preselectItem }: { scope: CourseScop
           ({ module, course }) =>
             module.contents
               ?.filter(
-                (f) => f.type === "file" && !(f.filename === "index.html" && ["page", "book"].includes(module.modname)),
+                (f) =>
+                  f.type === "file" &&
+                  !(
+                    f.filename === "index.html" &&
+                    ["page", "book"].includes(module.modname)
+                  ),
               )
               .map((f) => [getFilePath(f, module, course), f] as const) ?? [],
         ),
@@ -89,27 +103,39 @@ type CourseContentContainerProps = {
   preselectItem?: number;
 };
 
-function CourseContentContainer({ scope, isLoading, content, preselectItem }: CourseContentContainerProps) {
+function CourseContentContainer({
+  scope,
+  isLoading,
+  content,
+  preselectItem,
+}: CourseContentContainerProps) {
   const { push } = useNavigation();
 
   const preselectedModule = useMemo(() => {
     if (preselectItem == null) return;
     for (const section of content) {
-      const scoped = section.modules.find(({ module }) => String(module.id) === String(preselectItem));
+      const scoped = section.modules.find(
+        ({ module }) => String(module.id) === String(preselectItem),
+      );
       if (scoped) return scoped;
     }
   }, [preselectItem, content]);
 
   const hasVisitedPreselectedItem = useRef<string | null>(null);
-  const shouldNavigate = preselectedModule && preselectedModule.module.modname in ModuleViewComponents;
-  const preselectedItemId = preselectedModule ? getModuleListItemId(preselectedModule.module) : null;
+  const shouldNavigate =
+    preselectedModule &&
+    preselectedModule.module.modname in ModuleViewComponents;
+  const preselectedItemId = preselectedModule
+    ? getModuleListItemId(preselectedModule.module)
+    : null;
 
   useEffect(() => {
     if (!shouldNavigate || !preselectedModule) return;
     const preselectedKey = String(preselectedModule.module.id);
     if (hasVisitedPreselectedItem.current === preselectedKey) return;
     hasVisitedPreselectedItem.current = preselectedKey;
-    const Component = ModuleViewComponents[preselectedModule.module.modname as Modname]!;
+    const Component =
+      ModuleViewComponents[preselectedModule.module.modname as Modname]!;
     push(
       <CourseContext value={{ scope, activeCourse: preselectedModule.course }}>
         <Component module={preselectedModule.module} />
@@ -117,7 +143,8 @@ function CourseContentContainer({ scope, isLoading, content, preselectItem }: Co
     );
   }, [preselectedModule, push, shouldNavigate, scope]);
 
-  if (shouldNavigate) return <List navigationTitle={scope.title} isLoading={isLoading} />;
+  if (shouldNavigate)
+    return <List navigationTitle={scope.title} isLoading={isLoading} />;
 
   return (
     <CourseContentList
@@ -137,8 +164,16 @@ type CourseContentListProps = {
   preselectedItemId?: string | null;
 };
 
-function CourseContentList({ scope, isLoading, content, preselectedItemId }: CourseContentListProps) {
-  const allModules = useMemo(() => content.flatMap((section) => section.modules), [content]);
+function CourseContentList({
+  scope,
+  isLoading,
+  content,
+  preselectedItemId,
+}: CourseContentListProps) {
+  const allModules = useMemo(
+    () => content.flatMap((section) => section.modules),
+    [content],
+  );
   const scopedItemIdsByModuleRef = useMemo(() => {
     const map = new WeakMap<Module, string>();
     for (const scopedModule of allModules) {
@@ -148,15 +183,21 @@ function CourseContentList({ scope, isLoading, content, preselectedItemId }: Cou
   }, [allModules]);
   const firstListItemId = getFirstListItemId(content);
   const initialSelectedItemId = preselectedItemId ?? firstListItemId ?? null;
-  const [forcedSelectedItemId, setForcedSelectedItemId] = useState<string | null>(initialSelectedItemId);
-  const [isShowingDetail, setIsShowingDetail] = useState(() => Boolean(initialSelectedItemId?.startsWith("D-")));
+  const [forcedSelectedItemId, setForcedSelectedItemId] = useState<
+    string | null
+  >(initialSelectedItemId);
+  const [isShowingDetail, setIsShowingDetail] = useState(() =>
+    Boolean(initialSelectedItemId?.startsWith("D-")),
+  );
   const selectedItemIdRef = useRef<string | null>(initialSelectedItemId);
   const preselectGuardRef = useRef({
     target: preselectedItemId ?? null,
     retries: 0,
     done: !preselectedItemId,
   });
-  const dismissedRecentItems = useHiddenItemsState(`course-recent-items-${scope.id}`);
+  const dismissedRecentItems = useHiddenItemsState(
+    `course-recent-items-${scope.id}`,
+  );
 
   useEffect(() => {
     if (!forcedSelectedItemId) return;
@@ -205,7 +246,9 @@ function CourseContentList({ scope, isLoading, content, preselectedItemId }: Cou
       >
         {(visibleModules, { isPinnedSection }) => {
           if (isPinnedSection) {
-            const pinnableModules = visibleModules.filter(({ module }) => module.modname !== "label");
+            const pinnableModules = visibleModules.filter(
+              ({ module }) => module.modname !== "label",
+            );
             if (pinnableModules.length === 0) return null;
             return (
               <List.Section title="Pinned">
@@ -214,11 +257,21 @@ function CourseContentList({ scope, isLoading, content, preselectedItemId }: Cou
             );
           }
 
-          const visibleContent = regroupCourseContentByVisibleModules(content, visibleModules);
-          const displayLayout = buildCourseDisplayLayout(scope, visibleContent, {
-            dismissedRecentItemIds: dismissedRecentItems.hiddenItemSet as ReadonlySet<string>,
-          });
-          const surfacedModuleRefs = new Set(displayLayout.surfacedModules.map((module) => module.module));
+          const visibleContent = regroupCourseContentByVisibleModules(
+            content,
+            visibleModules,
+          );
+          const displayLayout = buildCourseDisplayLayout(
+            scope,
+            visibleContent,
+            {
+              dismissedRecentItemIds:
+                dismissedRecentItems.hiddenItemSet as ReadonlySet<string>,
+            },
+          );
+          const surfacedModuleRefs = new Set(
+            displayLayout.surfacedModules.map((module) => module.module),
+          );
 
           return (
             <>
@@ -227,19 +280,29 @@ function CourseContentList({ scope, isLoading, content, preselectedItemId }: Cou
                   <DismissibleItemsContext
                     value={{
                       dismissItem: (item) => {
-                        const itemId = scopedItemIdsByModuleRef.get(item as Module);
-                        if (itemId) dismissedRecentItems.toggleHiddenKey(itemId);
+                        const itemId = scopedItemIdsByModuleRef.get(
+                          item as Module,
+                        );
+                        if (itemId)
+                          dismissedRecentItems.toggleHiddenKey(itemId);
                       },
-                      isItemDismissible: (item) => surfacedModuleRefs.has(item as Module),
+                      isItemDismissible: (item) =>
+                        surfacedModuleRefs.has(item as Module),
                     }}
                   >
-                    <RenderedModuleItems modules={displayLayout.surfacedModules} scope={scope} />
+                    <RenderedModuleItems
+                      modules={displayLayout.surfacedModules}
+                      scope={scope}
+                    />
                   </DismissibleItemsContext>
                 </List.Section>
               )}
               {displayLayout.sections.map((section) => (
                 <List.Section key={section.id} title={stripHTML(section.title)}>
-                  <RenderedModuleItems modules={section.modules} scope={scope} />
+                  <RenderedModuleItems
+                    modules={section.modules}
+                    scope={scope}
+                  />
                 </List.Section>
               ))}
             </>
@@ -257,14 +320,23 @@ function getFirstListItemId(content: readonly ScopedRenderedSection[]) {
   }
 }
 
-function getHiddenItemKey(item: ScopedModule | Module, scopedItemIdsByModuleRef: WeakMap<Module, string>) {
+function getHiddenItemKey(
+  item: ScopedModule | Module,
+  scopedItemIdsByModuleRef: WeakMap<Module, string>,
+) {
   if ("module" in item) {
     return item.id;
   }
   return scopedItemIdsByModuleRef.get(item) ?? item.id;
 }
 
-function RenderedModuleItems({ modules, scope }: { modules: readonly ScopedModule[]; scope: CourseScope }) {
+function RenderedModuleItems({
+  modules,
+  scope,
+}: {
+  modules: readonly ScopedModule[];
+  scope: CourseScope;
+}) {
   return modules.map(({ id, module, course }) => {
     const Component = ListItems[module.modname as Modname] ?? ListItems.default;
     return (

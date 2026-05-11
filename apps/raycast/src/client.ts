@@ -1,7 +1,17 @@
-import { AuthError, authenticateWithCredentials, authenticateWithQrLogin, type MoodleSession } from "@moodle/core";
+import {
+  AuthError,
+  authenticateWithCredentials,
+  authenticateWithQrLogin,
+  type MoodleSession,
+} from "@moodle/core";
 import { Cache, LocalStorage } from "@raycast/api";
 
-import { isQrAuth, preferences, siteOrigin, siteUrl } from "./helpers/preferences";
+import {
+  isQrAuth,
+  preferences,
+  siteOrigin,
+  siteUrl,
+} from "./helpers/preferences";
 
 export interface User extends MoodleSession {
   id: number;
@@ -24,7 +34,9 @@ async function authenticate(): Promise<User> {
   }
 
   if (!preferences.username || !preferences.password) {
-    throw new AuthError("Missing username or password in preferences", { code: "missing_credentials" });
+    throw new AuthError("Missing username or password in preferences", {
+      code: "missing_credentials",
+    });
   }
 
   const session = await authenticateWithCredentials({

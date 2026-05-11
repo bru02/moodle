@@ -5,8 +5,11 @@ export type DismissibleItemsContextValue<T> = {
   isItemDismissible: (item: T) => boolean;
 };
 
-export const DismissibleItemsContext = createContext<DismissibleItemsContextValue<unknown> | null>(null);
+export const DismissibleItemsContext =
+  createContext<DismissibleItemsContextValue<unknown> | null>(null);
 
 export function useOptionalDismissibleItemsContext<T = unknown>() {
-  return useContext(DismissibleItemsContext) as DismissibleItemsContextValue<T> | null;
+  return useContext(
+    DismissibleItemsContext,
+  ) as DismissibleItemsContextValue<T> | null;
 }

@@ -13,7 +13,9 @@ export function renderGradeViewMarkdown(input: GradeViewMarkdownInput): string {
 
   for (const courseData of input.tables) {
     const table = courseData.tables?.[0];
-    const courseLabel = table?.courseid ? `Course ${table.courseid}` : "Unknown Course";
+    const courseLabel = table?.courseid
+      ? `Course ${table.courseid}`
+      : "Unknown Course";
     lines.push(`## ${courseLabel}`);
     lines.push("");
     lines.push("| Item | Grade | Range | Percentage | Module ID |");

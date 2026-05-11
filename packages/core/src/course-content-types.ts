@@ -1,5 +1,5 @@
-import type { CoreTextFormat, CoreWSExternalFile } from "./moodle-types";
 import type { SimpleCourse } from "./course-types";
+import type { CoreTextFormat, CoreWSExternalFile } from "./moodle-types";
 
 export type CoreCourseModuleContentFile = CoreWSExternalFile & {
   filename: string;
@@ -19,6 +19,7 @@ export type CoreCourseModuleContentFile = CoreWSExternalFile & {
 export type CoreCourseGetContentsWSModule = {
   id: number;
   url?: string;
+  section?: number;
   name: string;
   instance: number;
   contextid?: number;
@@ -85,14 +86,19 @@ export type CoreCourseGetContentsWSSection = {
 
 export type CoreCourseGetContentsWSResponse = CoreCourseGetContentsWSSection[];
 
-export type RawRenderedSection = CoreCourseGetContentsWSSection & { subtitle: string };
+export type RawRenderedSection = CoreCourseGetContentsWSSection & {
+  subtitle: string;
+};
 export type ScopedModule = {
   id: string;
   module: CoreCourseGetContentsWSModule;
   course: SimpleCourse;
   sectionName: string;
 };
-export type ScopedRenderedSection = Omit<RawRenderedSection, "id" | "modules"> & {
+export type ScopedRenderedSection = Omit<
+  RawRenderedSection,
+  "id" | "modules"
+> & {
   id: string;
   modules: ScopedModule[];
 };

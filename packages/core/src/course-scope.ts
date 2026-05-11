@@ -1,9 +1,24 @@
-import type { CourseScope, MoodleCourseLike, SimpleCourse } from "./course-types";
-import { filterCoursesBySemester, listCourseSemesters, pickPreferredSemester, toSimpleCourse } from "./course-types";
+import type {
+  CourseScope,
+  MoodleCourseLike,
+  SimpleCourse,
+} from "./course-types";
+import {
+  filterCoursesBySemester,
+  listCourseSemesters,
+  pickPreferredSemester,
+  toSimpleCourse,
+} from "./course-types";
 
-type MoodleWSRequester = <T>(service: string, requestParams?: Record<string, unknown>) => Promise<T>;
+type MoodleWSRequester = <T>(
+  service: string,
+  requestParams?: Record<string, unknown>,
+) => Promise<T>;
 
-export function buildCourseScopes(courses: readonly SimpleCourse[], merge = true): CourseScope[] {
+export function buildCourseScopes(
+  courses: readonly SimpleCourse[],
+  merge = true,
+): CourseScope[] {
   if (!merge) return courses.map((course) => makeScope([course]));
 
   const result: CourseScope[] = [];
@@ -28,7 +43,10 @@ export function buildCourseScopes(courses: readonly SimpleCourse[], merge = true
   return result;
 }
 
-export function findScopeByCourseId(scopes: readonly CourseScope[], courseId: number) {
+export function findScopeByCourseId(
+  scopes: readonly CourseScope[],
+  courseId: number,
+) {
   return scopes.find((scope) => scope.courseIds.includes(courseId));
 }
 
@@ -38,8 +56,14 @@ export function listCourses(input: {
   semester?: string | "all" | null;
 }) {
   const semesters = listCourseSemesters(input.courses);
-  const selectedSemester = input.semester === "all" ? "all" : pickPreferredSemester(input.courses, input.semester ?? undefined);
-  const filteredCourses = filterCoursesBySemester(input.courses, selectedSemester);
+  const selectedSemester =
+    input.semester === "all"
+      ? "all"
+      : pickPreferredSemester(input.courses, input.semester ?? undefined);
+  const filteredCourses = filterCoursesBySemester(
+    input.courses,
+    selectedSemester,
+  );
 
   return {
     semesters,
@@ -55,14 +79,21 @@ export async function fetchCourseCatalog(input: {
   merge?: boolean;
   semester?: string | "all" | null;
 }) {
-  const courseRows = await input.requestWS<MoodleCourseLike[]>("core_enrol_get_users_courses", {
-    userid: input.userId,
-  });
+  const courseRows = await input.requestWS<MoodleCourseLike[]>(
+    "core_enrol_get_users_courses",
+    {
+      userid: input.userId,
+    },
+  );
 
   const courses = courseRows
     .map(toSimpleCourse)
     .slice()
-    .sort((left, right) => right.timemodified - left.timemodified || left.displayname.localeCompare(right.displayname));
+    .sort(
+      (left, right) =>
+        right.timemodified - left.timemodified ||
+        left.displayname.localeCompare(right.displayname),
+    );
   const listed = listCourses({
     courses,
     merge: input.merge,
@@ -80,17 +111,30 @@ export async function fetchCourseCatalog(input: {
 
 function makeScope(group: readonly SimpleCourse[]): CourseScope {
   const courses = [...group].sort((left, right) => left.id - right.id);
-  const sortedIds = [...new Set(group.map((course) => course.id))].sort((left, right) => left - right);
+  const sortedIds = [...new Set(group.map((course) => course.id))].sort(
+    (left, right) => left - right,
+  );
   const title = commonTitle(group);
-  const imageSource = group.find((course) => !isGeneratedCourseImage(course.courseimage)) ?? group[0];
-  const mostRecent = [...group].sort((left, right) => right.timemodified - left.timemodified)[0]!;
+  const imageSource =
+    group.find((course) => !isGeneratedCourseImage(course.courseimage)) ??
+    group[0];
+  const mostRecent = [...group].sort(
+    (left, right) => right.timemodified - left.timemodified,
+  )[0]!;
   const format = pickFirstDefined(group.map((course) => course.format));
-  const startdates = group.map((course) => course.startdate).filter((value): value is number => value != null);
-  const enddates = group.map((course) => course.enddate).filter((value): value is number => value != null);
-  const lastaccesses = group.map((course) => course.lastaccess).filter((value): value is number => value != null);
+  const startdates = group
+    .map((course) => course.startdate)
+    .filter((value): value is number => value != null);
+  const enddates = group
+    .map((course) => course.enddate)
+    .filter((value): value is number => value != null);
+  const lastaccesses = group
+    .map((course) => course.lastaccess)
+    .filter((value): value is number => value != null);
   const startdate = startdates.length > 0 ? Math.min(...startdates) : undefined;
   const enddate = enddates.length > 0 ? Math.max(...enddates) : undefined;
-  const lastaccess = lastaccesses.length > 0 ? Math.max(...lastaccesses) : undefined;
+  const lastaccess =
+    lastaccesses.length > 0 ? Math.max(...lastaccesses) : undefined;
   const semester = pickSemester(group, mostRecent.semester);
   const seminarGroup = pickSeminarGroup(group, mostRecent.seminarGroup);
 
@@ -101,7 +145,9 @@ function makeScope(group: readonly SimpleCourse[]): CourseScope {
     title,
     mergedCourse: {
       id: imageSource?.id ?? mostRecent.id,
-      courseCode: group.find((course) => course.courseCode)?.courseCode ?? mostRecent.courseCode,
+      courseCode:
+        group.find((course) => course.courseCode)?.courseCode ??
+        mostRecent.courseCode,
       displayname: title,
       courseimage: imageSource?.courseimage ?? mostRecent.courseimage,
       timemodified: mostRecent.timemodified,
@@ -122,14 +168,18 @@ function pickFirstDefined<T>(values: readonly (T | undefined)[]) {
 function pickSemester(group: readonly SimpleCourse[], fallback?: string) {
   const counts = new Map<string, number>();
 
-  for (const semester of group.map((course) => course.semester).filter(Boolean) as string[]) {
+  for (const semester of group
+    .map((course) => course.semester)
+    .filter(Boolean) as string[]) {
     counts.set(semester, (counts.get(semester) ?? 0) + 1);
   }
 
   if (counts.size === 0) return fallback;
 
   const max = Math.max(...counts.values());
-  const candidates = [...counts.entries()].filter(([, count]) => count === max).map(([semester]) => semester);
+  const candidates = [...counts.entries()]
+    .filter(([, count]) => count === max)
+    .map(([semester]) => semester);
 
   if (candidates.length === 1) return candidates[0];
   return fallback && candidates.includes(fallback) ? fallback : candidates[0];
@@ -138,14 +188,18 @@ function pickSemester(group: readonly SimpleCourse[], fallback?: string) {
 function pickSeminarGroup(group: readonly SimpleCourse[], fallback?: string) {
   const counts = new Map<string, number>();
 
-  for (const seminarGroup of group.map((course) => course.seminarGroup).filter(Boolean) as string[]) {
+  for (const seminarGroup of group
+    .map((course) => course.seminarGroup)
+    .filter(Boolean) as string[]) {
     counts.set(seminarGroup, (counts.get(seminarGroup) ?? 0) + 1);
   }
 
   if (counts.size === 0) return fallback;
 
   const max = Math.max(...counts.values());
-  const candidates = [...counts.entries()].filter(([, count]) => count === max).map(([seminarGroup]) => seminarGroup);
+  const candidates = [...counts.entries()]
+    .filter(([, count]) => count === max)
+    .map(([seminarGroup]) => seminarGroup);
 
   if (candidates.length === 1) return candidates[0];
   return fallback && candidates.includes(fallback) ? fallback : candidates[0];
@@ -161,7 +215,10 @@ function commonTitle(group: readonly SimpleCourse[]) {
 }
 
 function isMergeCandidate(left: SimpleCourse, right: SimpleCourse) {
-  if (normalize(baseTitle(left.displayname)) !== normalize(baseTitle(right.displayname))) {
+  if (
+    normalize(baseTitle(left.displayname)) !==
+    normalize(baseTitle(right.displayname))
+  ) {
     return false;
   }
 

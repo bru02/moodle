@@ -101,7 +101,8 @@ export type AddonModAttendanceCourseWithTodaySessions = {
 /**
  * Data returned by mod_attendance_get_courses_with_today_sessions WS.
  */
-export type AddonModAttendanceGetCoursesWithTodaySessionsWSResponse = AddonModAttendanceCourseWithTodaySessions[];
+export type AddonModAttendanceGetCoursesWithTodaySessionsWSResponse =
+  AddonModAttendanceCourseWithTodaySessions[];
 
 /**
  * Params of mod_attendance_get_session WS.
@@ -125,7 +126,8 @@ export type AddonModAttendanceGetSessionsWSParams = {
 /**
  * Data returned by mod_attendance_get_sessions WS.
  */
-export type AddonModAttendanceGetSessionsWSResponse = AddonModAttendanceSession[];
+export type AddonModAttendanceGetSessionsWSResponse =
+  AddonModAttendanceSession[];
 
 /**
  * Params of mod_attendance_update_user_status WS.

@@ -3,5 +3,21 @@
     "source.fixAll": "explicit",
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
+  },
+  "files.exclude": {
+    ".expo": true,
+    "ios": true,
+    "android": true,
+    "dist-export": true,
+    "dist-export-js": true,
+    "expo-env.d.ts": true,
+    "*.tsbuildinfo": true
+  },
+  "search.exclude": {
+    ".expo": true,
+    "ios": true,
+    "android": true,
+    "dist-export": true,
+    "dist-export-js": true
   }
 }

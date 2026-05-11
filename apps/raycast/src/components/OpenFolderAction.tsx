@@ -11,7 +11,13 @@ function courseLabel(course: SimpleCourse) {
   return course.displayname;
 }
 
-export function OpenFolderAction({ scope, onOpen }: { scope: CourseScope; onOpen: (course: SimpleCourse) => void }) {
+export function OpenFolderAction({
+  scope,
+  onOpen,
+}: {
+  scope: CourseScope;
+  onOpen: (course: SimpleCourse) => void;
+}) {
   const openFolder = async (course: SimpleCourse) => {
     const path = getCourseFolder(course);
     await mkdir(path, { recursive: true });
@@ -23,11 +29,22 @@ export function OpenFolderAction({ scope, onOpen }: { scope: CourseScope; onOpen
     return (
       <ActionPanel.Submenu title="Open Folder in Finder" icon={Icon.Finder}>
         {scope.courses.map((c) => (
-          <Action key={c.id} title={courseLabel(c)} icon={Icon.Folder} onAction={() => openFolder(c)} />
+          <Action
+            key={c.id}
+            title={courseLabel(c)}
+            icon={Icon.Folder}
+            onAction={() => openFolder(c)}
+          />
         ))}
       </ActionPanel.Submenu>
     );
   }
 
-  return <Action title="Open Folder in Finder" icon={Icon.Finder} onAction={() => openFolder(scope.courses[0])} />;
+  return (
+    <Action
+      title="Open Folder in Finder"
+      icon={Icon.Finder}
+      onAction={() => openFolder(scope.courses[0])}
+    />
+  );
 }

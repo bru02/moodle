@@ -35,7 +35,7 @@ export function Card({ tone = "surface", style, innerStyle, children, ...rest }:
   if (process.env.EXPO_OS === "ios") {
     if (isLiquidGlassAvailable()) {
       return (
-        <GlassView style={containerStyle} {...rest}>
+        <GlassView style={containerStyle as never} {...rest}>
           <View style={contentStyle}>{children}</View>
         </GlassView>
       );
@@ -50,7 +50,7 @@ export function Card({ tone = "surface", style, innerStyle, children, ...rest }:
               : "systemMaterial"
         }
         intensity={tone === "prominent" ? 92 : 82}
-        style={containerStyle}
+        style={containerStyle as never}
         {...rest}
       >
         <View style={contentStyle}>{children}</View>

@@ -2,7 +2,10 @@ import { randomUUID } from "crypto";
 import { ReadStream } from "fs";
 import { join } from "path";
 
-import { handleMoodleFileUrl as handleMoodleFileUrlCore, type SimpleCourse } from "@moodle/core";
+import {
+  handleMoodleFileUrl as handleMoodleFileUrlCore,
+  type SimpleCourse,
+} from "@moodle/core";
 import { sanitize } from "sanitize-filename-ts";
 
 import { getUserSync } from "../client";
@@ -30,7 +33,10 @@ export function getCourseFolder(course: Pick<SimpleCourse, "displayname">) {
   return join(baseDir, courseName);
 }
 
-export function getModuleFolder(course: Pick<SimpleCourse, "displayname">, module: Module) {
+export function getModuleFolder(
+  course: Pick<SimpleCourse, "displayname">,
+  module: Module,
+) {
   const courseDir = getCourseFolder(course);
   const moduleDir = sanitize(module.name);
   return join(courseDir, moduleDir);
@@ -48,18 +54,23 @@ export function getFilePath(
   return join(courseDir, fileName);
 }
 
-const ppt = () => `https://pptcs.officeapps.live.com/document/export/pdf?input=pptx&keepPDFProtection=true`;
+const ppt = () =>
+  `https://pptcs.officeapps.live.com/document/export/pdf?input=pptx&keepPDFProtection=true`;
 
 const conversionUrls = {
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": () =>
-    `https://wordcs.officeapps.live.com/wordauto/wordautomation.svc/rest/ConvertFileREST?${new URLSearchParams({
-      correlationId: `{${randomUUID().toUpperCase()}}`,
-      inputFormat: "DOCX",
-      outputFormat: "PDF",
-      endpointName: "Mac",
-      isFileUncompressed: "true",
-    })}`,
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation": ppt,
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    () =>
+      `https://wordcs.officeapps.live.com/wordauto/wordautomation.svc/rest/ConvertFileREST?${new URLSearchParams(
+        {
+          correlationId: `{${randomUUID().toUpperCase()}}`,
+          inputFormat: "DOCX",
+          outputFormat: "PDF",
+          endpointName: "Mac",
+          isFileUncompressed: "true",
+        },
+      )}`,
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+    ppt,
   "application/vnd.ms-powerpoint": ppt,
 };
 
@@ -72,19 +83,22 @@ export function convertToPdf(
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
-      ...(format !== "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      ...(format !==
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         ? {
             "X-ClientCorrelationId": `{${randomUUID().toUpperCase()}}`,
           }
         : {}),
     },
-    body,
+    body: body as never,
     duplex: "half",
-    signal,
+    signal: signal as never,
   });
 }
 
-export function canConvert(mimeType?: string): mimeType is keyof typeof conversionUrls {
+export function canConvert(
+  mimeType?: string,
+): mimeType is keyof typeof conversionUrls {
   return !!mimeType && mimeType in conversionUrls;
 }
 

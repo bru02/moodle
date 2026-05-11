@@ -1,7 +1,7 @@
 import { buildGradeAccessoryTextByModuleIdFromTables } from "@moodle/core";
 
 import type { CoreGradesGetUserGradesTableWSResponse } from "../types/grade";
-import { preferences } from "./preferences";
+import { siteOrigin } from "./preferences";
 
 const gradeAccessoryTextByModuleIdCache = new WeakMap<
   readonly CoreGradesGetUserGradesTableWSResponse[],
@@ -21,7 +21,7 @@ export function buildGradeAccessoryTextByModuleId(
   }
 
   const result = buildGradeAccessoryTextByModuleIdFromTables(data, {
-    siteUrl: preferences.site_url,
+    siteUrl: siteOrigin,
   });
 
   gradeAccessoryTextByModuleIdCache.set(data, result);

@@ -8,6 +8,7 @@ import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
 import { turndown } from "../helpers/markdown";
 import { getModuleListItemId } from "../helpers/modules";
+import { siteOrigin } from "../helpers/preferences";
 import { Module } from "../types";
 import { CoreCourseModuleCompletionStatus } from "../types/contents";
 
@@ -29,19 +30,32 @@ function DefaultListItem({
   });
   const title = turndown(module.name).trim() || module.name;
   const hasDedicatedModuleDetail =
-    module.modname === "assign" || module.modname === "forum" || module.modname === "quiz";
+    module.modname === "assign" ||
+    module.modname === "forum" ||
+    module.modname === "quiz";
   const needsDescriptionMarkdown =
-    (customDetail == null && !hasDedicatedModuleDetail) || (module.modname === "label" && module.id < 0);
+    (customDetail == null && !hasDedicatedModuleDetail) ||
+    (module.modname === "label" && module.id < 0);
   const descriptionMarkdown = useMemo(
-    () => (needsDescriptionMarkdown && module.description ? turndown(module.description) : ""),
+    () =>
+      needsDescriptionMarkdown && module.description
+        ? turndown(module.description)
+        : "",
     [needsDescriptionMarkdown, module.description],
   );
   const detail =
-    customDetail ?? (descriptionMarkdown ? <List.Item.Detail markdown={descriptionMarkdown} /> : undefined);
+    customDetail ??
+    (descriptionMarkdown ? (
+      <List.Item.Detail markdown={descriptionMarkdown} />
+    ) : undefined);
   const { activeCourse } = useContext(CourseContext);
   const canViewGeneratedSectionDescription =
     module.modname === "label" && module.id < 0 && Boolean(descriptionMarkdown);
   const existingAccessories = accessories ?? [];
+  const fallbackUrl =
+    canViewGeneratedSectionDescription && typeof module.section === "number"
+      ? `${siteOrigin}/course/view.php?id=${activeCourse.id}&expandsection=${module.section}#section-${module.section}`
+      : `${siteOrigin}/course/view.php?id=${activeCourse.id}#module-${module.id}`;
 
   return (
     <List.Item
@@ -55,14 +69,21 @@ function DefaultListItem({
             <Action.Push
               title="View Description"
               icon={Icon.Eye}
-              target={<Detail navigationTitle={title} markdown={descriptionMarkdown} />}
+              target={
+                <Detail
+                  navigationTitle={title}
+                  markdown={descriptionMarkdown}
+                />
+              }
             />
           )}
-          {module.url && (
-            <OpenInBrowserAction
-              url={module.modname === "url" && module.contents?.[0] ? module.contents[0].fileurl : module.url}
-            />
-          )}
+          <OpenInBrowserAction
+            url={
+              module.modname === "url" && module.contents?.[0]
+                ? module.contents[0].fileurl
+                : module.url || fallbackUrl
+            }
+          />
           <CompletionAction module={module} course={activeCourse} />
           <HiddenItemActionsSection item={module} />
         </ActionPanel>
@@ -79,7 +100,9 @@ function getIcon(module: Module) {
   let icon: Icon | undefined;
   switch (module.modname) {
     case "url":
-      return module.contents?.[0] ? getFavicon(module.contents[0].fileurl) : Icon.Link;
+      return module.contents?.[0]
+        ? getFavicon(module.contents[0].fileurl)
+        : Icon.Link;
     case "folder":
       icon = Icon.Folder;
       break;
@@ -87,7 +110,8 @@ function getIcon(module: Module) {
     case "questionnaire":
     case "assign":
       icon = module.completiondata?.state
-        ? module.completiondata.state === CoreCourseModuleCompletionStatus.COMPLETION_COMPLETE_FAIL
+        ? module.completiondata.state ===
+          CoreCourseModuleCompletionStatus.COMPLETION_COMPLETE_FAIL
           ? Icon.XMarkCircle
           : Icon.CheckCircle
         : Icon.Circle;
@@ -97,6 +121,9 @@ function getIcon(module: Module) {
       break;
     case "attendance":
       icon = Icon.PersonLines;
+      break;
+    case "forum":
+      icon = Icon.SpeechBubbleActive;
       break;
   }
 

@@ -1,28 +1,53 @@
-import { findScopeByCourseId, isAuthError, listCourses, toSimpleCourse, type CourseScope } from "@moodle/core";
+import {
+  findScopeByCourseId,
+  isAuthError,
+  listCourses,
+  toSimpleCourse,
+  type CourseScope,
+  type MoodleSiteInfo,
+} from "@moodle/core";
 import { Action, ActionPanel, Grid, Icon, LaunchProps } from "@raycast/api";
-import { createDeeplink, useCachedState, useFrecencySorting } from "@raycast/utils";
+import {
+  createDeeplink,
+  useCachedState,
+  useFrecencySorting,
+} from "@raycast/utils";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useUser } from "./client";
 import AuthErrorDetail from "./components/AuthErrorDetail";
 import { OpenFolderAction } from "./components/OpenFolderAction";
 import { OpenInBrowserAction } from "./components/OpenInBrowserAction";
-import WithHiddenItems, { HiddenItemActionsSection } from "./components/WithHiddenItems";
+import WithHiddenItems, {
+  HiddenItemActionsSection,
+} from "./components/WithHiddenItems";
 import { shortcut } from "./helpers";
-import { logCourseAccess, type CourseAccessMethod } from "./helpers/course-access-log";
+import {
+  logCourseAccess,
+  type CourseAccessMethod,
+} from "./helpers/course-access-log";
 import { handleFileUrl } from "./helpers/files";
-import { preferences } from "./helpers/preferences";
+import { preferences, siteOrigin } from "./helpers/preferences";
 import "./helpers/proxy";
 import { useWSQuery } from "./hooks/useWSQuery";
 import LazyViewCourseGrades from "./lazy-view-course-grades";
 import ViewCourse from "./view-course";
 
 type SearchCoursesLaunchContext = { courseId?: string; preselectItem?: number };
-type SearchCoursesLaunchProps = LaunchProps<{ launchContext?: SearchCoursesLaunchContext }>;
+type SearchCoursesLaunchProps = LaunchProps<{
+  launchContext?: SearchCoursesLaunchContext;
+}>;
 const COURSE_VISIBILITY_NAMESPACE = "courses";
 
 export default function Command({ launchContext }: SearchCoursesLaunchProps) {
-  const { data, isLoading, error, refetch } = useWSQuery("core_enrol_get_users_courses", { userid: 0 });
-  const [selectedSemester, setSelectedSemester] = useCachedState<string | undefined>("selectedSemester");
+  const user = useUser();
+  const { data, isLoading, error, refetch } = useWSQuery(
+    "core_enrol_get_users_courses",
+    { userid: 0 },
+  );
+  const [selectedSemester, setSelectedSemester] = useCachedState<
+    string | undefined
+  >("selectedSemester");
   const [searchText, setSearchText] = useState("");
 
   const courses = useMemo(() => (data ?? []).map(toSimpleCourse), [data]);
@@ -45,7 +70,9 @@ export default function Command({ launchContext }: SearchCoursesLaunchProps) {
   const effectiveSemester = listedCourses.selectedSemester;
   const scopes = listedCourses.scopes;
 
-  const directLaunchCourseId = launchContext?.courseId ? Number(launchContext.courseId) : undefined;
+  const directLaunchCourseId = launchContext?.courseId
+    ? Number(launchContext.courseId)
+    : undefined;
   const scopeToLaunch = useMemo(() => {
     if (!directLaunchCourseId) return undefined;
     return findScopeByCourseId(
@@ -60,8 +87,13 @@ export default function Command({ launchContext }: SearchCoursesLaunchProps) {
 
   const hasVisitedDirectCourse = useRef(false);
   const trackCourseAccess = useCallback(
-    (courseId: number, method: CourseAccessMethod, searchQuery?: string | null) => {
-      const effectiveSearchQuery = searchQuery === undefined ? searchText : searchQuery;
+    (
+      courseId: number,
+      method: CourseAccessMethod,
+      searchQuery?: string | null,
+    ) => {
+      const effectiveSearchQuery =
+        searchQuery === undefined ? searchText : searchQuery;
       void logCourseAccess({
         courseId,
         method,
@@ -88,7 +120,11 @@ export default function Command({ launchContext }: SearchCoursesLaunchProps) {
     return (
       <ViewCourse
         scope={scopeToLaunch}
-        preselectItem={launchContext?.preselectItem ? +launchContext.preselectItem : undefined}
+        preselectItem={
+          launchContext?.preselectItem
+            ? +launchContext.preselectItem
+            : undefined
+        }
       />
     );
   }
@@ -103,20 +139,41 @@ export default function Command({ launchContext }: SearchCoursesLaunchProps) {
       onSearchTextChange={setSearchText}
       filtering
       searchBarAccessory={
-        <Grid.Dropdown tooltip="Filter by semester" onChange={setSelectedSemester} value={effectiveSemester}>
-          {semesters.length > 0 && <Grid.Dropdown.Item title="All" value="all" />}
+        <Grid.Dropdown
+          tooltip="Filter by semester"
+          onChange={setSelectedSemester}
+          value={effectiveSemester}
+        >
+          {semesters.length > 0 && (
+            <Grid.Dropdown.Item title="All" value="all" />
+          )}
           {semesters.map((semester) => (
-            <Grid.Dropdown.Item key={semester} title={semester} value={semester} />
+            <Grid.Dropdown.Item
+              key={semester}
+              title={semester}
+              value={semester}
+            />
           ))}
         </Grid.Dropdown>
       }
     >
-      <WithHiddenItems namespace={COURSE_VISIBILITY_NAMESPACE} data={scopes} getItemKey={(scope) => scope.id}>
+      <WithHiddenItems
+        namespace={COURSE_VISIBILITY_NAMESPACE}
+        data={scopes}
+        getItemKey={(scope) => scope.id}
+      >
         {(visibleScopes, { isPinnedSection, hasPinnedItems }) => {
-          const items = renderScopeItems(visibleScopes, visitItem, trackCourseAccess);
+          const items = renderScopeItems(
+            visibleScopes,
+            visitItem,
+            trackCourseAccess,
+            user.siteInfo,
+          );
           if (items.length === 0) return null;
-          if (isPinnedSection) return <Grid.Section title="Pinned">{items}</Grid.Section>;
-          if (hasPinnedItems) return <Grid.Section title="Others">{items}</Grid.Section>;
+          if (isPinnedSection)
+            return <Grid.Section title="Pinned">{items}</Grid.Section>;
+          if (hasPinnedItems)
+            return <Grid.Section title="Others">{items}</Grid.Section>;
           return items;
         }}
       </WithHiddenItems>
@@ -128,6 +185,7 @@ function renderScopeItems(
   scopes: readonly CourseScope[],
   visitItem: (course: CourseScope["mergedCourse"]) => void,
   trackCourseAccess: (courseId: number, method: CourseAccessMethod) => void,
+  siteInfo: MoodleSiteInfo,
 ) {
   return scopes.map((scope) => {
     const course = scope.mergedCourse;
@@ -136,7 +194,9 @@ function renderScopeItems(
         key={scope.id}
         content={handleFileUrl(course.courseimage)}
         title={course.displayname}
-        subtitle={[course.courseCode, course.seminarGroup].filter(Boolean).join(" · ")}
+        subtitle={[course.seminarGroup, course.courseCode]
+          .filter(Boolean)
+          .join(" · ")}
         actions={
           <ActionPanel>
             <Action.Push
@@ -168,7 +228,7 @@ function renderScopeItems(
               shortcut={shortcut("g")}
             />
             <OpenInBrowserAction
-              url={`${preferences.site_url}/course/view.php?id=${course.id}`}
+              url={`${siteOrigin}/course/view.php?id=${course.id}`}
               onOpen={() => {
                 visitItem(course);
                 trackCourseAccess(course.id, "open-browser");
@@ -177,7 +237,10 @@ function renderScopeItems(
             <ActionPanel.Section>
               <Action.CreateQuicklink
                 quicklink={{
-                  link: createDeeplink({ command: "search-courses", context: { courseId: course.id } }),
+                  link: createDeeplink({
+                    command: "search-courses",
+                    context: { courseId: course.id },
+                  }),
                   name: course.displayname,
                 }}
                 icon={Icon.Link}
@@ -185,6 +248,14 @@ function renderScopeItems(
               />
             </ActionPanel.Section>
             <HiddenItemActionsSection item={scope} />
+            <ActionPanel.Section>
+              <Action.CopyToClipboard
+                title="Copy Site Info"
+                content={JSON.stringify(siteInfo, null, 2)}
+                icon={Icon.Clipboard}
+                shortcut={shortcut("i", ["shift"])}
+              />
+            </ActionPanel.Section>
           </ActionPanel>
         }
       />

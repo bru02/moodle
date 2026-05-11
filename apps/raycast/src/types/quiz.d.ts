@@ -1,4 +1,9 @@
-import { CoreCourseModuleStandardElements, CoreTextFormat, CoreWSExternalFile, CoreWSExternalWarning } from ".";
+import {
+  CoreCourseModuleStandardElements,
+  CoreTextFormat,
+  CoreWSExternalFile,
+  CoreWSExternalWarning,
+} from ".";
 
 /**
  * Params of mod_quiz_get_quizzes_by_courses WS.
@@ -69,7 +74,8 @@ export const AddonModQuizNavMethods = {
   SEQ: "sequential",
 } as const;
 
-export type AddonModQuizNavMethods = (typeof AddonModQuizNavMethods)[keyof typeof AddonModQuizNavMethods];
+export type AddonModQuizNavMethods =
+  (typeof AddonModQuizNavMethods)[keyof typeof AddonModQuizNavMethods];
 
 /**
  * Params of mod_quiz_get_quiz_access_information WS.
@@ -100,7 +106,12 @@ export type AddonModQuizStartAttemptWSParams = {
   quizid: number; // Quiz instance id.
   preflightdata?: AddonModQuizPreflightDataWSParam[]; // Preflight required data (like passwords).
   forcenew?: boolean; // Whether to force a new attempt or not.
-} & Partial<Record<`preflightdata[${number}][name]` | `preflightdata[${number}][value]`, string>>;
+} & Partial<
+  Record<
+    `preflightdata[${number}][name]` | `preflightdata[${number}][value]`,
+    string
+  >
+>;
 
 /**
  * Data returned by mod_quiz_start_attempt WS.

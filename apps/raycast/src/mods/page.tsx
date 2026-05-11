@@ -10,7 +10,9 @@ import DefaultListItem from "./default";
 
 export function ViewPage({ module }: { module: Module }) {
   const { activeCourse } = useContext(CourseContext);
-  const pageContent = module.contents?.find((content) => content.filename === "index.html") ?? module.contents?.[0];
+  const pageContent =
+    module.contents?.find((content) => content.filename === "index.html") ??
+    module.contents?.[0];
   const { data: content, isLoading } = useRemoteHTMLResource(
     pageContent?.fileurl || "",
     module.contents,

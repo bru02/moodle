@@ -2,8 +2,8 @@
 import domino from "@mixmark-io/domino";
 import { decode } from "html-entities";
 
-import type { CoreGradesTableRow } from "./grade-types";
 import { cleanGradeField, normalizeGradeText } from "./grade-text";
+import type { CoreGradesTableRow } from "./grade-types";
 
 type GradeRowKind = "category" | "item";
 
@@ -35,7 +35,9 @@ export function parseGradeRow(
   if (!row.itemname?.content) return undefined;
 
   const itemClass = row.itemname.class || "";
-  const kind: GradeRowKind = /\bcategory\b/.test(itemClass) ? "category" : "item";
+  const kind: GradeRowKind = /\bcategory\b/.test(itemClass)
+    ? "category"
+    : "item";
   const label = extractGradeRowLabel(row.itemname.content, kind);
   if (!label) return undefined;
 
@@ -50,11 +52,16 @@ export function parseGradeRow(
   };
 }
 
-export function extractGradeRowLabel(itemNameHtml: string, kind?: GradeRowKind) {
+export function extractGradeRowLabel(
+  itemNameHtml: string,
+  kind?: GradeRowKind,
+) {
   const doc = domino.createDocument(itemNameHtml);
 
   if (kind === "category") {
-    const direct = doc.querySelector(".category-content > span:last-child")?.textContent;
+    const direct = doc.querySelector(
+      ".category-content > span:last-child",
+    )?.textContent;
     const text = normalizeGradeRowText(direct);
     if (text) return text;
   }
@@ -88,10 +95,7 @@ export function normalizeGradeRowText(value: string | null | undefined) {
 }
 
 export function normalizeGradeAccessoryValue(value: string | undefined) {
-  return normalizeGradeText(value)
-    .split("\n")
-    .shift()
-    ?.trim() ?? "";
+  return normalizeGradeText(value).split("\n").shift()?.trim() ?? "";
 }
 
 function parseLevel(itemClass: string) {

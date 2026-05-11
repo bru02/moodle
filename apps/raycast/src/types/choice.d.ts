@@ -45,7 +45,8 @@ export const AddonModChoiceShowResults = {
   SHOWRESULTS_ALWAYS: 3,
 } as const;
 
-export type AddonModChoiceShowResults = (typeof AddonModChoiceShowResults)[keyof typeof AddonModChoiceShowResults];
+export type AddonModChoiceShowResults =
+  (typeof AddonModChoiceShowResults)[keyof typeof AddonModChoiceShowResults];
 
 /**
  * Params of mod_choice_get_choice_options WS.

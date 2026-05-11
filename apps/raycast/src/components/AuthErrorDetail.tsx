@@ -1,5 +1,11 @@
 import { AuthError, isAuthError } from "@moodle/core";
-import { Action, ActionPanel, Detail, Icon, openExtensionPreferences } from "@raycast/api";
+import {
+  Action,
+  ActionPanel,
+  Detail,
+  Icon,
+  openExtensionPreferences,
+} from "@raycast/api";
 
 import { isQrAuth } from "../helpers/preferences";
 
@@ -19,7 +25,10 @@ function formatDetails(error: AuthError) {
   return details.length > 0 ? `\n## Details\n${details.join("\n")}` : "";
 }
 
-export default function AuthErrorDetail({ error, onRetry }: AuthErrorDetailProps) {
+export default function AuthErrorDetail({
+  error,
+  onRetry,
+}: AuthErrorDetailProps) {
   const isAuth = isAuthError(error);
   const message = error instanceof Error ? error.message : "Unexpected error";
   const title = isAuth ? "Authentication Error" : "Request Failed";
@@ -36,7 +45,10 @@ export default function AuthErrorDetail({ error, onRetry }: AuthErrorDetailProps
           "- Re-enter your password if it has changed.",
           "- Retry after updating preferences.",
         ]
-    : ["- Retry the request.", "- Check your network connection and Moodle availability."];
+    : [
+        "- Retry the request.",
+        "- Check your network connection and Moodle availability.",
+      ];
 
   const markdown = `# ${title}\n\n${message}\n\n## Try this\n${troubleshooting.join("\n")}${
     isAuth ? formatDetails(error) : ""
@@ -47,8 +59,16 @@ export default function AuthErrorDetail({ error, onRetry }: AuthErrorDetailProps
       markdown={markdown}
       actions={
         <ActionPanel>
-          <Action title="Open Extension Preferences" icon={Icon.Gear} onAction={openExtensionPreferences} />
-          <Action title="Retry" icon={Icon.ArrowClockwise} onAction={() => onRetry?.()} />
+          <Action
+            title="Open Extension Preferences"
+            icon={Icon.Gear}
+            onAction={openExtensionPreferences}
+          />
+          <Action
+            title="Retry"
+            icon={Icon.ArrowClockwise}
+            onAction={() => onRetry?.()}
+          />
         </ActionPanel>
       }
     />

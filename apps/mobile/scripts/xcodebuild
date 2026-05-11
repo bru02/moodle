@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly XCODEBUILD=/usr/bin/xcodebuild
+
+should_skip_validation=false
+has_macro_flag=false
+has_plugin_flag=false
+should_patch_swift_java_manifest=false
+has_resolve_action=false
+
+for arg in "$@"; do
+  case "$arg" in
+    -version|-showsdks|-help|-usage|-license|-checkFirstLaunchStatus)
+      exec "$XCODEBUILD" "$@"
+      ;;
+    -skipMacroValidation)
+      has_macro_flag=true
+      ;;
+    -skipPackagePluginValidation)
+      has_plugin_flag=true
+      ;;
+    -resolvePackageDependencies)
+      has_resolve_action=true
+      should_skip_validation=true
+      ;;
+    -workspace|-project|-target|-scheme|-resolvePackageDependencies|build|archive|test|clean)
+      should_skip_validation=true
+      ;;
+  esac
+done
+
+args=()
+if [[ "$should_skip_validation" == true ]]; then
+  if [[ "$has_macro_flag" == false ]]; then
+    args+=("-skipMacroValidation")
+  fi
+  if [[ "$has_plugin_flag" == false ]]; then
+    args+=("-skipPackagePluginValidation")
+  fi
+fi
+
+for arg in "$@"; do
+  case "$arg" in
+    -workspace|-project|build|archive|test)
+      should_patch_swift_java_manifest=true
+      ;;
+  esac
+done
+
+if [[ "$has_resolve_action" == true ]]; then
+  should_patch_swift_java_manifest=false
+fi
+
+patch_swift_java_manifest() {
+  local file
+
+  while IFS= read -r file; do
+    ruby -e '
+      path = ARGV.fetch(0)
+      source = File.read(path)
+      exit if source.include?(".iOS(.v18)")
+      old = "  platforms: [\n    .macOS(.v13)\n  ],"
+      new = "  platforms: [\n    .iOS(.v18),\n    .macOS(.v13)\n  ],"
+      raise "swift-java Package.swift shape changed; cannot patch #{path}" unless source.include?(old)
+      File.chmod(0o644, path)
+      File.write(path, source.sub(old, new))
+    ' "$file"
+  done < <(
+    find "$HOME/Library/Developer/Xcode/DerivedData" \
+      -path '*/SourcePackages/checkouts/swift-java/Package.swift' \
+      -type f 2>/dev/null
+  )
+}
+
+if [[ "$should_patch_swift_java_manifest" == true ]]; then
+  "$XCODEBUILD" "${args[@]}" "$@" -resolvePackageDependencies >/dev/null
+  patch_swift_java_manifest
+fi
+
+exec "$XCODEBUILD" "${args[@]}" "$@"

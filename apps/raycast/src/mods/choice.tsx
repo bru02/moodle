@@ -1,4 +1,14 @@
-import { Action, ActionPanel, Color, Form, Icon, List, Toast, showToast, useNavigation } from "@raycast/api";
+import {
+  Action,
+  ActionPanel,
+  Color,
+  Form,
+  Icon,
+  List,
+  Toast,
+  showToast,
+  useNavigation,
+} from "@raycast/api";
 import { memo, useContext, useMemo, useState } from "react";
 
 import CompletionAction from "../components/CompletionAction";
@@ -11,20 +21,31 @@ import { formatRelativeTime } from "../helpers/format";
 import { turndown } from "../helpers/markdown";
 import { queryClient, requestWS, useWSQuery } from "../hooks/useWSQuery";
 import { Module } from "../types";
-import type { AddonModChoiceChoice, AddonModChoiceOption } from "../types/choice";
+import type {
+  AddonModChoiceChoice,
+  AddonModChoiceOption,
+} from "../types/choice";
 import DefaultListItem from "./default";
 
 function ChoiceListItem({ module }: { module: Module }) {
   const ctx = useContext(CourseContext);
   const { scope, activeCourse } = ctx;
-  const { data: choicesData, isPending: isChoicePending } = useWSQuery("mod_choice_get_choices_by_courses", {
-    courseids: scope.courseIds,
-  });
-  const { data: optionsData, isPending: isOptionsPending } = useWSQuery("mod_choice_get_choice_options", {
-    choiceid: module.instance,
-  });
+  const { data: choicesData, isPending: isChoicePending } = useWSQuery(
+    "mod_choice_get_choices_by_courses",
+    {
+      courseids: scope.courseIds,
+    },
+  );
+  const { data: optionsData, isPending: isOptionsPending } = useWSQuery(
+    "mod_choice_get_choice_options",
+    {
+      choiceid: module.instance,
+    },
+  );
 
-  const choice = choicesData?.choices.find((item) => item.id === module.instance || item.coursemodule === module.id);
+  const choice = choicesData?.choices.find(
+    (item) => item.id === module.instance || item.coursemodule === module.id,
+  );
   if (!choice) {
     return <DefaultListItem module={module} />;
   }
@@ -34,7 +55,9 @@ function ChoiceListItem({ module }: { module: Module }) {
   const hasAnswered = checkedOptions.length > 0;
   const canSubmit = canSubmitChoiceResponse(choice, hasAnswered);
   const canClear = canClearChoiceResponse(choice, hasAnswered);
-  const editableOptions = options.filter((option) => !option.disabled || option.checked);
+  const editableOptions = options.filter(
+    (option) => !option.disabled || option.checked,
+  );
 
   return (
     <DefaultListItem
@@ -71,7 +94,10 @@ function ChoiceListItem({ module }: { module: Module }) {
               icon={Icon.Trash}
               style={Action.Style.Destructive}
               onAction={async () => {
-                const toast = await showToast({ style: Toast.Style.Animated, title: "Clearing response" });
+                const toast = await showToast({
+                  style: Toast.Style.Animated,
+                  title: "Clearing response",
+                });
                 try {
                   await deleteChoiceResponse(choice.id);
                   await invalidateChoiceQueries();
@@ -114,8 +140,11 @@ function ChoiceListItemDetail({
   options: AddonModChoiceOption[];
   isLoading: boolean;
 }) {
-  const selectedLabels = options.filter((option) => option.checked).map(getChoiceOptionLabel);
-  const selectedSummary = selectedLabels.length > 0 ? selectedLabels.join(", ") : "Not answered";
+  const selectedLabels = options
+    .filter((option) => option.checked)
+    .map(getChoiceOptionLabel);
+  const selectedSummary =
+    selectedLabels.length > 0 ? selectedLabels.join(", ") : "Not answered";
   const markdown = choice.intro || module.description || "";
 
   return (
@@ -124,18 +153,33 @@ function ChoiceListItemDetail({
       markdown={turndown(markdown)}
       metadata={
         <List.Item.Detail.Metadata>
-          <List.Item.Detail.Metadata.Label title="Your Response" text={selectedSummary} />
+          <List.Item.Detail.Metadata.Label
+            title="Your Response"
+            text={selectedSummary}
+          />
           <List.Item.Detail.Metadata.Label
             title="Selection Type"
             text={choice.allowmultiple ? "Multiple options" : "Single option"}
           />
-          <List.Item.Detail.Metadata.Label title="Can Update" text={choice.allowupdate ? "Yes" : "No"} />
-          <List.Item.Detail.Metadata.Label title="Status" text={getChoiceStatus(choice)} />
+          <List.Item.Detail.Metadata.Label
+            title="Can Update"
+            text={choice.allowupdate ? "Yes" : "No"}
+          />
+          <List.Item.Detail.Metadata.Label
+            title="Status"
+            text={getChoiceStatus(choice)}
+          />
           {choice.timeopen ? (
-            <List.Item.Detail.Metadata.Label title="Opens" text={formatRelativeTime(choice.timeopen)} />
+            <List.Item.Detail.Metadata.Label
+              title="Opens"
+              text={formatRelativeTime(choice.timeopen)}
+            />
           ) : null}
           {choice.timeclose ? (
-            <List.Item.Detail.Metadata.Label title="Closes" text={formatRelativeTime(choice.timeclose)} />
+            <List.Item.Detail.Metadata.Label
+              title="Closes"
+              text={formatRelativeTime(choice.timeclose)}
+            />
           ) : null}
           <DatesDetail module={module} />
         </List.Item.Detail.Metadata>
@@ -160,20 +204,29 @@ function ChoiceResponseForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const sortedOptions = useMemo(
-    () => [...options].sort((a, b) => getChoiceOptionLabel(a).localeCompare(getChoiceOptionLabel(b))),
+    () =>
+      [...options].sort((a, b) =>
+        getChoiceOptionLabel(a).localeCompare(getChoiceOptionLabel(b)),
+      ),
     [options],
   );
   const initialResponses = useMemo(
-    () => options.filter((option) => option.checked).map((option) => String(option.id)),
+    () =>
+      options
+        .filter((option) => option.checked)
+        .map((option) => String(option.id)),
     [options],
   );
-  const [selectedById, setSelectedById] = useState<Record<number, boolean>>(() =>
-    options.reduce<Record<number, boolean>>((acc, option) => {
-      acc[option.id] = initialResponses.includes(String(option.id));
-      return acc;
-    }, {}),
+  const [selectedById, setSelectedById] = useState<Record<number, boolean>>(
+    () =>
+      options.reduce<Record<number, boolean>>((acc, option) => {
+        acc[option.id] = initialResponses.includes(String(option.id));
+        return acc;
+      }, {}),
   );
-  const [selectedResponse, setSelectedResponse] = useState<string>(initialResponses[0] ?? String(options[0]?.id ?? ""));
+  const [selectedResponse, setSelectedResponse] = useState<string>(
+    initialResponses[0] ?? String(options[0]?.id ?? ""),
+  );
 
   const submitTitle = hasAnswered ? "Update Response" : "Submit Response";
 
@@ -187,11 +240,18 @@ function ChoiceResponseForm({
             title={submitTitle}
             onSubmit={async () => {
               const responses = allowsMultiple
-                ? options.filter((option) => selectedById[option.id]).map((option) => option.id)
-                : [Number(selectedResponse)].filter((response) => Number.isFinite(response));
+                ? options
+                    .filter((option) => selectedById[option.id])
+                    .map((option) => option.id)
+                : [Number(selectedResponse)].filter((response) =>
+                    Number.isFinite(response),
+                  );
 
               if (responses.length === 0) {
-                await showToast({ style: Toast.Style.Failure, title: "Select at least one option" });
+                await showToast({
+                  style: Toast.Style.Failure,
+                  title: "Select at least one option",
+                });
                 return;
               }
 
@@ -202,14 +262,18 @@ function ChoiceResponseForm({
                   invalidateChoiceQueries(),
                   showToast({
                     style: Toast.Style.Success,
-                    title: hasAnswered ? "Response updated" : "Response submitted",
+                    title: hasAnswered
+                      ? "Response updated"
+                      : "Response submitted",
                   }),
                 ]);
                 pop();
               } catch (error) {
                 await showToast({
                   style: Toast.Style.Failure,
-                  title: hasAnswered ? "Failed to update response" : "Failed to submit response",
+                  title: hasAnswered
+                    ? "Failed to update response"
+                    : "Failed to submit response",
                   message: getErrorMessage(error),
                 });
               } finally {
@@ -238,9 +302,18 @@ function ChoiceResponseForm({
           ))}
         </>
       ) : (
-        <Form.Dropdown id="response" title="Option" value={selectedResponse} onChange={setSelectedResponse}>
+        <Form.Dropdown
+          id="response"
+          title="Option"
+          value={selectedResponse}
+          onChange={setSelectedResponse}
+        >
           {sortedOptions.map((option) => (
-            <Form.Dropdown.Item key={option.id} value={String(option.id)} title={getChoiceOptionLabel(option)} />
+            <Form.Dropdown.Item
+              key={option.id}
+              value={String(option.id)}
+              title={getChoiceOptionLabel(option)}
+            />
           ))}
         </Form.Dropdown>
       )}
@@ -248,8 +321,17 @@ function ChoiceResponseForm({
   );
 }
 
-function ChoiceOptionsList({ module, options }: { module: Module; options: AddonModChoiceOption[] }) {
-  const sortedOptions = useMemo(() => [...options].sort((a, b) => b.countanswers - a.countanswers), [options]);
+function ChoiceOptionsList({
+  module,
+  options,
+}: {
+  module: Module;
+  options: AddonModChoiceOption[];
+}) {
+  const sortedOptions = useMemo(
+    () => [...options].sort((a, b) => b.countanswers - a.countanswers),
+    [options],
+  );
   return (
     <List navigationTitle={`${module.name} Options`} isShowingDetail={true}>
       {sortedOptions.map((option) => (
@@ -263,7 +345,10 @@ function ChoiceOptionsList({ module, options }: { module: Module; options: Addon
               markdown={turndown(option.text)}
               metadata={
                 <List.Item.Detail.Metadata>
-                  <List.Item.Detail.Metadata.Label title="Responses" text={String(option.countanswers)} />
+                  <List.Item.Detail.Metadata.Label
+                    title="Responses"
+                    text={String(option.countanswers)}
+                  />
                   {option.maxanswers > 0 && (
                     <List.Item.Detail.Metadata.Label
                       title="Capacity"
@@ -278,7 +363,11 @@ function ChoiceOptionsList({ module, options }: { module: Module; options: Addon
               }
             />
           }
-          actions={<ActionPanel>{module.url && <OpenInBrowserAction url={module.url} />}</ActionPanel>}
+          actions={
+            <ActionPanel>
+              {module.url && <OpenInBrowserAction url={module.url} />}
+            </ActionPanel>
+          }
         />
       ))}
     </List>
@@ -295,7 +384,10 @@ function getChoiceAccessories(
         text:
           selectedOptions.length === 1
             ? { value: "Answered", color: Color.Green }
-            : { value: `${selectedOptions.length} selected`, color: Color.Green },
+            : {
+                value: `${selectedOptions.length} selected`,
+                color: Color.Green,
+              },
       },
     ];
   }
@@ -311,8 +403,12 @@ function getChoiceAccessories(
   return [{ text: { value: "Open", color: Color.Blue } }];
 }
 
-function getChoiceOptionAccessories(option: AddonModChoiceOption): List.Item.Accessory[] {
-  const accessories: List.Item.Accessory[] = [{ text: String(option.countanswers) }];
+function getChoiceOptionAccessories(
+  option: AddonModChoiceOption,
+): List.Item.Accessory[] {
+  const accessories: List.Item.Accessory[] = [
+    { text: String(option.countanswers) },
+  ];
 
   if (option.maxanswers > 0) {
     accessories.push({ text: `${option.countanswers}/${option.maxanswers}` });
@@ -339,15 +435,24 @@ function getChoiceStatus(choice: AddonModChoiceChoice) {
   return { value: "Open", color: Color.Green };
 }
 
-function hasChoiceOpened(choice: AddonModChoiceChoice, timestamp = Math.floor(Date.now() / 1000)) {
+function hasChoiceOpened(
+  choice: AddonModChoiceChoice,
+  timestamp = Math.floor(Date.now() / 1000),
+) {
   return !choice.timeopen || timestamp >= choice.timeopen;
 }
 
-function hasChoiceClosed(choice: AddonModChoiceChoice, timestamp = Math.floor(Date.now() / 1000)) {
+function hasChoiceClosed(
+  choice: AddonModChoiceChoice,
+  timestamp = Math.floor(Date.now() / 1000),
+) {
   return Boolean(choice.timeclose && timestamp > choice.timeclose);
 }
 
-function canSubmitChoiceResponse(choice: AddonModChoiceChoice, hasAnswered: boolean) {
+function canSubmitChoiceResponse(
+  choice: AddonModChoiceChoice,
+  hasAnswered: boolean,
+) {
   if (!hasChoiceOpened(choice) || hasChoiceClosed(choice)) {
     return false;
   }
@@ -357,7 +462,10 @@ function canSubmitChoiceResponse(choice: AddonModChoiceChoice, hasAnswered: bool
   return true;
 }
 
-function canClearChoiceResponse(choice: AddonModChoiceChoice, hasAnswered: boolean) {
+function canClearChoiceResponse(
+  choice: AddonModChoiceChoice,
+  hasAnswered: boolean,
+) {
   if (!hasAnswered) {
     return false;
   }
@@ -376,21 +484,35 @@ function getChoiceOptionLabel(option: AddonModChoiceOption) {
 }
 
 async function submitChoiceResponse(choiceId: number, responses: number[]) {
-  await requestWS("mod_choice_submit_choice_response", { choiceid: choiceId, responses });
+  await requestWS("mod_choice_submit_choice_response", {
+    choiceid: choiceId,
+    responses,
+  });
 }
 
 async function deleteChoiceResponse(choiceId: number) {
-  const response = await requestWS("mod_choice_delete_choice_responses", { choiceid: choiceId, responses: [] });
+  const response = await requestWS("mod_choice_delete_choice_responses", {
+    choiceid: choiceId,
+    responses: [],
+  });
   if (!response.status) {
-    throw new Error(response.warnings?.[0]?.message || "Failed to clear response");
+    throw new Error(
+      response.warnings?.[0]?.message || "Failed to clear response",
+    );
   }
 }
 
 async function invalidateChoiceQueries() {
   await Promise.all([
-    queryClient.invalidateQueries({ queryKey: ["mod_choice_get_choices_by_courses"] }),
-    queryClient.invalidateQueries({ queryKey: ["mod_choice_get_choice_options"] }),
-    queryClient.invalidateQueries({ queryKey: ["mod_choice_get_choice_results"] }),
+    queryClient.invalidateQueries({
+      queryKey: ["mod_choice_get_choices_by_courses"],
+    }),
+    queryClient.invalidateQueries({
+      queryKey: ["mod_choice_get_choice_options"],
+    }),
+    queryClient.invalidateQueries({
+      queryKey: ["mod_choice_get_choice_results"],
+    }),
     queryClient.invalidateQueries({ queryKey: ["core_course_get_contents"] }),
   ]);
 }

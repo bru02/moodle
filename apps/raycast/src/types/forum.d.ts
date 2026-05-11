@@ -1,4 +1,10 @@
-import { CoreRatingInfo, CoreTextFormat, CoreWSExternalFile, CoreWSExternalWarning, CoreWSStoredFile } from ".";
+import {
+  CoreRatingInfo,
+  CoreTextFormat,
+  CoreWSExternalFile,
+  CoreWSExternalWarning,
+  CoreWSStoredFile,
+} from ".";
 
 /**
  * Params of mod_forum_get_forums_by_courses WS.
@@ -227,4 +233,5 @@ export const AddonModForumType = {
   BLOG: "blog",
 } as const;
 
-export type AddonModForumType = (typeof AddonModForumType)[keyof typeof AddonModForumType];
+export type AddonModForumType =
+  (typeof AddonModForumType)[keyof typeof AddonModForumType];

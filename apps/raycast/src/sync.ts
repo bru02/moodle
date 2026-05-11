@@ -8,7 +8,13 @@ import { resourceLimits as workerResourceLimits } from "worker_threads";
 import { useEffect, useRef } from "react";
 
 import { useUser } from "./client";
-import { canConvert, checkFileSize, convertToPdf, handleFileUrl, pdfify } from "./helpers/files";
+import {
+  canConvert,
+  checkFileSize,
+  convertToPdf,
+  handleFileUrl,
+  pdfify,
+} from "./helpers/files";
 import { preferences } from "./helpers/preferences";
 import { useFileSyncExceptionsStore, useFileSyncProgressStore } from "./store";
 import type { CoreWSExternalFile } from "./types";
@@ -24,9 +30,15 @@ const CRITICAL_DOWN_RATIO = 0.9;
 const CRITICAL_UP_RATIO = 0.75;
 const MEMORY_LOG_INTERVAL_MS = 5_000;
 
-export function useSync(files: readonly (readonly [string, CoreWSExternalFile])[]) {
-  const setDownloadProgress = useFileSyncProgressStore((state) => state.setDownloadProgress);
-  const setConvertProgress = useFileSyncProgressStore((state) => state.setConvertProgress);
+export function useSync(
+  files: readonly (readonly [string, CoreWSExternalFile])[],
+) {
+  const setDownloadProgress = useFileSyncProgressStore(
+    (state) => state.setDownloadProgress,
+  );
+  const setConvertProgress = useFileSyncProgressStore(
+    (state) => state.setConvertProgress,
+  );
   const exceptions = useFileSyncExceptionsStore((state) => state.exceptions);
   const dirIndexRef = useRef(new Map<string, DirIndexEntry>());
 
@@ -47,7 +59,9 @@ export function useSync(files: readonly (readonly [string, CoreWSExternalFile])[
         await ensureDirIndex(dirs, dirIndexRef.current, ctrl);
         throwIfAborted(ctrl.signal);
 
-        const syncQueue = files.filter(([path, file]) => !shouldSkipSync(path, file, exceptions));
+        const syncQueue = files.filter(
+          ([path, file]) => !shouldSkipSync(path, file, exceptions),
+        );
 
         await runSyncQueue(syncQueue, {
           ctrl,
@@ -125,11 +139,17 @@ type IdleHandle =
 
 function scheduleIdle(cb: () => void, timeoutMs = 250): IdleHandle {
   const idleApi = globalThis as typeof globalThis & {
-    requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+    requestIdleCallback?: (
+      callback: () => void,
+      options?: { timeout: number },
+    ) => number;
   };
 
   if (typeof idleApi.requestIdleCallback === "function") {
-    return { mode: "ric", id: idleApi.requestIdleCallback(cb, { timeout: timeoutMs }) };
+    return {
+      mode: "ric",
+      id: idleApi.requestIdleCallback(cb, { timeout: timeoutMs }),
+    };
   }
 
   return { mode: "timeout", id: setTimeout(cb, 50) };
@@ -140,7 +160,10 @@ function cancelIdle(handle: IdleHandle) {
     cancelIdleCallback?: (id: number) => void;
   };
 
-  if (handle.mode === "ric" && typeof idleApi.cancelIdleCallback === "function") {
+  if (
+    handle.mode === "ric" &&
+    typeof idleApi.cancelIdleCallback === "function"
+  ) {
     idleApi.cancelIdleCallback(handle.id);
     return;
   }
@@ -167,7 +190,11 @@ function getIndexedStat(index: Map<string, DirIndexEntry>, target: string) {
   return entry.entries.get(target) ?? null;
 }
 
-async function ensureDirIndex(dirs: string[], index: Map<string, DirIndexEntry>, ctrl: AbortController) {
+async function ensureDirIndex(
+  dirs: string[],
+  index: Map<string, DirIndexEntry>,
+  ctrl: AbortController,
+) {
   for (const dir of dirs) {
     throwIfAborted(ctrl.signal);
     const existing = index.get(dir);
@@ -204,7 +231,11 @@ async function scanDir(dir: string, ctrl: AbortController) {
   return entries;
 }
 
-function shouldSkipSync(path: string, file: CoreWSExternalFile, exceptions: readonly string[]) {
+function shouldSkipSync(
+  path: string,
+  file: CoreWSExternalFile,
+  exceptions: readonly string[],
+) {
   const filesize = file.filesize ?? 0;
 
   if (checkFileSize(filesize) && !exceptions.includes(path)) return true;
@@ -221,13 +252,20 @@ function toMb(bytes: number) {
   return bytes / MB;
 }
 
-function resolveConcurrencyTarget(current: number, heapUsedMb: number, heapLimitMb: number) {
+function resolveConcurrencyTarget(
+  current: number,
+  heapUsedMb: number,
+  heapLimitMb: number,
+) {
   const highDown = heapLimitMb * HIGH_WATER_DOWN_RATIO;
   const highUp = heapLimitMb * HIGH_WATER_UP_RATIO;
   const criticalDown = heapLimitMb * CRITICAL_DOWN_RATIO;
   const criticalUp = heapLimitMb * CRITICAL_UP_RATIO;
 
-  const nextCurrent = Math.min(MAX_SYNC_CONCURRENCY, Math.max(MIN_SYNC_CONCURRENCY, current));
+  const nextCurrent = Math.min(
+    MAX_SYNC_CONCURRENCY,
+    Math.max(MIN_SYNC_CONCURRENCY, current),
+  );
 
   if (nextCurrent === MAX_SYNC_CONCURRENCY) {
     if (heapUsedMb >= criticalDown) {
@@ -258,7 +296,12 @@ function resolveConcurrencyTarget(current: number, heapUsedMb: number, heapLimit
 
 async function runSyncQueue(
   queue: readonly (readonly [string, CoreWSExternalFile])[],
-  { ctrl, setDownloadProgress, setConvertProgress, dirIndex }: Omit<SyncFileArgs, "path" | "file">,
+  {
+    ctrl,
+    setDownloadProgress,
+    setConvertProgress,
+    dirIndex,
+  }: Omit<SyncFileArgs, "path" | "file">,
 ) {
   const heapLimitMb = getHeapLimitMb();
   const inFlight = new Set<Promise<void>>();
@@ -283,7 +326,10 @@ async function runSyncQueue(
         });
       } catch (err) {
         if (!ctrl.signal.aborted) {
-          console.error("sync: failed while processing file", { path, error: err });
+          console.error("sync: failed while processing file", {
+            path,
+            error: err,
+          });
         }
       }
     })();
@@ -299,7 +345,11 @@ async function runSyncQueue(
     const now = Date.now();
     const mem = process.memoryUsage();
     const heapUsedMb = toMb(mem.heapUsed);
-    const decision = resolveConcurrencyTarget(targetConcurrency, heapUsedMb, heapLimitMb);
+    const decision = resolveConcurrencyTarget(
+      targetConcurrency,
+      heapUsedMb,
+      heapLimitMb,
+    );
 
     if (decision.target !== targetConcurrency) {
       targetConcurrency = decision.target;
@@ -308,7 +358,11 @@ async function runSyncQueue(
       lastMemoryLogAt = now;
     }
 
-    while (!ctrl.signal.aborted && index < queue.length && inFlight.size < targetConcurrency) {
+    while (
+      !ctrl.signal.aborted &&
+      index < queue.length &&
+      inFlight.size < targetConcurrency
+    ) {
       launch();
     }
 
@@ -319,7 +373,14 @@ async function runSyncQueue(
   await Promise.allSettled([...inFlight]);
 }
 
-async function syncFile({ ctrl, path, file, setDownloadProgress, setConvertProgress, dirIndex }: SyncFileArgs) {
+async function syncFile({
+  ctrl,
+  path,
+  file,
+  setDownloadProgress,
+  setConvertProgress,
+  dirIndex,
+}: SyncFileArgs) {
   throwIfAborted(ctrl.signal);
   const { fileurl, mimetype } = file;
   const filesize = file.filesize ?? 0;
@@ -331,7 +392,9 @@ async function syncFile({ ctrl, path, file, setDownloadProgress, setConvertProgr
   const pdfPath = convertible ? pdfify(path) : "";
 
   const needsFile = await shouldDownload(path, effectiveTimemodified, dirIndex);
-  const needsPdf = convertible ? await shouldGeneratePdf(pdfPath, effectiveTimemodified, dirIndex) : false;
+  const needsPdf = convertible
+    ? await shouldGeneratePdf(pdfPath, effectiveTimemodified, dirIndex)
+    : false;
   throwIfAborted(ctrl.signal);
 
   setDownloadProgress(fileId, needsFile ? 0 : 100);
@@ -346,7 +409,13 @@ async function syncFile({ ctrl, path, file, setDownloadProgress, setConvertProgr
 
   const pdfContext: PdfContext | undefined =
     needsPdf && mimetype
-      ? { fileId, mimetype, pdfPath, timemodified: effectiveTimemodified, setConvertProgress }
+      ? {
+          fileId,
+          mimetype,
+          pdfPath,
+          timemodified: effectiveTimemodified,
+          setConvertProgress,
+        }
       : undefined;
 
   if (!needsFile && pdfContext) {
@@ -399,18 +468,34 @@ async function preparePartFile(path: string, filesize: number) {
   return { partPath, partSize };
 }
 
-async function downloadWithResume(ctx: DownloadContext, mode: "resume" | "retry" = "resume"): Promise<boolean> {
-  const { ctrl, url, partPath, partSize, filesize, fileId, setDownloadProgress } = ctx;
+async function downloadWithResume(
+  ctx: DownloadContext,
+  mode: "resume" | "retry" = "resume",
+): Promise<boolean> {
+  const {
+    ctrl,
+    url,
+    partPath,
+    partSize,
+    filesize,
+    fileId,
+    setDownloadProgress,
+  } = ctx;
 
   throwIfAborted(ctrl.signal);
   const wantsResume = mode === "resume" && partSize > 0;
   let append = wantsResume;
   let downloadedOffset = wantsResume ? partSize : 0;
 
-  const rangeHeaders = wantsResume ? { Range: `bytes=${partSize}-` } : undefined;
+  const rangeHeaders = wantsResume
+    ? { Range: `bytes=${partSize}-` }
+    : undefined;
+
+  // Raycast's fetch types use a different AbortSignal than Node's
+  const signal = ctrl.signal as never;
 
   let response = await fetch(url, {
-    signal: ctrl.signal,
+    signal,
     headers: rangeHeaders,
   });
 
@@ -418,7 +503,7 @@ async function downloadWithResume(ctx: DownloadContext, mode: "resume" | "retry"
     await safeUnlink(partPath);
     append = false;
     downloadedOffset = 0;
-    response = await fetch(url, { signal: ctrl.signal });
+    response = await fetch(url, { signal });
   } else if (wantsResume && response.status === 206) {
     const contentRange = response.headers.get("Content-Range");
     const rangeStart = contentRange?.split(" ")[1]?.split("-")[0];
@@ -426,7 +511,7 @@ async function downloadWithResume(ctx: DownloadContext, mode: "resume" | "retry"
       await safeUnlink(partPath);
       append = false;
       downloadedOffset = 0;
-      response = await fetch(url, { signal: ctrl.signal });
+      response = await fetch(url, { signal });
     }
   }
 
@@ -441,26 +526,42 @@ async function downloadWithResume(ctx: DownloadContext, mode: "resume" | "retry"
     return false;
   }
 
-  await streamToFile(response, partPath, (pct) => setDownloadProgress(fileId, pct), undefined, {
-    append,
-    downloadedOffset,
-    totalSize: filesize || undefined,
-    signal: ctrl.signal,
-  });
+  await streamToFile(
+    response,
+    partPath,
+    (pct) => setDownloadProgress(fileId, pct),
+    undefined,
+    {
+      append,
+      downloadedOffset,
+      totalSize: filesize || undefined,
+      signal: ctrl.signal,
+    },
+  );
 
   const label = mode === "resume" ? "RESUME" : "RETRY";
   return validateAndFinalize(ctx, label, mode === "resume");
 }
 
-async function convertFromDisk(pdf: PdfContext, sourcePath: string, signal: AbortSignal) {
+async function convertFromDisk(
+  pdf: PdfContext,
+  sourcePath: string,
+  signal: AbortSignal,
+) {
   throwIfAborted(signal);
   await convertAndStorePdf(pdf, createReadStream(sourcePath), signal);
 }
 
-async function convertAndStorePdf(pdf: PdfContext, body: ReadableStream | NodeJS.ReadableStream, signal: AbortSignal) {
+async function convertAndStorePdf(
+  pdf: PdfContext,
+  body: ReadableStream | NodeJS.ReadableStream,
+  signal: AbortSignal,
+) {
   throwIfAborted(signal);
   if (isDestroyableReadable(body)) {
-    signal.addEventListener("abort", () => body.destroy(signal.reason), { once: true });
+    signal.addEventListener("abort", () => body.destroy(signal.reason), {
+      once: true,
+    });
   }
   // @ts-expect-error we validated the mimetype via canConvert
   const response = await convertToPdf(pdf.mimetype, body, signal);
@@ -473,7 +574,13 @@ async function convertAndStorePdf(pdf: PdfContext, body: ReadableStream | NodeJS
     return false;
   }
 
-  await streamToFile(response, pdf.pdfPath, (pct) => pdf.setConvertProgress(pdf.fileId, pct), undefined, { signal });
+  await streamToFile(
+    response,
+    pdf.pdfPath,
+    (pct) => pdf.setConvertProgress(pdf.fileId, pct),
+    undefined,
+    { signal },
+  );
   const ok = await validatePositiveSize(pdf.pdfPath);
   if (!ok) {
     await safeUnlink(pdf.pdfPath);
@@ -487,7 +594,12 @@ async function convertAndStorePdf(pdf: PdfContext, body: ReadableStream | NodeJS
 function isDestroyableReadable(
   body: ReadableStream | NodeJS.ReadableStream,
 ): body is NodeJS.ReadableStream & { destroy(error?: unknown): void } {
-  return typeof body === "object" && body != null && "destroy" in body && typeof body.destroy === "function";
+  return (
+    typeof body === "object" &&
+    body != null &&
+    "destroy" in body &&
+    typeof body.destroy === "function"
+  );
 }
 
 async function finalizeDownload(ctx: DownloadContext) {
@@ -504,17 +616,31 @@ async function finalizeCompletePart(ctx: DownloadContext) {
   return false;
 }
 
-async function validateAndFinalize(ctx: DownloadContext, label: string, allowRetry = true): Promise<boolean> {
+async function validateAndFinalize(
+  ctx: DownloadContext,
+  label: string,
+  allowRetry = true,
+): Promise<boolean> {
   if (ctx.filesize > 0) {
     const ok = await validateSizeEquals(ctx.partPath, ctx.filesize);
     if (!ok) {
-      const meta = { path: ctx.path, expected: ctx.filesize, fileId: ctx.fileId };
+      const meta = {
+        path: ctx.path,
+        expected: ctx.filesize,
+        fileId: ctx.fileId,
+      };
       if (!allowRetry) {
-        console.error("sync: integrity check failed after download", { ...meta, stage: label });
+        console.error("sync: integrity check failed after download", {
+          ...meta,
+          stage: label,
+        });
         await safeUnlink(ctx.partPath);
         return false;
       }
-      console.warn("sync: size mismatch detected, retrying download", { ...meta, stage: label });
+      console.warn("sync: size mismatch detected, retrying download", {
+        ...meta,
+        stage: label,
+      });
       await safeUnlink(ctx.partPath);
       return downloadWithResume({ ...ctx, partSize: 0 }, "retry");
     }
@@ -529,7 +655,12 @@ async function streamToFile(
   path: string,
   onProgress: (pct: number) => unknown,
   stream?: ReadableStream,
-  opts?: { append?: boolean; downloadedOffset?: number; totalSize?: number; signal?: AbortSignal },
+  opts?: {
+    append?: boolean;
+    downloadedOffset?: number;
+    totalSize?: number;
+    signal?: AbortSignal;
+  },
 ) {
   const downloadedOffset = opts?.downloadedOffset ?? 0;
   let downloadedSize = downloadedOffset;
@@ -593,7 +724,11 @@ async function streamToFile(
   }
 }
 
-async function shouldDownload(target: string, timemodified: number, index?: Map<string, DirIndexEntry>) {
+async function shouldDownload(
+  target: string,
+  timemodified: number,
+  index?: Map<string, DirIndexEntry>,
+) {
   if (!timemodified) return true;
 
   if (index) {
@@ -615,13 +750,19 @@ async function shouldDownload(target: string, timemodified: number, index?: Map<
   }
 }
 
-async function shouldGeneratePdf(target: string, timemodified: number, index?: Map<string, DirIndexEntry>) {
+async function shouldGeneratePdf(
+  target: string,
+  timemodified: number,
+  index?: Map<string, DirIndexEntry>,
+) {
   if (!timemodified) return true;
 
   if (index) {
     const indexed = getIndexedStat(index, target);
     if (indexed) {
-      const ok = Math.floor(indexed.mtimeMs / 1000) >= timemodified - 1 && indexed.size > 0;
+      const ok =
+        Math.floor(indexed.mtimeMs / 1000) >= timemodified - 1 &&
+        indexed.size > 0;
       return !ok;
     }
     return true;

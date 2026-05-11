@@ -97,7 +97,9 @@
       "reactCompiler": true
     },
     "extra": {
-      "router": {},
+      "router": {
+        "root": "apps/mobile/src/app"
+      },
       "eas": {
         "build": {
           "experimental": {

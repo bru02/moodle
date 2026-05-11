@@ -195,7 +195,7 @@ export async function fetchTaskSections(input: {
         moduleRouteByModuleId.set(module.module.id, {
           pathname: "/tasks/content/[courseId]/[contentId]",
           params: { courseId: scope.id, contentId: module.id },
-        });
+        } as unknown as Href);
       }
     }
   }

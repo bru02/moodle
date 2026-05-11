@@ -1,4 +1,4 @@
-import { Stack, router, useLocalSearchParams } from "expo-router";
+import { Stack, router, useLocalSearchParams, type Href } from "expo-router";
 import { useMemo } from "react";
 import { Text } from "react-native";
 
@@ -110,7 +110,7 @@ export default function CourseGradesScreen() {
                               router.push({
                                 pathname: "/courses/[courseId]/content/[contentId]",
                                 params: { courseId: scope.id, contentId: scopedModuleId },
-                              })
+                              } as unknown as Href)
                           : undefined
                       }
                     />

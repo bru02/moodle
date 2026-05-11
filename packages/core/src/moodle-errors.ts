@@ -5,18 +5,24 @@ export type MoodleErrorPayload = {
   message?: string;
 };
 
-export function isMoodleErrorPayload(payload: unknown): payload is MoodleErrorPayload {
+export function isMoodleErrorPayload(
+  payload: unknown,
+): payload is MoodleErrorPayload {
   return Boolean(
     payload &&
     typeof payload === "object" &&
-    ("exception" in payload || "errorcode" in payload || "error" in payload || "message" in payload),
+    ("exception" in payload ||
+      "errorcode" in payload ||
+      "error" in payload ||
+      "message" in payload),
   );
 }
 
 export function getMoodleErrorMessage(payload: unknown): string | undefined {
   if (!payload || typeof payload !== "object") return undefined;
   const record = payload as Record<string, unknown>;
-  const message = typeof record.message === "string" ? record.message.trim() : "";
+  const message =
+    typeof record.message === "string" ? record.message.trim() : "";
   const error = typeof record.error === "string" ? record.error.trim() : "";
   return message || error || undefined;
 }

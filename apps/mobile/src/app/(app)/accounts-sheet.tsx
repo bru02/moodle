@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import { Image } from "expo-image";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -197,7 +197,7 @@ function AccountsSheetContent({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Add account"
-            onPress={() => router.push("/login-sheet")}
+            onPress={() => router.push("/login-sheet" as Href)}
             style={({ pressed }) => ({
               flexDirection: "row",
               alignItems: "center",

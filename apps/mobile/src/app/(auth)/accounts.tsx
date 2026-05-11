@@ -1,4 +1,4 @@
-import { router, Stack } from "expo-router";
+import { router, Stack, type Href } from "expo-router";
 import { Pressable, Text, View } from "react-native";
 
 import { platformColors } from "@/constants/platform-colors";
@@ -48,15 +48,15 @@ export default function AccountsScreen() {
                         activeAccountId,
                         onSelectAccount: async (id) => {
                           await setActiveAccount(id);
-                          router.replace("/courses");
+                          router.replace("/courses" as Href);
                         },
-                        onAddAccount: () => router.push("/login-sheet"),
-                        onManageAccounts: () => router.push("/accounts"),
+                        onAddAccount: () => router.push("/login-sheet" as Href),
+                        onManageAccounts: () => router.push("/accounts" as Href),
                       })
                     }
                     onPress={async () => {
                       await setActiveAccount(account.id);
-                      router.replace("/courses");
+                      router.replace("/courses" as Href);
                     }}
                     style={({ pressed }) => ({
                       flexDirection: "row",
@@ -111,7 +111,7 @@ export default function AccountsScreen() {
                 <View style={{ flex: 1 }}>
                   <PrimaryButton
                     label="Add account"
-                    onPress={() => router.push("/login-sheet")}
+                    onPress={() => router.push("/login-sheet" as Href)}
                   />
                 </View>
                 <View style={{ flex: 1 }}>

@@ -1,5 +1,6 @@
 import { Image } from "expo-image";
 import { Pressable, ScrollView, Text, View, type ColorValue, type PressableProps, type ScrollViewProps, type ViewStyle } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 import { platformColors } from "@/constants/platform-colors";
 
@@ -196,56 +197,75 @@ export function InsetRow({
   first = false,
   last = false,
   style,
+  onPressIn,
+  onPressOut,
   ...props
 }: InsetRowProps) {
   const labelColor = platformColors.label;
   const secondaryColor = platformColors.secondaryLabel;
   const separatorColor = platformColors.separator;
+  const pressed = useSharedValue(0);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 - pressed.get() * 0.04 }],
+    opacity: 1 - pressed.get() * 0.25,
+  }));
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      {...props}
-      style={(state) => [
-        {
-          opacity: state.pressed ? 0.78 : 1,
-          paddingHorizontal: 16,
-          paddingVertical: 14,
-          gap: 10,
-        },
-        !first
-          ? {
-              borderTopWidth: 1,
-              borderTopColor: separatorColor,
-            }
-          : null,
-        !last ? null : undefined,
-        typeof style === "function" ? style(state) : style,
-      ]}
-    >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-        {leading ? <View>{leading}</View> : null}
-        <View style={{ flex: 1, gap: 4 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Text selectable numberOfLines={2} style={{ flex: 1, fontSize: 16, lineHeight: 20, fontWeight: "600", color: labelColor }}>
-              {title}
-            </Text>
-            {detail ? (
-              <Text selectable numberOfLines={1} style={{ fontSize: 15, lineHeight: 19, fontWeight: "600", color: secondaryColor }}>
-                {detail}
+    <Animated.View style={animatedStyle}>
+      <Pressable
+        accessibilityRole="button"
+        unstable_pressDelay={0}
+        hitSlop={4}
+        {...props}
+        onPressIn={(event) => {
+          pressed.set(withTiming(1, { duration: 90 }));
+          onPressIn?.(event);
+        }}
+        onPressOut={(event) => {
+          pressed.set(withTiming(0, { duration: 180 }));
+          onPressOut?.(event);
+        }}
+        style={(state) => [
+          {
+            paddingHorizontal: 16,
+            paddingVertical: 14,
+            gap: 10,
+          },
+          !first
+            ? {
+                borderTopWidth: 1,
+                borderTopColor: separatorColor,
+              }
+            : null,
+          !last ? null : undefined,
+          typeof style === "function" ? style(state) : style,
+        ]}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }} pointerEvents="none">
+          {leading ? <View>{leading}</View> : null}
+          <View style={{ flex: 1, gap: 4 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Text numberOfLines={2} style={{ flex: 1, fontSize: 16, lineHeight: 20, fontWeight: "600", color: labelColor }}>
+                {title}
+              </Text>
+              {detail ? (
+                <Text numberOfLines={1} style={{ fontSize: 15, lineHeight: 19, fontWeight: "600", color: secondaryColor }}>
+                  {detail}
+                </Text>
+              ) : null}
+            </View>
+            {subtitle ? (
+              <Text numberOfLines={2} style={{ fontSize: 13, lineHeight: 18, color: secondaryColor }}>
+                {subtitle}
               </Text>
             ) : null}
           </View>
-          {subtitle ? (
-            <Text selectable numberOfLines={2} style={{ fontSize: 13, lineHeight: 18, color: secondaryColor }}>
-              {subtitle}
-            </Text>
-          ) : null}
+          {accessory}
+          {showChevron ? <Chevron /> : null}
         </View>
-        {accessory}
-        {showChevron ? <Chevron /> : null}
-      </View>
-    </Pressable>
+      </Pressable>
+    </Animated.View>
   );
 }
 

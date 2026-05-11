@@ -16,23 +16,43 @@ import {
 
 type MutationContext = { previousData?: CoreCourseGetContentsWSSection[] };
 
-export default function CompletionAction({ module, course }: { module: Module; course: SimpleCourse }) {
+export default function CompletionAction({
+  module,
+  course,
+}: {
+  module: Module;
+  course: SimpleCourse;
+}) {
   const { token } = useUser();
   const completionData = module.completiondata;
-  const courseQueryKey = ["core_course_get_contents", { courseid: String(course.id) }] as const;
+  const courseQueryKey = [
+    "core_course_get_contents",
+    { courseid: String(course.id) },
+  ] as const;
 
   const mutation = useMutation<void, Error, boolean, MutationContext>(
     {
-      mutationFn: (completed) => updateCompletionStatus(token, module.id, completed),
+      mutationFn: (completed) =>
+        updateCompletionStatus(token, module.id, completed),
       onMutate: async (completed) => {
         await queryClient.cancelQueries({ queryKey: courseQueryKey });
 
-        const previousData = queryClient.getQueryData<CoreCourseGetContentsWSSection[]>(courseQueryKey);
+        const previousData =
+          queryClient.getQueryData<CoreCourseGetContentsWSSection[]>(
+            courseQueryKey,
+          );
         if (completionData && previousData) {
-          const optimisticCompletion = buildOptimisticCompletion(completionData, completed);
+          const optimisticCompletion = buildOptimisticCompletion(
+            completionData,
+            completed,
+          );
           queryClient.setQueryData(
             courseQueryKey,
-            updateSectionCompletion(previousData, module.id, optimisticCompletion),
+            updateSectionCompletion(
+              previousData,
+              module.id,
+              optimisticCompletion,
+            ),
           );
         }
 
@@ -61,7 +81,9 @@ export default function CompletionAction({ module, course }: { module: Module; c
     return null;
   }
 
-  const isComplete = completionData.state !== CoreCourseModuleCompletionStatus.COMPLETION_INCOMPLETE;
+  const isComplete =
+    completionData.state !==
+    CoreCourseModuleCompletionStatus.COMPLETION_INCOMPLETE;
 
   return (
     <Action
@@ -108,20 +130,30 @@ function updateSectionCompletion(
   });
 }
 
-async function updateCompletionStatus(token: string, moduleId: number, completed: boolean) {
+async function updateCompletionStatus(
+  token: string,
+  moduleId: number,
+  completed: boolean,
+) {
   const params: CoreCompletionUpdateActivityCompletionStatusManuallyWSParams = {
     cmid: moduleId,
     completed,
   };
 
-  const response = await fetch(getUrlForService("core_completion_update_activity_completion_status_manually", token), {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      cmid: params.cmid.toString(),
-      completed: params.completed ? "1" : "0",
-    }),
-  });
+  const response = await fetch(
+    getUrlForService(
+      "core_completion_update_activity_completion_status_manually",
+      token,
+    ),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        cmid: params.cmid.toString(),
+        completed: params.completed ? "1" : "0",
+      }).toString(),
+    },
+  );
 
   let payload: unknown;
   try {
@@ -131,14 +163,18 @@ async function updateCompletionStatus(token: string, moduleId: number, completed
   }
 
   if (!response.ok || isMoodleError(payload)) {
-    throw new Error(extractErrorMessage(payload) ?? "Failed to update completion status");
+    throw new Error(
+      extractErrorMessage(payload) ?? "Failed to update completion status",
+    );
   }
 }
 
 type MoodleErrorPayload = { exception?: string; message?: string };
 
 function isMoodleError(payload: unknown): payload is MoodleErrorPayload {
-  return Boolean(payload && typeof payload === "object" && "exception" in payload);
+  return Boolean(
+    payload && typeof payload === "object" && "exception" in payload,
+  );
 }
 
 function extractErrorMessage(payload: unknown) {

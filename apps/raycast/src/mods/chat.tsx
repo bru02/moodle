@@ -9,14 +9,22 @@ import { formatDurationBetween, formatRelativeTime } from "../helpers/format";
 import { turndown } from "../helpers/markdown";
 import { useWSQuery } from "../hooks/useWSQuery";
 import { Module } from "../types";
-import type { AddonModChatChat, AddonModChatSession, AddonModChatWSSessionMessage } from "../types/chat";
+import type {
+  AddonModChatChat,
+  AddonModChatSession,
+  AddonModChatWSSessionMessage,
+} from "../types/chat";
 import DefaultListItem from "./default";
 
 function ChatListItem({ module }: { module: Module }) {
   const ctx = useContext(CourseContext);
   const { scope, activeCourse } = ctx;
-  const { data, isPending } = useWSQuery("mod_chat_get_chats_by_courses", { courseids: scope.courseIds });
-  const currentChat = data?.chats.find((chat) => chat.id === module.instance || chat.coursemodule === module.id);
+  const { data, isPending } = useWSQuery("mod_chat_get_chats_by_courses", {
+    courseids: scope.courseIds,
+  });
+  const currentChat = data?.chats.find(
+    (chat) => chat.id === module.instance || chat.coursemodule === module.id,
+  );
 
   if (!currentChat) {
     return <DefaultListItem module={module} />;
@@ -50,23 +58,47 @@ function ChatListItem({ module }: { module: Module }) {
 
 export default memo(ChatListItem);
 
-function ChatListItemDetail({ chat, isLoading }: { chat: AddonModChatChat; isLoading: boolean }) {
-  return <List.Item.Detail isLoading={isLoading} markdown={turndown(chat.intro || "")} />;
+function ChatListItemDetail({
+  chat,
+  isLoading,
+}: {
+  chat: AddonModChatChat;
+  isLoading: boolean;
+}) {
+  return (
+    <List.Item.Detail
+      isLoading={isLoading}
+      markdown={turndown(chat.intro || "")}
+    />
+  );
 }
 
-function ChatSessionsList({ module, chat }: { module: Module; chat: AddonModChatChat }) {
+function ChatSessionsList({
+  module,
+  chat,
+}: {
+  module: Module;
+  chat: AddonModChatChat;
+}) {
   const { data, isPending } = useWSQuery("mod_chat_get_sessions", {
     chatid: chat.id,
     groupid: 0,
     showall: false,
   });
   const sessions = useMemo(
-    () => [...(data?.sessions ?? [])].sort((a, b) => b.sessionstart - a.sessionstart),
+    () =>
+      [...(data?.sessions ?? [])].sort(
+        (a, b) => b.sessionstart - a.sessionstart,
+      ),
     [data?.sessions],
   );
 
   return (
-    <List navigationTitle={`${module.name} Sessions`} isLoading={isPending} isShowingDetail={true}>
+    <List
+      navigationTitle={`${module.name} Sessions`}
+      isLoading={isPending}
+      isShowingDetail={true}
+    >
       {sessions.map((session, index) => (
         <List.Item
           key={`${session.sessionstart}:${session.sessionend}`}
@@ -79,7 +111,13 @@ function ChatSessionsList({ module, chat }: { module: Module; chat: AddonModChat
               <Action.Push
                 title="View Session Messages"
                 icon={Icon.TextDocument}
-                target={<ChatSessionMessagesList module={module} chat={chat} session={session} />}
+                target={
+                  <ChatSessionMessagesList
+                    module={module}
+                    chat={chat}
+                    session={session}
+                  />
+                }
               />
               <OpenInBrowserAction url={module.url!} />
             </ActionPanel>
@@ -93,22 +131,42 @@ function ChatSessionsList({ module, chat }: { module: Module; chat: AddonModChat
 function ChatSessionDetail({ session }: { session: AddonModChatSession }) {
   const users = session.sessionusers ?? [];
   const duration =
-    session.sessionend > session.sessionstart ? formatDurationBetween(session.sessionstart, session.sessionend) : "";
+    session.sessionend > session.sessionstart
+      ? formatDurationBetween(session.sessionstart, session.sessionend)
+      : "";
 
   return (
     <List.Item.Detail
       metadata={
         <List.Item.Detail.Metadata>
-          <List.Item.Detail.Metadata.Label title="Start" text={formatRelativeTime(session.sessionstart)} />
-          <List.Item.Detail.Metadata.Label title="End" text={formatRelativeTime(session.sessionend)} />
-          {duration ? <List.Item.Detail.Metadata.Label title="Duration" text={duration} /> : null}
-          <List.Item.Detail.Metadata.Label title="Participants" text={String(users.length)} />
-          <List.Item.Detail.Metadata.Label title="Status" text={getSessionStatusLabelProps(session.iscomplete)} />
+          <List.Item.Detail.Metadata.Label
+            title="Start"
+            text={formatRelativeTime(session.sessionstart)}
+          />
+          <List.Item.Detail.Metadata.Label
+            title="End"
+            text={formatRelativeTime(session.sessionend)}
+          />
+          {duration ? (
+            <List.Item.Detail.Metadata.Label title="Duration" text={duration} />
+          ) : null}
+          <List.Item.Detail.Metadata.Label
+            title="Participants"
+            text={String(users.length)}
+          />
+          <List.Item.Detail.Metadata.Label
+            title="Status"
+            text={getSessionStatusLabelProps(session.iscomplete)}
+          />
           {users.slice(0, 8).map((user) => (
             <List.Item.Detail.Metadata.Label
               key={user.userid}
               title={`User #${user.userid}`}
-              text={user.messagecount > 0 ? `${user.messagecount} messages` : "No messages"}
+              text={
+                user.messagecount > 0
+                  ? `${user.messagecount} messages`
+                  : "No messages"
+              }
             />
           ))}
         </List.Item.Detail.Metadata>
@@ -138,7 +196,11 @@ function ChatSessionMessagesList({
   );
 
   return (
-    <List navigationTitle={`${module.name} Messages`} isLoading={isPending} isShowingDetail={true}>
+    <List
+      navigationTitle={`${module.name} Messages`}
+      isLoading={isPending}
+      isShowingDetail={true}
+    >
       {messages.map((message) => (
         <List.Item
           key={message.id}
@@ -157,7 +219,11 @@ function ChatSessionMessagesList({
   );
 }
 
-function ChatSessionMessageDetail({ message }: { message: AddonModChatWSSessionMessage }) {
+function ChatSessionMessageDetail({
+  message,
+}: {
+  message: AddonModChatWSSessionMessage;
+}) {
   const isSystemMessage = Boolean(message.issystem ?? message.system);
 
   return (
@@ -165,11 +231,21 @@ function ChatSessionMessageDetail({ message }: { message: AddonModChatWSSessionM
       markdown={turndown(message.message || "")}
       metadata={
         <List.Item.Detail.Metadata>
-          <List.Item.Detail.Metadata.Label title="Author" text={message.userfullname ?? `User #${message.userid}`} />
-          <List.Item.Detail.Metadata.Label title="Time" text={formatRelativeTime(message.timestamp)} />
+          <List.Item.Detail.Metadata.Label
+            title="Author"
+            text={message.userfullname ?? `User #${message.userid}`}
+          />
+          <List.Item.Detail.Metadata.Label
+            title="Time"
+            text={formatRelativeTime(message.timestamp)}
+          />
           <List.Item.Detail.Metadata.Label
             title="Type"
-            text={isSystemMessage ? { value: "System", color: Color.Blue } : "Message"}
+            text={
+              isSystemMessage
+                ? { value: "System", color: Color.Blue }
+                : "Message"
+            }
           />
         </List.Item.Detail.Metadata>
       }
@@ -189,14 +265,18 @@ function getSessionSubtitle(session: AddonModChatSession) {
   return `${userCount} participant${userCount === 1 ? "" : "s"}`;
 }
 
-function getSessionAccessories(session: AddonModChatSession): List.Item.Accessory[] {
+function getSessionAccessories(
+  session: AddonModChatSession,
+): List.Item.Accessory[] {
   const accessories: List.Item.Accessory[] = [
     { text: getSessionStatusLabelProps(session.iscomplete) },
     { text: getSessionSubtitle(session) },
   ];
 
   if (session.sessionend > session.sessionstart) {
-    accessories.push({ text: formatDurationBetween(session.sessionstart, session.sessionend) });
+    accessories.push({
+      text: formatDurationBetween(session.sessionstart, session.sessionend),
+    });
   }
 
   return accessories;
@@ -204,13 +284,22 @@ function getSessionAccessories(session: AddonModChatSession): List.Item.Accessor
 
 function getSessionStatusLabelProps(isComplete: number | boolean) {
   const completed = Boolean(isComplete);
-  return completed ? { value: "Complete", color: Color.Green } : { value: "In Progress", color: Color.Orange };
+  return completed
+    ? { value: "Complete", color: Color.Green }
+    : { value: "In Progress", color: Color.Orange };
 }
 
 function getChatAccessories(chat: AddonModChatChat): List.Item.Accessory[] {
-  const hasScheduledSession = Boolean(chat.schedule && chat.chattime && chat.chattime > 0);
+  const hasScheduledSession = Boolean(
+    chat.schedule && chat.chattime && chat.chattime > 0,
+  );
   if (hasScheduledSession) {
-    return [{ text: { value: "Sched", color: Color.Orange }, tooltip: "Scheduled chat session" }];
+    return [
+      {
+        text: { value: "Sched", color: Color.Orange },
+        tooltip: "Scheduled chat session",
+      },
+    ];
   }
   return [{ text: "Open", tooltip: "No scheduled session" }];
 }
@@ -222,8 +311,12 @@ function getMessageTitle(message: AddonModChatWSSessionMessage) {
   return message.userfullname ?? `User #${message.userid}`;
 }
 
-function getMessageAccessories(message: AddonModChatWSSessionMessage): List.Item.Accessory[] {
-  const accessories: List.Item.Accessory[] = [{ text: formatRelativeTime(message.timestamp) }];
+function getMessageAccessories(
+  message: AddonModChatWSSessionMessage,
+): List.Item.Accessory[] {
+  const accessories: List.Item.Accessory[] = [
+    { text: formatRelativeTime(message.timestamp) },
+  ];
   if (message.issystem || message.system) {
     accessories.push({ text: { value: "System", color: Color.Blue } });
   }

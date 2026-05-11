@@ -1,17 +1,17 @@
-import { isAuthError, toGradeRowSummaries, type CourseScope } from "@moodle/core";
+import {
+  isAuthError,
+  toGradeRowSummaries,
+  type CourseScope,
+} from "@moodle/core";
 import { ActionPanel, List } from "@raycast/api";
 import { useMemo } from "react";
 
 import AuthErrorDetail from "./components/AuthErrorDetail";
 import { OpenInBrowserAction } from "./components/OpenInBrowserAction";
-import { preferences } from "./helpers/preferences";
+import { siteOrigin } from "./helpers/preferences";
 import { useWSBatchQuery } from "./hooks/useWSQuery";
 
-export default function ViewCourseGrades({
-  scope,
-}: {
-  scope: CourseScope;
-}) {
+export default function ViewCourseGrades({ scope }: { scope: CourseScope }) {
   const gradesQuery = useWSBatchQuery(
     "gradereport_user_get_grades_table",
     scope.courseIds.map((courseid) => ({ courseid, userid: 0 })),
@@ -32,7 +32,7 @@ export default function ViewCourseGrades({
           courseId,
           title: scope.courses[index]?.displayname ?? scope.title,
           rows: toGradeRowSummaries(table?.tabledata, {
-            siteUrl: preferences.site_url,
+            siteUrl: siteOrigin,
           }),
         };
       }),
@@ -40,11 +40,21 @@ export default function ViewCourseGrades({
   );
 
   if (gradesQuery.error && isAuthError(gradesQuery.error)) {
-    return <AuthErrorDetail error={gradesQuery.error} onRetry={() => gradesQuery.refetch()} />;
+    return (
+      <AuthErrorDetail
+        error={gradesQuery.error}
+        onRetry={() => gradesQuery.refetch()}
+      />
+    );
   }
   if (contentsQuery.error)
     if (isAuthError(contentsQuery.error)) {
-      return <AuthErrorDetail error={contentsQuery.error} onRetry={() => contentsQuery.refetch()} />;
+      return (
+        <AuthErrorDetail
+          error={contentsQuery.error}
+          onRetry={() => contentsQuery.refetch()}
+        />
+      );
     }
 
   return (
@@ -60,17 +70,26 @@ export default function ViewCourseGrades({
           <List.Section
             key={section.courseId}
             title={section.title}
-            subtitle={scope.courseIds.length > 1 ? `Course ID ${section.courseId}` : "Moodle grade table"}
+            subtitle={
+              scope.courseIds.length > 1
+                ? `Course ID ${section.courseId}`
+                : "Moodle grade table"
+            }
           >
             {section.rows.map((row, rowIndex) => (
               <List.Item
                 key={`${section.courseId}:${row.label}:${rowIndex}`}
                 title={row.label}
-                subtitle={[row.range, row.percentage].filter(Boolean).join(" · ") || undefined}
+                subtitle={
+                  [row.range, row.percentage].filter(Boolean).join(" · ") ||
+                  undefined
+                }
                 accessories={row.grade ? [{ text: row.grade }] : []}
                 actions={
                   <ActionPanel>
-                    <OpenInBrowserAction url={buildGradebookUrl(scope, section.courseId)} />
+                    <OpenInBrowserAction
+                      url={buildGradebookUrl(scope, section.courseId)}
+                    />
                   </ActionPanel>
                 }
               />
@@ -83,5 +102,5 @@ export default function ViewCourseGrades({
 }
 
 function buildGradebookUrl(scope: CourseScope, courseId?: number) {
-  return `${preferences.site_url}/grade/report/user/index.php?id=${courseId ?? scope.mergedCourse.id}`;
+  return `${siteOrigin}/grade/report/user/index.php?id=${courseId ?? scope.mergedCourse.id}`;
 }

@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator } from "react-native";
+import { ActivityIndicator, type ColorValue } from "react-native";
 
 import type { ScopedModule } from "@moodle/core";
 
+import { platformColors } from "@/constants/platform-colors";
 import { InsetRow, SymbolBadge } from "@/components/native-ui";
 import { openModule } from "@/lib/module-navigation";
 import { useAppState } from "@/providers/app-provider";
@@ -10,11 +11,15 @@ import { useAppState } from "@/providers/app-provider";
 type ModuleRowProps = {
   module: ScopedModule;
   courseId: string;
+  tint?: ColorValue;
   first?: boolean;
   last?: boolean;
+  /** When true, show the section name as a subtitle. Defaults to false to avoid
+   * repeating the section title that's already shown in the group header above. */
+  showSection?: boolean;
 };
 
-export function ModuleRow({ module, courseId, first, last }: ModuleRowProps) {
+export function ModuleRow({ module, courseId, tint, first, last, showSection = false }: ModuleRowProps) {
   const { activeAccount, accountSession } = useAppState();
   const session = activeAccount ? accountSession(activeAccount.id) : null;
   const [loading, setLoading] = useState(false);
@@ -23,7 +28,7 @@ export function ModuleRow({ module, courseId, first, last }: ModuleRowProps) {
 
   useEffect(() => {
     if (loading) {
-      spinnerTimer.current = setTimeout(() => setShowSpinner(true), 100);
+      spinnerTimer.current = setTimeout(() => setShowSpinner(true), 60);
     } else {
       clearTimeout(spinnerTimer.current);
       setShowSpinner(false);
@@ -34,8 +39,7 @@ export function ModuleRow({ module, courseId, first, last }: ModuleRowProps) {
   const handlePress = useCallback(async () => {
     if (!activeAccount) return;
 
-    const isResource = module.module.modname === "resource";
-    if (isResource) setLoading(true);
+    setLoading(true);
 
     try {
       await openModule({
@@ -47,17 +51,19 @@ export function ModuleRow({ module, courseId, first, last }: ModuleRowProps) {
         session,
       });
     } finally {
-      if (isResource) setLoading(false);
+      setLoading(false);
     }
   }, [activeAccount, courseId, module, session]);
+
+  const { symbol, tint: fallbackTint } = badgeForModule(module.module.modname);
 
   return (
     <InsetRow
       first={first}
       last={last}
       title={module.module.name}
-      subtitle={module.sectionName}
-      leading={<SymbolBadge symbol={symbolForModule(module.module.modname)} />}
+      subtitle={showSection ? module.sectionName : undefined}
+      leading={<SymbolBadge symbol={symbol} tint={tint ?? fallbackTint} />}
       accessory={showSpinner ? <ActivityIndicator /> : undefined}
       showChevron={!showSpinner}
       onPress={handlePress}
@@ -65,29 +71,49 @@ export function ModuleRow({ module, courseId, first, last }: ModuleRowProps) {
   );
 }
 
-function symbolForModule(modname: string) {
+function badgeForModule(modname: string): { symbol: string; tint: ColorValue } {
   switch (modname) {
     case "assign":
-      return "doc.text";
+      return { symbol: "square.and.pencil", tint: platformColors.systemOrange };
     case "attendance":
-      return "checkmark.circle";
+      return { symbol: "person.crop.circle.badge.checkmark", tint: platformColors.systemGreen };
     case "book":
-      return "books.vertical";
+      return { symbol: "book.fill", tint: platformColors.systemBrown };
     case "choice":
-      return "checkmark.circle";
+      return { symbol: "checklist", tint: platformColors.systemPurple };
+    case "feedback":
+      return { symbol: "star.bubble", tint: platformColors.systemYellow };
     case "folder":
-      return "folder";
+      return { symbol: "folder.fill", tint: platformColors.systemBlue };
     case "forum":
-      return "bubble.left.and.bubble.right";
+      return { symbol: "bubble.left.and.bubble.right.fill", tint: platformColors.systemIndigo };
+    case "glossary":
+      return { symbol: "character.book.closed.fill", tint: platformColors.systemBrown };
+    case "label":
+      return { symbol: "tag.fill", tint: platformColors.systemGray };
+    case "lesson":
+      return { symbol: "graduationcap.fill", tint: platformColors.systemTeal };
     case "page":
-      return "doc.plaintext";
+      return { symbol: "doc.richtext.fill", tint: platformColors.systemBlue };
     case "quiz":
-      return "questionmark.circle";
+      return { symbol: "checkmark.square.fill", tint: platformColors.systemPink };
     case "resource":
-      return "arrow.down.doc";
+      return { symbol: "doc.fill", tint: platformColors.systemBlue };
+    case "scorm":
+      return { symbol: "play.rectangle.fill", tint: platformColors.systemRed };
+    case "survey":
+      return { symbol: "list.bullet.clipboard.fill", tint: platformColors.systemPurple };
     case "url":
-      return "link";
+      return { symbol: "safari.fill", tint: platformColors.systemBlue };
+    case "video":
+      return { symbol: "play.tv.fill", tint: platformColors.systemRed };
+    case "wiki":
+      return { symbol: "text.book.closed.fill", tint: platformColors.systemTeal };
+    case "workshop":
+      return { symbol: "hammer.fill", tint: platformColors.systemOrange };
+    case "chat":
+      return { symbol: "message.fill", tint: platformColors.systemGreen };
     default:
-      return "square.grid.2x2";
+      return { symbol: "square.grid.2x2.fill", tint: platformColors.systemGray };
   }
 }

@@ -3,7 +3,7 @@ import { Alert, Platform } from "react-native";
 import { viewDocument } from "@react-native-documents/viewer";
 import * as Crypto from "expo-crypto";
 import { Directory, File, Paths } from "expo-file-system";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 
 import { openExternalUrl } from "@/lib/browser";
 import { detectNativeResourcePreviewKind } from "@/lib/resource-preview";
@@ -31,7 +31,7 @@ export async function previewRemoteDocument(input: PreviewRemoteDocumentInput) {
         fileName: input.fileName ?? "",
         mimeType: input.mimeType ?? "",
       },
-    });
+    } as unknown as Href);
     return;
   }
 

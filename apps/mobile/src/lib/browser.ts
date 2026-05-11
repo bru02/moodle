@@ -1,11 +1,6 @@
 import * as WebBrowser from "expo-web-browser";
-import { Linking, NativeModules, Platform } from "react-native";
-
-type UniversalLinksModuleShape = {
-  openUniversalLinkOnly(url: string): Promise<boolean>;
-};
-
-const universalLinksModule = NativeModules.UniversalLinksModule as UniversalLinksModuleShape | undefined;
+import { Linking, Platform } from "react-native";
+import { openUniversalLinkOnly } from "../../modules/universal-links";
 
 export async function openExternalUrl(url: string) {
   if (Platform.OS === "web") {
@@ -13,9 +8,9 @@ export async function openExternalUrl(url: string) {
     return;
   }
 
-  if ((Platform.OS === "ios" || Platform.OS === "android") && /^https?:\/\//i.test(url) && universalLinksModule) {
+  if ((Platform.OS === "ios" || Platform.OS === "android") && /^https?:\/\//i.test(url)) {
     try {
-      const opened = await universalLinksModule.openUniversalLinkOnly(url);
+      const opened = await openUniversalLinkOnly(url);
       if (opened) {
         return;
       }

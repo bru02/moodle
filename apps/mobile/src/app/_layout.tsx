@@ -1,8 +1,8 @@
 import { buildAuthenticatedExternalOpenUrl, type StoredAccount as CoreStoredAccount } from "@moodle/core";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
-import { router, Stack } from "expo-router";
+import { router, Stack, type Href } from "expo-router";
 import { useEffect, useRef } from "react";
-import { Linking, View } from "react-native";
+import { Alert, Linking, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -64,7 +64,7 @@ function RootNavigator() {
           await session.signInWithQrPayload(
             `${parsed.siteUrl}?qrlogin=${encodeURIComponent(parsed.qrLoginKey)}&userid=${encodeURIComponent(parsed.userId)}`,
           );
-          router.replace("/courses");
+          router.replace("/courses" as Href);
           return;
         }
 
@@ -75,7 +75,7 @@ function RootNavigator() {
             token: resolved.token,
             privateToken: resolved.privateToken,
           });
-          router.replace("/courses");
+          router.replace("/courses" as Href);
 
           if (resolved.redirectUrl) {
             await openRedirectInBrowser({
@@ -93,7 +93,7 @@ function RootNavigator() {
             token: parsed.token,
             privateToken: parsed.privateToken,
           });
-          router.replace("/courses");
+          router.replace("/courses" as Href);
 
           if (parsed.redirectUrl) {
             await openRedirectInBrowser({
@@ -112,7 +112,7 @@ function RootNavigator() {
             params: {
               siteUrl: parsed.siteUrl,
             },
-          });
+          } as unknown as Href);
           return;
         }
 
@@ -120,7 +120,7 @@ function RootNavigator() {
           await session.switchAccount(matchingAccount.id);
         }
 
-        router.replace("/courses");
+        router.replace("/courses" as Href);
 
         if (parsed.redirectUrl) {
           const refreshed = await session.refreshSessionForAccount(matchingAccount.id);
@@ -130,6 +130,9 @@ function RootNavigator() {
             session: refreshed,
           });
         }
+      } catch (e) {
+        console.warn("[deep-link] failed to handle incoming URL:", e);
+        Alert.alert("Link failed", e instanceof Error ? e.message : "Could not process this link.");
       } finally {
         handlingUrlRef.current = false;
       }
@@ -156,6 +159,7 @@ function RootNavigator() {
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: platformColors.systemGroupedBackground } }}>
+      <Stack.Screen name="index" />
       <Stack.Screen name="(auth)" />
       <Stack.Protected guard={Boolean(activeAccount)}>
         <Stack.Screen name="(app)" />

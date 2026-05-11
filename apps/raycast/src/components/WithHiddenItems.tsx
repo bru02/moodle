@@ -1,5 +1,12 @@
 import { Action, ActionPanel, Icon, Keyboard } from "@raycast/api";
-import { createContext, ReactElement, ReactNode, useContext, useEffect, useMemo } from "react";
+import {
+  createContext,
+  ReactElement,
+  ReactNode,
+  useContext,
+  useEffect,
+  useMemo,
+} from "react";
 
 import { shortcut } from "../helpers";
 import { useHiddenItems } from "../hooks/useHiddenItems";
@@ -34,22 +41,28 @@ type WithHiddenItemsPropsWithKey<T> = WithHiddenItemsBaseProps<T> & {
   getItemKey: (item: T) => HiddenItemKey;
 };
 
-type WithHiddenItemsPropsWithDefaultKey<T extends { id: HiddenItemKey }> = WithHiddenItemsBaseProps<T> & {
-  getItemKey?: undefined;
-};
+type WithHiddenItemsPropsWithDefaultKey<T extends { id: HiddenItemKey }> =
+  WithHiddenItemsBaseProps<T> & {
+    getItemKey?: undefined;
+  };
 
 type WithHiddenItemsProps<T> =
   | WithHiddenItemsPropsWithKey<T>
-  | (T extends { id: HiddenItemKey } ? WithHiddenItemsPropsWithDefaultKey<T> : never);
+  | (T extends { id: HiddenItemKey }
+      ? WithHiddenItemsPropsWithDefaultKey<T>
+      : never);
 
 const defaultGetItemKey = (x: { id: HiddenItemKey }) => x.id;
 
-export const HiddenItemsContext = createContext<HiddenItemsContextValue<unknown> | null>(null);
+export const HiddenItemsContext =
+  createContext<HiddenItemsContextValue<unknown> | null>(null);
 
 export default function WithHiddenItems<T extends { id: HiddenItemKey }>(
   props: WithHiddenItemsPropsWithDefaultKey<T>,
 ): ReactElement;
-export default function WithHiddenItems<T>(props: WithHiddenItemsPropsWithKey<T>): ReactElement;
+export default function WithHiddenItems<T>(
+  props: WithHiddenItemsPropsWithKey<T>,
+): ReactElement;
 export default function WithHiddenItems<T>({
   data,
   getItemKey,
@@ -57,9 +70,8 @@ export default function WithHiddenItems<T>({
   empty,
   namespace,
 }: WithHiddenItemsProps<T>): ReactElement {
-  const resolvedGetItemKey: (item: T) => HiddenItemKey = (getItemKey ?? defaultGetItemKey) as (
-    item: T,
-  ) => HiddenItemKey;
+  const resolvedGetItemKey: (item: T) => HiddenItemKey = (getItemKey ??
+    defaultGetItemKey) as (item: T) => HiddenItemKey;
   const {
     hiddenItems,
     pinnedItems,
@@ -118,7 +130,9 @@ export default function WithHiddenItems<T>({
   );
 
   return (
-    <HiddenItemsContext.Provider value={ctx as HiddenItemsContextValue<unknown>}>
+    <HiddenItemsContext.Provider
+      value={ctx as HiddenItemsContextValue<unknown>}
+    >
       {!hasVisibleData && empty ? (
         empty
       ) : (
@@ -132,7 +146,9 @@ export default function WithHiddenItems<T>({
 }
 
 function useHiddenItemsContext<T = unknown>() {
-  const ctx = useContext(HiddenItemsContext) as HiddenItemsContextValue<T> | null;
+  const ctx = useContext(
+    HiddenItemsContext,
+  ) as HiddenItemsContextValue<T> | null;
   if (!ctx) {
     throw new Error("Hidden item actions must be used within WithHiddenItems");
   }
@@ -148,7 +164,9 @@ export function HiddenItemActionsSection<T>({ item }: { item: T }) {
   const dismissibleCtx = useOptionalDismissibleItemsContext<T>();
   useEffect(() => {
     if (!ctx) {
-      console.warn("HiddenItemActionsSection rendered outside WithHiddenItems; actions will be omitted.");
+      console.warn(
+        "HiddenItemActionsSection rendered outside WithHiddenItems; actions will be omitted.",
+      );
     }
   }, [ctx]);
 

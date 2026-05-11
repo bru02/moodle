@@ -2,8 +2,8 @@ import { FlashList } from "@shopify/flash-list";
 import { Button, Host, Menu } from "@expo/ui/swift-ui";
 import { Image } from "expo-image";
 import * as Calendar from "expo-calendar/next";
-import { Stack, router } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Stack, router, useFocusEffect, type Href } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -92,8 +92,18 @@ export default function CoursesScreen() {
     );
   }, [activeAccount, queryClient, refreshAccountSession, session]);
 
+  const navigationLockRef = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      navigationLockRef.current = false;
+    }, []),
+  );
+
   const openCourse = useCallback((courseId: string) => {
-    router.push({ pathname: "/courses/[courseId]", params: { courseId } });
+    if (navigationLockRef.current) return;
+    navigationLockRef.current = true;
+    router.push({ pathname: "/courses/[courseId]", params: { courseId } } as unknown as Href);
   }, []);
 
   const renderCourseItem = useCallback(({ item }: { item: CourseListItem }) => {

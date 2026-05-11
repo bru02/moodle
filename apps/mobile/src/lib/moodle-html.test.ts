@@ -102,16 +102,16 @@ describe("prepareMoodleHtml", () => {
     expect(html).toContain("$$x^2 + y^2$$");
   });
 
-  it("normalizes presentational syllabus html into renderable mobile blocks", () => {
+  it("normalizes presentational html into renderable mobile blocks", () => {
     const html = prepareMoodleHtml({
       html: syllabusFixture,
     });
 
     expect(html).toContain("font-weight: bold");
     expect(html).toContain("<table");
-    expect(html).toContain("Points</span>");
-    expect(html).toContain("Week");
-    expect(html).toContain("Task description of Simulation HW is available");
+    expect(html).toContain("MATERIALS COVERED ON THE");
+    expect(html).toContain("P01 - Probability Distributions");
+    expect(html).toContain("Lecture 01");
   });
 });
 

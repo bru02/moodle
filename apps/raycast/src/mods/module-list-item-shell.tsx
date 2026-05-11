@@ -1,15 +1,16 @@
+import type { SimpleCourse } from "@moodle/core";
 import { ActionPanel, type List } from "@raycast/api";
 import type { ReactNode } from "react";
 
 import CompletionAction from "../components/CompletionAction";
 import { OpenInBrowserAction } from "../components/OpenInBrowserAction";
 import { HiddenItemActionsSection } from "../components/WithHiddenItems";
-import type { Course, Module } from "../types";
+import type { Module } from "../types";
 import DefaultListItem from "./default";
 
 type ModuleListItemShellProps = {
   module: Module;
-  course: Course;
+  course: SimpleCourse;
   detail?: ReactNode;
   accessories?: List.Item.Accessory[];
   primaryAction?: ReactNode;

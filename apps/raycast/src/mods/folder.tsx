@@ -16,7 +16,11 @@ export function ViewFolder({ module }: { module: Module }) {
   return (
     <List navigationTitle={module.name}>
       {module.contents?.map((content) => (
-        <ResourceListItem key={content.filename} module={module} content={content} />
+        <ResourceListItem
+          key={content.filename}
+          module={module}
+          content={content}
+        />
       ))}
     </List>
   );
@@ -28,7 +32,7 @@ export default function FolderListItem({ module }: { module: Module }) {
   return (
     <DefaultListItem
       module={module}
-      keywords={module.contents?.map((c) => c.filename)}
+      keywords={module.contents?.flatMap((c) => c.filename.split(/[\s\-_]+/))}
       actions={
         <ActionPanel>
           <Action.Push

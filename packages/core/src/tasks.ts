@@ -1,7 +1,7 @@
-import type { CoreCourseGetContentsWSResponse } from "./course-content-types";
 import { buildScopedSections } from "./course-content";
-import type { CourseScope } from "./course-types";
+import type { CoreCourseGetContentsWSResponse } from "./course-content-types";
 import type { ScopedModule } from "./course-content-types";
+import type { CourseScope } from "./course-types";
 import type { SimpleCourse } from "./course-types";
 import type {
   MoodleTaskProjection,
@@ -24,30 +24,57 @@ export type TaskProjectionInput = {
   modules?: readonly ScopedModule[];
 };
 
-export function buildTaskProjection(input: TaskProjectionInput): MoodleTaskProjection {
+export function buildTaskProjection(
+  input: TaskProjectionInput,
+): MoodleTaskProjection {
   const now = input.now ?? Math.floor(Date.now() / 1000);
-  const reviewWindowSeconds = input.reviewWindowSeconds ?? DEFAULT_REVIEW_WINDOW_SECONDS;
+  const reviewWindowSeconds =
+    input.reviewWindowSeconds ?? DEFAULT_REVIEW_WINDOW_SECONDS;
   const actionable: TaskItem[] = [];
   const recentReview: TaskItem[] = [];
 
   for (const assignment of input.assignments ?? []) {
     const projected = projectAssignmentTask(assignment, input.coursesById, now);
-    pushProjectedTask(projected, now, reviewWindowSeconds, actionable, recentReview);
+    pushProjectedTask(
+      projected,
+      now,
+      reviewWindowSeconds,
+      actionable,
+      recentReview,
+    );
   }
 
   for (const quiz of input.quizzes ?? []) {
     const projected = projectQuizTask(quiz, input.coursesById, now);
-    pushProjectedTask(projected, now, reviewWindowSeconds, actionable, recentReview);
+    pushProjectedTask(
+      projected,
+      now,
+      reviewWindowSeconds,
+      actionable,
+      recentReview,
+    );
   }
 
   for (const attendance of input.attendance ?? []) {
     const projected = projectAttendanceTask(attendance, input.coursesById, now);
-    pushProjectedTask(projected, now, reviewWindowSeconds, actionable, recentReview);
+    pushProjectedTask(
+      projected,
+      now,
+      reviewWindowSeconds,
+      actionable,
+      recentReview,
+    );
   }
 
   for (const module of input.modules ?? []) {
     const projected = projectModuleTask(module, input.coursesById, now);
-    pushProjectedTask(projected, now, reviewWindowSeconds, actionable, recentReview);
+    pushProjectedTask(
+      projected,
+      now,
+      reviewWindowSeconds,
+      actionable,
+      recentReview,
+    );
   }
 
   actionable.sort((left, right) => compareActionableTasks(left, right, now));
@@ -58,7 +85,10 @@ export function buildTaskProjection(input: TaskProjectionInput): MoodleTaskProje
 
 export const listTasks = buildTaskProjection;
 
-type MoodleWSRequester = <T>(service: string, requestParams?: Record<string, unknown>) => Promise<T>;
+type MoodleWSRequester = <T>(
+  service: string,
+  requestParams?: Record<string, unknown>,
+) => Promise<T>;
 
 export type MoodleAssignmentsResponse = {
   courses: Array<{
@@ -150,22 +180,32 @@ export async function fetchTaskProjectionData(input: {
   siteOrigin: string;
   courses: readonly SimpleCourse[];
   scopes: readonly CourseScope[];
-  scopeContentRowsByScope: ReadonlyMap<string, readonly (CoreCourseGetContentsWSResponse | undefined)[]>;
+  scopeContentRowsByScope: ReadonlyMap<
+    string,
+    readonly (CoreCourseGetContentsWSResponse | undefined)[]
+  >;
 }) {
   const courseIds = input.scopes.flatMap((scope) => scope.courseIds);
-  const [assignmentsResponse, quizzesResponse, attendanceResponse] = await Promise.all([
-    input.requestWS<MoodleAssignmentsResponse>("mod_assign_get_assignments", {
-      courseids: courseIds,
-    }),
-    input.requestWS<MoodleQuizzesResponse>("mod_quiz_get_quizzes_by_courses", {
-      courseids: courseIds,
-    }),
-    input
-      .requestWS<MoodleAttendanceTodayResponse>("mod_attendance_get_courses_with_today_sessions", {
-        userid: 0,
-      })
-      .catch(() => []),
-  ]);
+  const [assignmentsResponse, quizzesResponse, attendanceResponse] =
+    await Promise.all([
+      input.requestWS<MoodleAssignmentsResponse>("mod_assign_get_assignments", {
+        courseids: courseIds,
+      }),
+      input.requestWS<MoodleQuizzesResponse>(
+        "mod_quiz_get_quizzes_by_courses",
+        {
+          courseids: courseIds,
+        },
+      ),
+      input
+        .requestWS<MoodleAttendanceTodayResponse>(
+          "mod_attendance_get_courses_with_today_sessions",
+          {
+            userid: 0,
+          },
+        )
+        .catch(() => []),
+    ]);
 
   const assignmentStatuses = new Map<number, MoodleAssignmentStatusResponse>();
   await Promise.all(
@@ -173,9 +213,12 @@ export async function fetchTaskProjectionData(input: {
       .flatMap((course) => course.assignments)
       .map(async (assignment) => {
         const response = await input
-          .requestWS<MoodleAssignmentStatusResponse>("mod_assign_get_submission_status", {
-            assignid: assignment.id,
-          })
+          .requestWS<MoodleAssignmentStatusResponse>(
+            "mod_assign_get_submission_status",
+            {
+              assignid: assignment.id,
+            },
+          )
           .catch(() => null);
 
         if (response) {
@@ -212,7 +255,9 @@ export async function fetchTaskProjectionData(input: {
     assignments: assignmentsResponse.courses.flatMap((course) =>
       course.assignments.map((assignment) => {
         const submissionStatus = assignmentStatuses.get(assignment.id);
-        const submission = submissionStatus?.lastattempt?.teamsubmission ?? submissionStatus?.lastattempt?.submission;
+        const submission =
+          submissionStatus?.lastattempt?.teamsubmission ??
+          submissionStatus?.lastattempt?.submission;
 
         return {
           id: assignment.id,
@@ -249,22 +294,32 @@ export async function fetchTaskProjectionData(input: {
       };
     }),
     attendance: attendanceResponse.flatMap((course) =>
-      normalizeAttendanceInstances(course.attendance_instances).flatMap((instance) =>
-        instance.today_sessions.map((session) => {
-          const matchedCourse = matchAttendanceCourse(input.courses, course.fullname, course.shortname);
+      normalizeAttendanceInstances(course.attendance_instances).flatMap(
+        (instance) =>
+          instance.today_sessions.map((session) => {
+            const matchedCourse = matchAttendanceCourse(
+              input.courses,
+              course.fullname,
+              course.shortname,
+            );
 
-          return {
-            id: session.id,
-            courseId: matchedCourse?.id ?? input.courses[0]?.id ?? 0,
-            name: instance.name,
-            sessionAt: session.sessdate,
-            closeAt: session.duration ? session.sessdate + session.duration : undefined,
-          };
-        }),
+            return {
+              id: session.id,
+              courseId: matchedCourse?.id ?? input.courses[0]?.id ?? 0,
+              name: instance.name,
+              sessionAt: session.sessdate,
+              closeAt: session.duration
+                ? session.sessdate + session.duration
+                : undefined,
+            };
+          }),
       ),
     ),
     modules: input.scopes.flatMap((scope) =>
-      buildScopedSections(scope, input.scopeContentRowsByScope.get(scope.id) ?? []).flatMap((section) => section.modules),
+      buildScopedSections(
+        scope,
+        input.scopeContentRowsByScope.get(scope.id) ?? [],
+      ).flatMap((section) => section.modules),
     ),
   });
 }
@@ -273,16 +328,24 @@ function positiveTimestamp(value?: number) {
   return typeof value === "number" && value > 0 ? value : undefined;
 }
 
-function normalizeAttendanceInstances(input: MoodleAttendanceTodayResponse[number]["attendance_instances"]) {
+function normalizeAttendanceInstances(
+  input: MoodleAttendanceTodayResponse[number]["attendance_instances"],
+) {
   return Array.isArray(input) ? input : Object.values(input);
 }
 
-function matchAttendanceCourse(courses: readonly SimpleCourse[], fullname?: string, shortname?: string) {
+function matchAttendanceCourse(
+  courses: readonly SimpleCourse[],
+  fullname?: string,
+  shortname?: string,
+) {
   const values = [fullname, shortname]
     .filter((value): value is string => Boolean(value))
     .map((value) => value.toLowerCase().replace(/\s+/g, " ").trim());
 
-  return courses.find((course) => values.some((value) => course.displayname.toLowerCase().includes(value)));
+  return courses.find((course) =>
+    values.some((value) => course.displayname.toLowerCase().includes(value)),
+  );
 }
 
 function projectAssignmentTask(
@@ -292,8 +355,16 @@ function projectAssignmentTask(
 ): TaskItem | null {
   const course = resolveCourse(coursesById, source.courseId);
   const completionAt = maxDefined(source.submittedAt, source.gradedAt);
-  const deadline = earliestDefined(source.openAt, source.dueAt, source.closeAt, source.gradingDueAt);
-  const sortTimestamp = nextRelevantTimestamp([source.openAt, source.dueAt, source.closeAt, source.gradingDueAt], now);
+  const deadline = earliestDefined(
+    source.openAt,
+    source.dueAt,
+    source.closeAt,
+    source.gradingDueAt,
+  );
+  const sortTimestamp = nextRelevantTimestamp(
+    [source.openAt, source.dueAt, source.closeAt, source.gradingDueAt],
+    now,
+  );
 
   if (!deadline && !completionAt) {
     return null;
@@ -342,7 +413,11 @@ function projectQuizTask(
     closeAt: source.closeAt,
     reviewAt: completionAt,
     updatedAt: source.updatedAt,
-    sortTimestamp: nextRelevantTimestamp([source.openAt, source.closeAt], now) ?? completionAt ?? source.updatedAt ?? now,
+    sortTimestamp:
+      nextRelevantTimestamp([source.openAt, source.closeAt], now) ??
+      completionAt ??
+      source.updatedAt ??
+      now,
     completed: completionAt != null,
     actionLabel: completionAt ? "Review attempt" : "Take quiz",
   };
@@ -374,7 +449,11 @@ function projectAttendanceTask(
     closeAt,
     reviewAt: completionAt,
     updatedAt: source.updatedAt,
-    sortTimestamp: nextRelevantTimestamp([source.sessionAt, closeAt], now) ?? completionAt ?? source.updatedAt ?? now,
+    sortTimestamp:
+      nextRelevantTimestamp([source.sessionAt, closeAt], now) ??
+      completionAt ??
+      source.updatedAt ??
+      now,
     completed: completionAt != null,
     actionLabel: completionAt ? "Review attendance" : "Mark attendance",
   };
@@ -386,9 +465,13 @@ function projectModuleTask(
   now: number,
 ): TaskItem | null {
   const course = coursesById?.get(source.course.id) ?? source.course;
-  const closeAt = source.module.dates?.find((date) => date.dataid === "timeclose")?.timestamp;
+  const closeAt = source.module.dates?.find(
+    (date) => date.dataid === "timeclose",
+  )?.timestamp;
   const completionAt = source.module.completiondata?.timecompleted;
-  const incomplete = source.module.completiondata?.state == null || source.module.completiondata.state === 0;
+  const incomplete =
+    source.module.completiondata?.state == null ||
+    source.module.completiondata.state === 0;
   const hasAction = closeAt != null && incomplete;
 
   if (!hasAction && completionAt == null) {
@@ -407,16 +490,27 @@ function projectModuleTask(
     closeAt,
     reviewAt: completionAt,
     updatedAt: source.module.contentsinfo?.lastmodified ?? completionAt,
-    sortTimestamp: nextRelevantTimestamp([closeAt], now) ?? completionAt ?? source.module.contentsinfo?.lastmodified ?? now,
+    sortTimestamp:
+      nextRelevantTimestamp([closeAt], now) ??
+      completionAt ??
+      source.module.contentsinfo?.lastmodified ??
+      now,
     completed: completionAt != null && !incomplete,
     actionLabel: completionAt ? "Review material" : "Open module",
   };
 }
 
-function pushProjectedTask(task: TaskItem | null, now: number, reviewWindowSeconds: number, actionable: TaskItem[], recentReview: TaskItem[]) {
+function pushProjectedTask(
+  task: TaskItem | null,
+  now: number,
+  reviewWindowSeconds: number,
+  actionable: TaskItem[],
+  recentReview: TaskItem[],
+) {
   if (!task) return;
 
-  const shouldReview = task.reviewAt != null && now - task.reviewAt <= reviewWindowSeconds;
+  const shouldReview =
+    task.reviewAt != null && now - task.reviewAt <= reviewWindowSeconds;
   const actionableTask = task.completed ? null : task;
 
   if (actionableTask) {
@@ -436,7 +530,11 @@ function compareActionableTasks(left: TaskItem, right: TaskItem, now: number) {
     return leftFuture ? 1 : -1;
   }
 
-  if (!leftFuture && !rightFuture && left.sortTimestamp !== right.sortTimestamp) {
+  if (
+    !leftFuture &&
+    !rightFuture &&
+    left.sortTimestamp !== right.sortTimestamp
+  ) {
     return right.sortTimestamp - left.sortTimestamp;
   }
 
@@ -459,13 +557,20 @@ function compareRecentReviewTasks(left: TaskItem, right: TaskItem) {
   return left.title.localeCompare(right.title);
 }
 
-function nextRelevantTimestamp(values: readonly (number | undefined)[], now: number) {
-  const future = values.filter((value): value is number => typeof value === "number" && value >= now);
+function nextRelevantTimestamp(
+  values: readonly (number | undefined)[],
+  now: number,
+) {
+  const future = values.filter(
+    (value): value is number => typeof value === "number" && value >= now,
+  );
   if (future.length > 0) {
     return Math.min(...future);
   }
 
-  const past = values.filter((value): value is number => typeof value === "number" && value > 0);
+  const past = values.filter(
+    (value): value is number => typeof value === "number" && value > 0,
+  );
   if (past.length > 0) {
     return Math.max(...past);
   }
@@ -474,22 +579,31 @@ function nextRelevantTimestamp(values: readonly (number | undefined)[], now: num
 }
 
 function earliestDefined(...values: readonly (number | undefined)[]) {
-  const defined = values.filter((value): value is number => typeof value === "number" && value > 0);
+  const defined = values.filter(
+    (value): value is number => typeof value === "number" && value > 0,
+  );
   return defined.length > 0 ? Math.min(...defined) : undefined;
 }
 
 function maxDefined(...values: readonly (number | undefined)[]) {
-  const defined = values.filter((value): value is number => typeof value === "number" && value > 0);
+  const defined = values.filter(
+    (value): value is number => typeof value === "number" && value > 0,
+  );
   return defined.length > 0 ? Math.max(...defined) : undefined;
 }
 
-function resolveCourse(coursesById: ReadonlyMap<number, SimpleCourse> | undefined, courseId: number) {
-  return coursesById?.get(courseId) ?? {
-    id: courseId,
-    displayname: `Course ${courseId}`,
-    courseimage: "",
-    timemodified: 0,
-  };
+function resolveCourse(
+  coursesById: ReadonlyMap<number, SimpleCourse> | undefined,
+  courseId: number,
+) {
+  return (
+    coursesById?.get(courseId) ?? {
+      id: courseId,
+      displayname: `Course ${courseId}`,
+      courseimage: "",
+      timemodified: 0,
+    }
+  );
 }
 
 export type { TaskItem };

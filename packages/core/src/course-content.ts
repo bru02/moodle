@@ -6,8 +6,8 @@ import type {
   ScopedModule,
   ScopedRenderedSection,
 } from "./course-content-types";
-import type { CourseScope, SimpleCourse } from "./course-types";
 import { buildCourseDisplayLayout } from "./course-display";
+import type { CourseScope, SimpleCourse } from "./course-types";
 import { cleanMoodleText, stripHTML } from "./utils";
 
 const EMPTY_CONTENT: CoreCourseGetContentsWSSection[] = [];
@@ -30,13 +30,18 @@ export function buildCoursesById(scope: CourseScope) {
 
 export function buildScopedSections(
   scope: CourseScope,
-  contentRows: readonly (CoreCourseGetContentsWSResponse | undefined)[] | undefined,
+  contentRows:
+    | readonly (CoreCourseGetContentsWSResponse | undefined)[]
+    | undefined,
 ) {
   const coursesById = buildCoursesById(scope);
   const sections = (contentRows ?? []).flatMap((content, index) => {
     const courseId = scope.courseIds[index];
     if (courseId == null) return [];
-    const course = coursesById.get(courseId) ?? { ...scope.mergedCourse, id: courseId };
+    const course = coursesById.get(courseId) ?? {
+      ...scope.mergedCourse,
+      id: courseId,
+    };
 
     return regroupCourseContent(content || EMPTY_CONTENT).map((section) => ({
       ...section,
@@ -71,20 +76,29 @@ export function buildScopedSections(
     });
   }
 
-  return [...byName.values()].sort((left, right) => (right.section ?? -1) - (left.section ?? -1));
+  return [...byName.values()].sort(
+    (left, right) => (right.section ?? -1) - (left.section ?? -1),
+  );
 }
 
-export function regroupCourseContent(content: readonly CoreCourseGetContentsWSSection[]) {
+export function regroupCourseContent(
+  content: readonly CoreCourseGetContentsWSSection[],
+) {
   const result: RawRenderedSection[] = [];
 
   for (const section of content.toReversed()) {
-    const carry = { ...section, modules: [] as CoreCourseGetContentsWSModule[], subtitle: "" };
+    const carry = {
+      ...section,
+      modules: [] as CoreCourseGetContentsWSModule[],
+      subtitle: "",
+    };
     let { modules } = section;
 
     if (section.summary) {
       const text = stripHTML(section.summary);
       const dummyModule: CoreCourseGetContentsWSModule = {
         id: -section.id,
+        section: section.section,
         name: text,
         description: section.summary,
         instance: 0,
@@ -109,7 +123,8 @@ export function regroupCourseContent(content: readonly CoreCourseGetContentsWSSe
           result.push({ ...carry });
           carry.modules = [];
           carry.id = module.id;
-          carry.name = text.length > 50 ? `${text.slice(0, 50).trimEnd()}...` : text;
+          carry.name =
+            text.length > 50 ? `${text.slice(0, 50).trimEnd()}...` : text;
           carry.subtitle = cleanMoodleText(section.name);
           continue;
         }
@@ -134,7 +149,9 @@ export function regroupCourseContentByVisibleModules(
   const nextContent: ScopedRenderedSection[] = [];
 
   for (const section of regroupedContent) {
-    const modules = section.modules.filter((module) => visibleIds.has(module.id));
+    const modules = section.modules.filter((module) =>
+      visibleIds.has(module.id),
+    );
     if (modules.length === 0) continue;
     nextContent.push({ ...section, modules });
   }
@@ -144,7 +161,9 @@ export function regroupCourseContentByVisibleModules(
 
 export function listCourseContents(input: {
   scope: CourseScope;
-  contentRows: readonly (CoreCourseGetContentsWSResponse | undefined)[] | undefined;
+  contentRows:
+    | readonly (CoreCourseGetContentsWSResponse | undefined)[]
+    | undefined;
   now?: number;
   dismissedRecentItemIds?: ReadonlySet<string>;
   recentActivityCutoffAt?: number | null;

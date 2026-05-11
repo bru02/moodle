@@ -1,11 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
-import { Image } from "expo-image";
 import { type ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 
 import { platformColors } from "@/constants/platform-colors";
 
+import { NativeIconButton } from "@/components/native-icon-button";
 import type { CoreCourseModuleContentFile, CoreWSExternalFile, CourseScope, ScopedModule } from "@moodle/core";
 import { cleanMoodleHtml, cleanMoodleText, handleMoodleFileUrl } from "@moodle/core";
 
@@ -277,16 +276,15 @@ export function ReadableTextBlock({
 export function OpenInMoodleButton({ scope, module }: { scope: CourseScope; module: ScopedModule }) {
   const { activeAccount, accountSession } = useAppState();
   const session = activeAccount ? accountSession(activeAccount.id) : null;
-  const iconColor = platformColors.label;
 
   if (!session || !activeAccount) {
     return null;
   }
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Open in Moodle"
+    <NativeIconButton
+      label="Open in Moodle"
+      systemImage="globe"
       onPress={async () => {
         const url = await buildAutologinRedirectUrl({
           siteOrigin: activeAccount.origin,
@@ -295,42 +293,7 @@ export function OpenInMoodleButton({ scope, module }: { scope: CourseScope; modu
         });
         await openExternalUrl(url);
       }}
-      style={({ pressed }) => ({
-        alignItems: "center",
-        justifyContent: "center",
-        width: 36,
-        height: 36,
-        opacity: pressed ? 0.78 : 1,
-      })}
-    >
-      {isLiquidGlassAvailable() ? (
-        <GlassView
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            alignItems: "center",
-            justifyContent: "center",
-            overflow: "hidden",
-          }}
-        >
-          <Image source="sf:globe" style={{ width: 17, height: 17, tintColor: iconColor }} contentFit="contain" />
-        </GlassView>
-      ) : (
-        <View
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "rgba(120,120,128,0.2)",
-          }}
-        >
-          <Image source="sf:globe" style={{ width: 17, height: 17, tintColor: iconColor }} contentFit="contain" />
-        </View>
-      )}
-    </Pressable>
+    />
   );
 }
 
@@ -480,6 +443,7 @@ export function formatModuleKind(modname: string) {
     case "attendance":
       return "Attendance";
     case "crfeedback":
+    case "feedback":
       return "Feedback";
     case "quiz":
       return "Quiz";

@@ -263,7 +263,12 @@ export type CourseGradesResult = {
   refetch: () => Promise<void>;
 };
 
-export function useCourseGradesQuery(scope: CourseScope | null): CourseGradesResult {
+export function useCourseGradesQuery(
+  scope: CourseScope | null,
+  options?: {
+    enabled?: boolean;
+  },
+): CourseGradesResult {
   const { activeAccount, accountSession, refreshAccountSession } = useAppState();
   const session = activeAccount ? accountSession(activeAccount.id) : null;
   const adapter =
@@ -275,9 +280,11 @@ export function useCourseGradesQuery(scope: CourseScope | null): CourseGradesRes
         })
       : null;
 
+  const enabled = options?.enabled ?? true;
+
   const queries = useWSQueries<CoreGradesGetUserGradesTableWSResponse>(
     adapter,
-    adapter && scope
+    adapter && scope && enabled
       ? scope.courseIds.map((courseId) => ({
           service: "gradereport_user_get_grades_table",
           params: { courseid: courseId, userid: 0 },
@@ -293,13 +300,13 @@ export function useCourseGradesQuery(scope: CourseScope | null): CourseGradesRes
   return useMemo(
     () => ({
       tables,
-      isLoading: Boolean(adapter && scope) && queries.some((query) => query.status === "pending" && query.data === undefined),
+      isLoading: Boolean(adapter && scope && enabled) && queries.some((query) => query.status === "pending" && query.data === undefined),
       error: queries.find((query) => query.error)?.error ?? null,
       refetch: async () => {
         await Promise.all(queries.map(async (query) => await query.refetch()));
       },
     }),
-    [adapter, queries, scope, tables],
+    [adapter, enabled, queries, scope, tables],
   );
 }
 

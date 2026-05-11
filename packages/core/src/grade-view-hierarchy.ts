@@ -1,5 +1,8 @@
-import type { CoreGradesGetUserGradesTableWSResponse, CoreGradesTableRow } from "./grade-types";
 import { parseGradeRows } from "./grade-row-parser";
+import type {
+  CoreGradesGetUserGradesTableWSResponse,
+  CoreGradesTableRow,
+} from "./grade-types";
 
 type GradeTreeNode = {
   label: string;
@@ -46,7 +49,10 @@ export function renderCourseGradeHierarchyMarkdown(params: {
   return lines.join("\n");
 }
 
-function buildGradeTree(rows: readonly CoreGradesTableRow[], siteUrl: string): GradeTreeNode[] {
+function buildGradeTree(
+  rows: readonly CoreGradesTableRow[],
+  siteUrl: string,
+): GradeTreeNode[] {
   const roots: GradeTreeNode[] = [];
   const stack: GradeTreeNode[] = [];
 
@@ -86,7 +92,10 @@ function renderNode(lines: string[], node: GradeTreeNode, depth: number) {
   const meta: string[] = [];
 
   if (node.kind === "item") {
-    if (node.grade && node.range) meta.push(`${node.grade} / ${node.range.split("–")[1]?.trim() ?? node.range}`);
+    if (node.grade && node.range)
+      meta.push(
+        `${node.grade} / ${node.range.split("–")[1]?.trim() ?? node.range}`,
+      );
     else if (node.grade) meta.push(node.grade);
     if (node.percentage) meta.push(node.percentage);
     if (node.moduleId) meta.push(`module ${node.moduleId}`);

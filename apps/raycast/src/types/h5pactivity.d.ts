@@ -1,4 +1,8 @@
-import { CoreCourseModuleStandardElements, CoreWSExternalFile, CoreWSExternalWarning } from ".";
+import {
+  CoreCourseModuleStandardElements,
+  CoreWSExternalFile,
+  CoreWSExternalWarning,
+} from ".";
 
 export const AddonModH5PActivityGradeMethod = {
   GRADEMANUAL: 0,

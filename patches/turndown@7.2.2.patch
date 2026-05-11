@@ -1,0 +1,84 @@
+diff --git a/lib/turndown.browser.cjs.js b/lib/turndown.browser.cjs.js
+index e32a628..2120e97 100644
+--- a/lib/turndown.browser.cjs.js
++++ b/lib/turndown.browser.cjs.js
+@@ -728,6 +728,7 @@ function isFlankedByWhitespace (side, node, options) {
+ }
+ 
+ var reduce = Array.prototype.reduce;
++var intrawordEscapedUnderscore = /(?<=[\p{L}\p{N}])\\_(?=[\p{L}\p{N}])/gu;
+ var escapes = [
+   [/\\/g, '\\\\'],
+   [/\*/g, '\\*'],
+@@ -866,7 +867,7 @@ TurndownService.prototype = {
+   escape: function (string) {
+     return escapes.reduce(function (accumulator, escape) {
+       return accumulator.replace(escape[0], escape[1])
+-    }, string)
++    }, string).replace(intrawordEscapedUnderscore, '_')
+   }
+ };
+ 
+diff --git a/lib/turndown.browser.es.js b/lib/turndown.browser.es.js
+index 181a5e8..0beaaf5 100644
+--- a/lib/turndown.browser.es.js
++++ b/lib/turndown.browser.es.js
+@@ -726,6 +726,7 @@ function isFlankedByWhitespace (side, node, options) {
+ }
+ 
+ var reduce = Array.prototype.reduce;
++var intrawordEscapedUnderscore = /(?<=[\p{L}\p{N}])\\_(?=[\p{L}\p{N}])/gu;
+ var escapes = [
+   [/\\/g, '\\\\'],
+   [/\*/g, '\\*'],
+@@ -864,7 +865,7 @@ TurndownService.prototype = {
+   escape: function (string) {
+     return escapes.reduce(function (accumulator, escape) {
+       return accumulator.replace(escape[0], escape[1])
+-    }, string)
++    }, string).replace(intrawordEscapedUnderscore, '_')
+   }
+ };
+ 
+diff --git a/lib/turndown.cjs.js b/lib/turndown.cjs.js
+index 96582b1..f9abcf7 100644
+--- a/lib/turndown.cjs.js
++++ b/lib/turndown.cjs.js
+@@ -704,6 +704,7 @@ function isFlankedByWhitespace (side, node, options) {
+ }
+ 
+ var reduce = Array.prototype.reduce;
++var intrawordEscapedUnderscore = /(?<=[\p{L}\p{N}])\\_(?=[\p{L}\p{N}])/gu;
+ var escapes = [
+   [/\\/g, '\\\\'],
+   [/\*/g, '\\*'],
+@@ -842,7 +843,7 @@ TurndownService.prototype = {
+   escape: function (string) {
+     return escapes.reduce(function (accumulator, escape) {
+       return accumulator.replace(escape[0], escape[1])
+-    }, string)
++    }, string).replace(intrawordEscapedUnderscore, '_')
+   }
+ };
+ 
+diff --git a/lib/turndown.es.js b/lib/turndown.es.js
+index b7b6bc9..d7c8dce 100644
+--- a/lib/turndown.es.js
++++ b/lib/turndown.es.js
+@@ -702,6 +702,7 @@ function isFlankedByWhitespace (side, node, options) {
+ }
+ 
+ var reduce = Array.prototype.reduce;
++var intrawordEscapedUnderscore = /(?<=[\p{L}\p{N}])\\_(?=[\p{L}\p{N}])/gu;
+ var escapes = [
+   [/\\/g, '\\\\'],
+   [/\*/g, '\\*'],
+@@ -840,7 +841,7 @@ TurndownService.prototype = {
+   escape: function (string) {
+     return escapes.reduce(function (accumulator, escape) {
+       return accumulator.replace(escape[0], escape[1])
+-    }, string)
++    }, string).replace(intrawordEscapedUnderscore, '_')
+   }
+ };
+ 

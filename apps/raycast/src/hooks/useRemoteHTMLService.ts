@@ -5,9 +5,14 @@ import { turndown } from "../helpers/markdown";
 import { siteOrigin } from "../helpers/preferences";
 import { Content } from "../types";
 
-const relativeUrlAttributeRegex = /(<(a|img)\b[^>]*\b(href|src)\s*=\s*['"])([^'"]+)(['"])/gi;
+const relativeUrlAttributeRegex =
+  /(<(a|img)\b[^>]*\b(href|src)\s*=\s*['"])([^'"]+)(['"])/gi;
 
-export function useRemoteHTMLResource(url: string | undefined, contents?: Content[], courseId?: number) {
+export function useRemoteHTMLResource(
+  url: string | undefined,
+  contents?: Content[],
+  courseId?: number,
+) {
   const handledUrl = url ? handleFileUrl(url) : "";
 
   return useFetch(handledUrl, {
@@ -16,14 +21,32 @@ export function useRemoteHTMLResource(url: string | undefined, contents?: Conten
       const md = turndown(
         r.replace(
           relativeUrlAttributeRegex,
-          (match, prefix: string, tagName: string, attributeName: string, attributeUrl: string, suffix: string) => {
+          (
+            match,
+            prefix: string,
+            tagName: string,
+            attributeName: string,
+            attributeUrl: string,
+            suffix: string,
+          ) => {
             if (!shouldResolveRelativeUrl(attributeUrl)) {
-              return rewriteActivityHref(match, tagName, attributeName, attributeUrl, courseId);
+              return rewriteActivityHref(
+                match,
+                tagName,
+                attributeName,
+                attributeUrl,
+                courseId,
+              );
             }
 
-            const resolvedUrl = resolveModuleContentUrl(attributeUrl, handledUrl, contents ?? []);
+            const resolvedUrl = resolveModuleContentUrl(
+              attributeUrl,
+              handledUrl,
+              contents ?? [],
+            );
             const finalUrl =
-              tagName.toLowerCase() === "a" && attributeName.toLowerCase() === "href"
+              tagName.toLowerCase() === "a" &&
+              attributeName.toLowerCase() === "href"
                 ? rewriteActivityDeeplink(resolvedUrl, courseId)
                 : resolvedUrl;
             return `${prefix}${finalUrl}${suffix}`;
@@ -53,15 +76,26 @@ function rewriteActivityHref(
     return originalMatch;
   }
 
-  return originalMatch.replace(attributeUrl, rewriteActivityDeeplink(attributeUrl, courseId));
+  return originalMatch.replace(
+    attributeUrl,
+    rewriteActivityDeeplink(attributeUrl, courseId),
+  );
 }
 
-function resolveModuleContentUrl(url: string, baseUrl: string, contents: Content[]) {
+function resolveModuleContentUrl(
+  url: string,
+  baseUrl: string,
+  contents: Content[],
+) {
   const [path] = url.split(/[?#]/, 1);
   const normalizedPath = normalizeContentPath(path);
   const content = contents.find((item) => {
     const fullPath = normalizeContentPath(`${item.filepath}${item.filename}`);
-    return normalizedPath === fullPath || normalizedPath === fullPath.slice(1) || normalizedPath === item.filename;
+    return (
+      normalizedPath === fullPath ||
+      normalizedPath === fullPath.slice(1) ||
+      normalizedPath === item.filename
+    );
   });
 
   if (content?.fileurl) {
@@ -90,7 +124,10 @@ function rewriteActivityDeeplink(url: string, courseId?: number) {
 
   try {
     const parsedUrl = new URL(url, siteOrigin);
-    if (parsedUrl.origin !== siteOrigin || !/^\/mod\/[^/]+\/view\.php$/.test(parsedUrl.pathname)) {
+    if (
+      parsedUrl.origin !== siteOrigin ||
+      !/^\/mod\/[^/]+\/view\.php$/.test(parsedUrl.pathname)
+    ) {
       return url;
     }
 

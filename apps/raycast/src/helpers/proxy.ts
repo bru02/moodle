@@ -12,7 +12,11 @@ import { ProxyAgent, setGlobalDispatcher } from "undici";
 
     if (proxy.HTTPEnable === "1" && proxy.HTTPProxy && proxy.HTTPPort) {
       url = `http://${proxy.HTTPProxy}:${proxy.HTTPPort}`;
-    } else if (proxy.HTTPSEnable === "1" && proxy.HTTPSProxy && proxy.HTTPSPort) {
+    } else if (
+      proxy.HTTPSEnable === "1" &&
+      proxy.HTTPSProxy &&
+      proxy.HTTPSPort
+    ) {
       url = `https://${proxy.HTTPSProxy}:${proxy.HTTPSPort}`;
     }
   }

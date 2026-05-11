@@ -3,7 +3,12 @@ import { dirname, join } from "path";
 
 import { environment } from "@raycast/api";
 
-export type CourseAccessMethod = "view-course" | "view-grades" | "open-browser" | "open-folder" | "deeplink";
+export type CourseAccessMethod =
+  | "view-course"
+  | "view-grades"
+  | "open-browser"
+  | "open-folder"
+  | "deeplink";
 
 export type CourseAccessLogInput = {
   courseId: number;
@@ -11,7 +16,11 @@ export type CourseAccessLogInput = {
   searchQuery?: string | null;
 };
 
-const ACCESS_LOG_PATH = join(environment.supportPath, "analytics", "course-access.ndjson");
+const ACCESS_LOG_PATH = join(
+  environment.supportPath,
+  "analytics",
+  "course-access.ndjson",
+);
 const DEDUPE_WINDOW_MS = 400;
 const recentlyLoggedEvents = new Map<string, number>();
 let hasLoggedWriteFailure = false;
@@ -21,7 +30,8 @@ export async function logCourseAccess(input: CourseAccessLogInput) {
   const searchQuery = normalizeSearchQuery(input.searchQuery);
   const dedupeKey = `${input.method}|${input.courseId}|${searchQuery ?? ""}`;
   const previouslyLoggedAt = recentlyLoggedEvents.get(dedupeKey);
-  const elapsedSincePreviousLog = now - (previouslyLoggedAt ?? Number.NEGATIVE_INFINITY);
+  const elapsedSincePreviousLog =
+    now - (previouslyLoggedAt ?? Number.NEGATIVE_INFINITY);
   if (elapsedSincePreviousLog < DEDUPE_WINDOW_MS) {
     return;
   }
@@ -41,7 +51,10 @@ export async function logCourseAccess(input: CourseAccessLogInput) {
   } catch (error) {
     if (!hasLoggedWriteFailure) {
       hasLoggedWriteFailure = true;
-      console.error("course-access-log: failed to append NDJSON log entry", error);
+      console.error(
+        "course-access-log: failed to append NDJSON log entry",
+        error,
+      );
     }
   }
 }

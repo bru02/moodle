@@ -54,6 +54,7 @@ export type CoreCourseGetContentsParams = {
 export type CoreCourseGetContentsWSModule = {
   id: number; // Activity id.
   url?: string; // Activity url.
+  section?: number; // Section number inside the course.
   name: string; // Activity module name.
   instance: number; // Instance id. Cannot be undefined.
   contextid?: number; // @since 3.10. Activity context id.
@@ -201,6 +202,7 @@ export enum Modname {
   Forum = "forum",
   H5Pactivity = "h5pactivity",
   Label = "label",
+  Pdfannotator = "pdfannotator",
   Questionnaire = "questionnaire",
   Quiz = "quiz",
   Resource = "resource",

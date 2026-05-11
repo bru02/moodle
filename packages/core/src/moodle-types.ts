@@ -1,4 +1,7 @@
-import type { CoreCourseGetContentsWSModule, CoreCourseGetContentsWSSection } from "./course-content-types";
+import type {
+  CoreCourseGetContentsWSModule,
+  CoreCourseGetContentsWSSection,
+} from "./course-content-types";
 
 export enum AuthMethod {
   PASSWORD = "password",
@@ -128,7 +131,10 @@ export type MoodleResponseLike = {
   json(): Promise<unknown>;
 };
 
-export type MoodleFetchLike = (input: string, init?: MoodleFetchInit) => Promise<MoodleResponseLike>;
+export type MoodleFetchLike = (
+  input: string,
+  init?: MoodleFetchInit,
+) => Promise<MoodleResponseLike>;
 
 export type CoreWSExternalWarning = {
   item?: string;

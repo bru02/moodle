@@ -3,7 +3,8 @@ export type AuthErrorOptions = {
   status?: number;
   details?: string;
 };
-export const OFFLINE_ERROR_MESSAGE = "You appear to be offline. Moodle requests are unavailable right now.";
+export const OFFLINE_ERROR_MESSAGE =
+  "You appear to be offline. Moodle requests are unavailable right now.";
 
 export class AuthError extends Error {
   code?: string;
@@ -32,9 +33,15 @@ export function isLikelyOfflineError(error: unknown): boolean {
       message,
     );
   const isLikelyConnectivityIssue =
-    /enotfound|econnrefused|econnreset|enetunreach|etimedout|getaddrinfo/i.test(normalizedMessage);
+    /enotfound|econnrefused|econnreset|enetunreach|etimedout|getaddrinfo/i.test(
+      normalizedMessage,
+    );
 
-  return message === OFFLINE_ERROR_MESSAGE || isLikelyOfflineTypeError || isLikelyConnectivityIssue;
+  return (
+    message === OFFLINE_ERROR_MESSAGE ||
+    isLikelyOfflineTypeError ||
+    isLikelyConnectivityIssue
+  );
 }
 
 export function normalizeNetworkError(error: unknown): Error {
