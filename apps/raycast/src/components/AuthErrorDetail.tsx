@@ -22,6 +22,9 @@ function formatDetails(error: AuthError) {
   if (error.status) {
     details.push(`- HTTP status: ${error.status}`);
   }
+  if (error.details) {
+    details.push(`- Exception: ${error.details}`);
+  }
   return details.length > 0 ? `\n## Details\n${details.join("\n")}` : "";
 }
 

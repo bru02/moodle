@@ -1,8 +1,9 @@
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router/react-navigation";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { EmptyState } from "@/components/empty-state";
+import { LoadingState } from "@/components/loading-state";
 import { InsetGroup, NativeScrollPage } from "@/components/native-ui";
 import { ModuleDetail } from "@/components/module-detail";
 import { OpenInMoodleButton, formatModuleKind } from "@/components/module-detail/shared";
@@ -80,7 +81,7 @@ export function CourseContentScreen() {
   }
 
   if (contentsQuery.isLoading && !module) {
-    return <EmptyState title="Loading content" />;
+    return <LoadingState style={{ flex: 1, justifyContent: "center", alignItems: "center" }} />;
   }
 
   if (!module) {

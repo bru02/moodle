@@ -3,7 +3,6 @@ import {
   ActionPanel,
   Clipboard,
   Color,
-  Detail,
   Icon,
   Keyboard,
   Toast,
@@ -11,7 +10,7 @@ import {
   showToast,
 } from "@raycast/api";
 import { getProgressIcon } from "@raycast/utils";
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useMemo } from "react";
 
 import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
@@ -37,11 +36,6 @@ const importLiteParse = new Function(
   "return import(specifier)",
 ) as (specifier: string) => Promise<LiteParseModule>;
 
-type CopyMarkdownState =
-  | { status: "loading" }
-  | { status: "success"; characters: number }
-  | { status: "error"; message: string };
-
 async function parseFileAsMarkdown(filePath: string) {
   const { LiteParse } = await importLiteParse("@llamaindex/liteparse");
   const parser = new LiteParse({ outputFormat: "text" });
@@ -50,83 +44,27 @@ async function parseFileAsMarkdown(filePath: string) {
   return result.text.trim();
 }
 
-function CopyMarkdownView({ filePath }: { filePath: string }) {
-  const [state, setState] = useState<CopyMarkdownState>({
-    status: "loading",
+async function copyFileAsMarkdown(filePath: string) {
+  await closeMainWindow();
+
+  const toast = await showToast({
+    style: Toast.Style.Animated,
+    title: "Converting to Markdown",
   });
 
-  useEffect(() => {
-    let didCancel = false;
+  try {
+    const markdown = await parseFileAsMarkdown(filePath);
+    await Clipboard.copy(markdown);
 
-    async function copyFileAsMarkdown() {
-      const toast = await showToast({
-        style: Toast.Style.Animated,
-        title: "Converting to Markdown",
-      });
+    toast.style = Toast.Style.Success;
+    toast.title = "Copied Markdown";
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
 
-      try {
-        const markdown = await parseFileAsMarkdown(filePath);
-
-        await Clipboard.copy(markdown);
-
-        toast.style = Toast.Style.Success;
-        toast.title = "Copied Markdown";
-
-        if (!didCancel) {
-          setState({ status: "success", characters: markdown.length });
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-
-        toast.style = Toast.Style.Failure;
-        toast.title = "Failed to Copy Markdown";
-        toast.message = message;
-
-        if (!didCancel) {
-          setState({ status: "error", message });
-        }
-      }
-    }
-
-    void copyFileAsMarkdown();
-
-    return () => {
-      didCancel = true;
-    };
-  }, [filePath]);
-
-  if (state.status === "loading") {
-    return <Detail isLoading markdown="Converting file to Markdown..." />;
+    toast.style = Toast.Style.Failure;
+    toast.title = "Failed to Copy Markdown";
+    toast.message = message;
   }
-
-  if (state.status === "error") {
-    return (
-      <Detail
-        markdown={`# Failed to Copy Markdown\n\n${state.message}`}
-        actions={
-          <ActionPanel>
-            <Action.PopToRoot title="Back to Resources" />
-          </ActionPanel>
-        }
-      />
-    );
-  }
-
-  return (
-    <Detail
-      markdown={`# Copied Markdown\n\nCopied ${state.characters.toLocaleString()} characters to the clipboard.`}
-      actions={
-        <ActionPanel>
-          <Action
-            title="Close Window"
-            icon={Icon.XmarkCircle}
-            onAction={() => closeMainWindow()}
-          />
-          <Action.PopToRoot title="Back to Resources" />
-        </ActionPanel>
-      }
-    />
-  );
 }
 
 export default function ResourceListItem({
@@ -165,7 +103,20 @@ export default function ResourceListItem({
   }
   const title = content ? filename : module.name || filename;
   const subtitle = title !== filename ? filename : undefined;
-  const keywords = title !== filename ? [filename] : undefined;
+  const keywords = useMemo(() => {
+    const values = new Set(
+      filename
+        .split(/[\s\-_]+/)
+        .map((part) => part.trim().toLowerCase())
+        .filter(Boolean),
+    );
+
+    if (title !== filename) {
+      values.add(filename.trim().toLowerCase());
+    }
+
+    return values.size > 0 ? [...values] : undefined;
+  }, [filename, title]);
   const fileUrl = useMemo(
     () => (fileContent ? handleFileUrl(fileContent.fileurl) : ""),
     [fileContent],
@@ -277,10 +228,10 @@ export default function ResourceListItem({
               shortcut={shortcut(".")}
               content={{ file: filePath }}
             />
-            <Action.Push
+            <Action
               title="Copy as Markdown"
               icon={Icon.Clipboard}
-              target={<CopyMarkdownView filePath={filePath} />}
+              onAction={() => copyFileAsMarkdown(filePath)}
             />
             <Action.CopyToClipboard
               title="Copy Name"

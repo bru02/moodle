@@ -104,6 +104,7 @@ export async function clearAllPersistentState() {
   await Promise.all([
     AsyncStorage.removeItem(ACCOUNTS_KEY),
     AsyncStorage.removeItem(ACTIVE_ACCOUNT_KEY),
+    AsyncStorage.removeItem(QUERY_CACHE_KEY),
     AsyncStorage.removeItem(SETTINGS_KEY),
   ]);
 }

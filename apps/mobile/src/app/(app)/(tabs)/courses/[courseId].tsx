@@ -1,7 +1,7 @@
 import { Image } from "expo-image";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router/react-navigation";
 import { Stack, router, useLocalSearchParams, useRouter, type Href } from "expo-router";
-import SegmentedControl from "@react-native-segmented-control/segmented-control";
+import SegmentedControl from "@expo/ui/community/segmented-control";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import PagerView from "react-native-pager-view";
@@ -13,6 +13,7 @@ import HeaderMotion, { useActiveScrollId, useMotionProgress } from "react-native
 import { platformColors } from "@/constants/platform-colors";
 
 import { EmptyState } from "@/components/empty-state";
+import { LoadingState } from "@/components/loading-state";
 import { ModuleRow } from "@/components/module-row";
 import { NativeIconButton } from "@/components/native-icon-button";
 import { GroupHeader, InsetGroup, InsetRow, SymbolBadge } from "@/components/native-ui";
@@ -30,6 +31,7 @@ const NAV_BAR_HEIGHT = 44;
 // slides up behind it, so the segmented control settles right under the nav bar.
 const PROGRESS_THRESHOLD = HERO_HEIGHT - NAV_BAR_HEIGHT;
 const FALLBACK_COURSE_ICON_HUE = 211;
+const COURSE_ICON_DEBUG_PREFIX = "[course-icon-colors]";
 const canUseBlurView =
   Platform.OS === "ios" || (Platform.OS === "android" && Number(Platform.Version) >= 31);
 
@@ -121,6 +123,11 @@ export default function CourseDetailScreen() {
 
     void getCourseImageHue(coverImageUrl).then((hue) => {
       if (cancelled) return;
+      logCourseIconColorDebug("resolved course image hue", {
+        scopeId: scope?.id,
+        coverImageUrl,
+        hue,
+      });
       setCourseIconHue(hue);
     });
 
@@ -158,6 +165,46 @@ export default function CourseDetailScreen() {
     return result;
   }, [contentsQuery.data?.sections]);
 
+  useEffect(() => {
+    if (!scope || !contentsQuery.data) return;
+
+    const allModules = contentsQuery.data.sections.flatMap((section) =>
+      section.modules.map((module) => ({
+        scopedModuleId: module.id,
+        rawModuleId: module.module.id,
+        modname: module.module.modname,
+        moduleName: module.module.name,
+        sectionId: section.id,
+        sectionTitle: section.name,
+        courseId: module.course.id,
+        courseName: module.course.displayname,
+        seminarGroup: module.course.seminarGroup,
+        tint: getCourseIconTint({ hue: courseIconHue, seminarGroup: module.course.seminarGroup }),
+      })),
+    );
+    const tintCounts = allModules.reduce<Record<string, number>>((counts, module) => {
+      counts[module.tint] = (counts[module.tint] ?? 0) + 1;
+      return counts;
+    }, {});
+
+    logCourseIconColorDebug("content tint mapping", {
+      scope: {
+        id: scope.id,
+        title: scope.title,
+        courseIds: scope.courseIds,
+        mergedSeminarGroup: scope.mergedCourse.seminarGroup,
+        courses: scope.courses.map((course) => ({
+          id: course.id,
+          displayname: course.displayname,
+          seminarGroup: course.seminarGroup,
+        })),
+      },
+      courseIconHue,
+      tintCounts,
+      modules: allModules,
+    });
+  }, [contentsQuery.data, courseIconHue, scope]);
+
   const selectTab = useCallback(
     (id: TabId) => {
       if (id === "grades") {
@@ -179,7 +226,7 @@ export default function CourseDetailScreen() {
   const contentPage = (
     <>
       {contentsQuery.isLoading ? (
-        <EmptyState title="Loading content" description="Fetching course content." />
+        <LoadingState />
       ) : contentsQuery.error ? (
         <EmptyState title="Content unavailable" description="Could not load course sections." />
       ) : display ? (
@@ -228,7 +275,7 @@ export default function CourseDetailScreen() {
       {gradesQuery.error ? (
         <EmptyState title="Grades unavailable" description="Could not load grades." />
       ) : gradesQuery.isLoading ? (
-        <EmptyState title="Loading grades" description="Loading grades." />
+        <LoadingState />
       ) : gradeSections.every((section) => section.rows.length === 0) ? (
         <EmptyState title="No grades found" description="No grades available." />
       ) : (
@@ -339,6 +386,11 @@ export default function CourseDetailScreen() {
       </PagerView>
     </HeaderMotion>
   );
+}
+
+function logCourseIconColorDebug(label: string, payload: unknown) {
+  if (!__DEV__) return;
+  console.log(`${COURSE_ICON_DEBUG_PREFIX} ${label}`, payload);
 }
 
 interface CourseCollapsibleHeaderProps {
@@ -506,7 +558,7 @@ const styles = StyleSheet.create({
     backgroundColor: platformColors.secondarySystemGroupedBackground,
   },
   heroGradient: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     experimental_backgroundImage:
       "linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.25) 45%, rgba(0,0,0,0.15) 100%)",
   },

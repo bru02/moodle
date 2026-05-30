@@ -6,12 +6,21 @@ import {
 import { ActionPanel, List } from "@raycast/api";
 import { useMemo } from "react";
 
+import AuthErrorBoundary from "./components/AuthErrorBoundary";
 import AuthErrorDetail from "./components/AuthErrorDetail";
 import { OpenInBrowserAction } from "./components/OpenInBrowserAction";
 import { siteOrigin } from "./helpers/preferences";
 import { useWSBatchQuery } from "./hooks/useWSQuery";
 
 export default function ViewCourseGrades({ scope }: { scope: CourseScope }) {
+  return (
+    <AuthErrorBoundary>
+      <ViewCourseGradesContent scope={scope} />
+    </AuthErrorBoundary>
+  );
+}
+
+function ViewCourseGradesContent({ scope }: { scope: CourseScope }) {
   const gradesQuery = useWSBatchQuery(
     "gradereport_user_get_grades_table",
     scope.courseIds.map((courseid) => ({ courseid, userid: 0 })),

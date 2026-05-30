@@ -4,7 +4,6 @@ import {
   listCourses,
   toSimpleCourse,
   type CourseScope,
-  type MoodleSiteInfo,
 } from "@moodle/core";
 import { Action, ActionPanel, Grid, Icon, LaunchProps } from "@raycast/api";
 import {
@@ -14,7 +13,8 @@ import {
 } from "@raycast/utils";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { useUser } from "./client";
+import { resetUserState } from "./client";
+import AuthErrorBoundary from "./components/AuthErrorBoundary";
 import AuthErrorDetail from "./components/AuthErrorDetail";
 import { OpenFolderAction } from "./components/OpenFolderAction";
 import { OpenInBrowserAction } from "./components/OpenInBrowserAction";
@@ -40,7 +40,14 @@ type SearchCoursesLaunchProps = LaunchProps<{
 const COURSE_VISIBILITY_NAMESPACE = "courses";
 
 export default function Command({ launchContext }: SearchCoursesLaunchProps) {
-  const user = useUser();
+  return (
+    <AuthErrorBoundary>
+      <SearchCourses launchContext={launchContext} />
+    </AuthErrorBoundary>
+  );
+}
+
+function SearchCourses({ launchContext }: SearchCoursesLaunchProps) {
   const { data, isLoading, error, refetch } = useWSQuery(
     "core_enrol_get_users_courses",
     { userid: 0 },
@@ -113,7 +120,15 @@ export default function Command({ launchContext }: SearchCoursesLaunchProps) {
   }, [courses, directLaunchCourseId, trackCourseAccess, visitItem]);
 
   if (error && isAuthError(error)) {
-    return <AuthErrorDetail error={error} onRetry={() => refetch()} />;
+    return (
+      <AuthErrorDetail
+        error={error}
+        onRetry={() => {
+          resetUserState();
+          void refetch();
+        }}
+      />
+    );
   }
 
   if (scopeToLaunch) {
@@ -167,7 +182,6 @@ export default function Command({ launchContext }: SearchCoursesLaunchProps) {
             visibleScopes,
             visitItem,
             trackCourseAccess,
-            user.siteInfo,
           );
           if (items.length === 0) return null;
           if (isPinnedSection)
@@ -185,7 +199,6 @@ function renderScopeItems(
   scopes: readonly CourseScope[],
   visitItem: (course: CourseScope["mergedCourse"]) => void,
   trackCourseAccess: (courseId: number, method: CourseAccessMethod) => void,
-  siteInfo: MoodleSiteInfo,
 ) {
   return scopes.map((scope) => {
     const course = scope.mergedCourse;
@@ -248,14 +261,6 @@ function renderScopeItems(
               />
             </ActionPanel.Section>
             <HiddenItemActionsSection item={scope} />
-            <ActionPanel.Section>
-              <Action.CopyToClipboard
-                title="Copy Site Info"
-                content={JSON.stringify(siteInfo, null, 2)}
-                icon={Icon.Clipboard}
-                shortcut={shortcut("i", ["shift"])}
-              />
-            </ActionPanel.Section>
           </ActionPanel>
         }
       />

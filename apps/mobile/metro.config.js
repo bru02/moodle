@@ -1,13 +1,16 @@
 const { getDefaultConfig } = require("expo/metro-config");
+const { FileStore } = require("metro-cache");
 const path = require("node:path");
 
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(__dirname);
-const workspaceRoot = path.resolve(__dirname, "../..");
-
-config.projectRoot = workspaceRoot;
-config.watchFolders = [workspaceRoot];
 const defaultResolveRequest = config.resolver.resolveRequest;
+
+config.cacheStores = [
+  new FileStore({
+    root: path.join(__dirname, ".cache", "metro"),
+  }),
+];
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (moduleName.startsWith("@/assets/")) {

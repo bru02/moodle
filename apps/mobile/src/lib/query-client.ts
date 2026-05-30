@@ -4,6 +4,7 @@ import { QueryClient } from "@tanstack/react-query";
 
 export const QUERY_CACHE_KEY = "moodle.mobile.query-cache";
 export const QUERY_CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+export const QUERY_CACHE_BUSTER = "sdk-56-query-v1";
 
 export const queryClient = new QueryClient({
   defaultOptions: {

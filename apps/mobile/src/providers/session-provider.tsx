@@ -72,16 +72,27 @@ export function SessionProvider({ children }: React.PropsWithChildren) {
 
   async function signInWithQrPayload(payload: string) {
     const parsed = parseQrPayload(payload);
+    console.log("[session][qr] parsed payload", {
+      siteOrigin: parsed.siteOrigin,
+      userId: parsed.userId,
+      hasQrLoginKey: Boolean(parsed.qrLoginKey),
+      qrLoginKeyLength: parsed.qrLoginKey.length,
+    });
+
     const session = await authenticateWithQrLogin({
       siteOrigin: parsed.siteOrigin,
       qrLoginKey: parsed.qrLoginKey,
       userId: parsed.userId,
     });
-    await saveSession(session, {
-      kind: "qr",
-      qrLoginKey: parsed.qrLoginKey,
-      userId: parsed.userId,
+
+    console.log("[session][qr] success", {
+      siteOrigin: session.siteOrigin,
+      accountId: session.account.id,
+      userId: session.account.userId,
+      authMethod: session.authMethod,
     });
+
+    await saveSession(session, { kind: "token" });
     return session;
   }
 
@@ -156,17 +167,11 @@ export function SessionProvider({ children }: React.PropsWithChildren) {
             username: secure.auth.username,
             password: secure.auth.password,
           })
-        : secure.auth.kind === "qr"
-          ? await authenticateWithQrLogin({
-              siteOrigin: account.siteOrigin,
-              qrLoginKey: secure.auth.qrLoginKey,
-              userId: secure.auth.userId,
-            })
-          : await authenticateWithToken({
-              siteOrigin: account.siteOrigin,
-              token: secure.token,
-              privateToken: secure.privateToken,
-            });
+        : await authenticateWithToken({
+            siteOrigin: account.siteOrigin,
+            token: secure.token,
+            privateToken: secure.privateToken,
+          });
 
     await writeSecureSession(account.id, {
       ...secure,

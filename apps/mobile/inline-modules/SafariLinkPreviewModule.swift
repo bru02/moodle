@@ -1,4 +1,4 @@
-import ExpoModulesCore
+internal import ExpoModulesCore
 import Darwin
 import Foundation
 import ObjectiveC.runtime
@@ -12,11 +12,11 @@ private class InvalidSchemeException: GenericException<Void>, @unchecked Sendabl
   override var reason: String { "Safari link previews require an http or https URL." }
 }
 
-public class SafariLinkPreviewModule: Module {
+class SafariLinkPreviewModule: Module {
   private static var dataDetectorsHandle: UnsafeMutableRawPointer?
   private static var contextMenuDelegateAssociationKey: UInt8 = 0
 
-  public func definition() -> ModuleDefinition {
+  func definition() -> ModuleDefinition {
     Name("SafariLinkPreviewModule")
 
     AsyncFunction("present") { (urlString: String, sourceRectPayload: [String: Any]?) in

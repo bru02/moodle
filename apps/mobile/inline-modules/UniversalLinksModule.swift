@@ -1,4 +1,4 @@
-import ExpoModulesCore
+internal import ExpoModulesCore
 import CoreSpotlight
 import Foundation
 import UIKit
@@ -19,10 +19,10 @@ private struct UserInfoPayload: @unchecked Sendable {
   let value: [AnyHashable: Any]
 }
 
-public class UniversalLinksModule: Module {
+class UniversalLinksModule: Module {
   private static var currentActivity: NSUserActivity?
 
-  public func definition() -> ModuleDefinition {
+  func definition() -> ModuleDefinition {
     Name("UniversalLinksModule")
 
     AsyncFunction("openUniversalLinkOnly") { (urlString: String) -> Bool in

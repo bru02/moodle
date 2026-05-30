@@ -5,6 +5,7 @@ import { Text } from "react-native";
 import { platformColors } from "@/constants/platform-colors";
 
 import { EmptyState } from "@/components/empty-state";
+import { LoadingState } from "@/components/loading-state";
 import { GroupHeader, InsetGroup, InsetRow, NativeScrollPage, SectionTitle } from "@/components/native-ui";
 import { useCourseContentsQuery, useCourseGradesQuery, useCourseScope } from "@/lib/moodle-queries";
 import { useAppState } from "@/providers/app-provider";
@@ -68,7 +69,7 @@ export default function CourseGradesScreen() {
         <SectionTitle eyebrow="Grades" title={scope.title} />
 
         {gradesQuery.isLoading ? (
-          <EmptyState title="Loading grades" description="Loading grades." />
+          <LoadingState />
         ) : sections.every((section) => section.rows.length === 0) ? (
           <EmptyState title="No grades found" description="No grades available." />
         ) : (

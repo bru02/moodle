@@ -10,6 +10,7 @@ import {
 import { List, useNavigation } from "@raycast/api";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import AuthErrorBoundary from "./components/AuthErrorBoundary";
 import AuthErrorDetail from "./components/AuthErrorDetail";
 import { DismissibleItemsContext } from "./components/DismissibleItemsContext";
 import WithHiddenItems from "./components/WithHiddenItems";
@@ -25,6 +26,20 @@ import { Module } from "./types";
 import { Modname } from "./types/contents";
 
 export default function ViewCourse({
+  scope,
+  preselectItem,
+}: {
+  scope: CourseScope;
+  preselectItem?: number;
+}) {
+  return (
+    <AuthErrorBoundary>
+      <ViewCourseContent scope={scope} preselectItem={preselectItem} />
+    </AuthErrorBoundary>
+  );
+}
+
+function ViewCourseContent({
   scope,
   preselectItem,
 }: {

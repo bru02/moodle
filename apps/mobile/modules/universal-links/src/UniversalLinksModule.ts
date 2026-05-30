@@ -1,4 +1,4 @@
-import { requireNativeModule } from "expo";
+import { requireOptionalNativeModule } from "expo";
 
 type DonateUserActivityInput = {
   activityType: string;
@@ -20,4 +20,4 @@ declare class UniversalLinksModuleType {
   clearCurrentUserActivity(): Promise<void>;
 }
 
-export default requireNativeModule<UniversalLinksModuleType>("UniversalLinksModule");
+export default requireOptionalNativeModule<UniversalLinksModuleType>("UniversalLinksModule");

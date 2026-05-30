@@ -6,10 +6,13 @@ import { Stack, router, useFocusEffect, type Href } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 
+import { buildCalendarScopeMatcherForScopes, toCalendarEvent, type CourseScope } from "@moodle/core";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { EmptyState } from "@/components/empty-state";
 import { HeaderAccountButton } from "@/components/header-account-button";
+import { headerIconButtonModifiers } from "@/components/header-glass-surface";
+import { LoadingState } from "@/components/loading-state";
 import { InsetGroup, InsetRow, NativePage, SymbolBadge, nativePageContentContainerStyle } from "@/components/native-ui";
 import { resolveMoodleImageUrl } from "@/lib/moodle-images";
 import { buildCourseContentQueryOptions, useCoursesQuery } from "@/lib/moodle-queries";
@@ -23,18 +26,25 @@ type CourseListItem = {
   isCurrent: boolean;
 };
 
-const CURRENT_COURSE_WINDOW_MS = 10 * 60 * 1000;
+const RECENT_COURSE_GRACE_MS = 45 * 60 * 1000;
+const UPCOMING_COURSE_LOOKAHEAD_MS = 7 * 24 * 60 * 60 * 1000;
 const CURRENT_COURSE_REFRESH_MS = 60 * 1000;
+const EMPTY_SCOPES: readonly CourseScope[] = [];
+
+type CalendarCourseMatch = {
+  startsAt: number;
+  isCurrent: boolean;
+  sortBucket: 0 | 1;
+};
 
 export default function CoursesScreen() {
   const { activeAccount, accountSession, refreshAccountSession } = useAppState();
   const coursesQuery = useCoursesQuery();
   const queryClient = useQueryClient();
-  const currentCourseTitles = useCurrentCourseTitles();
+  const calendarCourseMatches = useCalendarCourseMatches(coursesQuery.data?.allScopes ?? EMPTY_SCOPES);
   const [selectedSemesterOverride, setSelectedSemesterOverride] = useState<string | undefined>(undefined);
   const selectedSemester = selectedSemesterOverride ?? coursesQuery.data?.currentSemester ?? "all";
   const session = activeAccount ? accountSession(activeAccount.id) : null;
-  const currentCourseTitleSet = useMemo(() => new Set(currentCourseTitles), [currentCourseTitles]);
 
   const semesters = useMemo(() => {
     return ["all", ...(coursesQuery.data?.semesters ?? [])];
@@ -49,10 +59,17 @@ export default function CoursesScreen() {
           );
 
     return [...filtered].sort((left, right) => {
-      const leftIsCurrent = currentCourseTitleSet.has(normalizeCourseTitle(left.title));
-      const rightIsCurrent = currentCourseTitleSet.has(normalizeCourseTitle(right.title));
-      if (leftIsCurrent !== rightIsCurrent) {
-        return leftIsCurrent ? -1 : 1;
+      const leftCalendarMatch = calendarCourseMatches.get(left.id);
+      const rightCalendarMatch = calendarCourseMatches.get(right.id);
+      if (leftCalendarMatch || rightCalendarMatch) {
+        if (!leftCalendarMatch) return 1;
+        if (!rightCalendarMatch) return -1;
+
+        const bucketDelta = leftCalendarMatch.sortBucket - rightCalendarMatch.sortBucket;
+        if (bucketDelta !== 0) return bucketDelta;
+
+        const startsAtDelta = leftCalendarMatch.startsAt - rightCalendarMatch.startsAt;
+        if (startsAtDelta !== 0) return startsAtDelta;
       }
 
       const modifiedDelta = right.mergedCourse.timemodified - left.mergedCourse.timemodified;
@@ -62,14 +79,14 @@ export default function CoursesScreen() {
       id: scope.id,
       title: scope.title,
       courseIds: scope.courseIds,
-      isCurrent: currentCourseTitleSet.has(normalizeCourseTitle(scope.title)),
+      isCurrent: calendarCourseMatches.get(scope.id)?.isCurrent ?? false,
       coverImageUrl: resolveMoodleImageUrl({
         url: scope.mergedCourse.courseimage,
         siteOrigin: activeAccount?.origin,
         accessKey: session?.accessKey,
       }),
     }));
-  }, [activeAccount?.origin, coursesQuery.data?.allScopes, currentCourseTitleSet, selectedSemester, session?.accessKey]);
+  }, [activeAccount?.origin, calendarCourseMatches, coursesQuery.data?.allScopes, selectedSemester, session?.accessKey]);
 
   const selectSemester = useCallback((semester: string) => {
     setSelectedSemesterOverride(semester);
@@ -110,17 +127,20 @@ export default function CoursesScreen() {
     return <CourseRow item={item} onOpen={openCourse} onPrefetch={prefetchCourseContents} />;
   }, [openCourse, prefetchCourseContents]);
 
-  const filterLabel = selectedSemester === "all" ? "All" : selectedSemester;
-
   return (
     <>
       <Stack.Screen
         options={{
           title: "Courses",
-          headerRight: () => <HeaderAccountButton />,
+          headerLargeTitle: false,
+          headerTitleAlign: "center",
           headerLeft: () => (
             <Host matchContents style={{ marginLeft: 8 }}>
-              <Menu label={filterLabel} systemImage="line.3.horizontal.decrease.circle">
+              <Menu
+                label="Filter semesters"
+                systemImage="line.3.horizontal.decrease.circle"
+                modifiers={headerIconButtonModifiers()}
+              >
                 {semesters.map((semester) => {
                   const isSelected = semester === selectedSemester;
                   const rowLabel = semester === "all" ? "All" : semester;
@@ -137,6 +157,7 @@ export default function CoursesScreen() {
               </Menu>
             </Host>
           ),
+          headerRight: () => <HeaderAccountButton />,
         }}
       />
       <NativePage>
@@ -149,7 +170,7 @@ export default function CoursesScreen() {
           ListHeaderComponent={null}
           ListEmptyComponent={
             coursesQuery.isLoading ? (
-              <EmptyState title="Loading courses" />
+              <LoadingState />
             ) : (
               <EmptyState title="No courses found" description="Try switching to All semesters." />
             )
@@ -203,9 +224,9 @@ function CourseListSpacer() {
   return <View style={styles.spacer} />;
 }
 
-function useCurrentCourseTitles() {
+function useCalendarCourseMatches(scopes: readonly CourseScope[]) {
   const [permission, requestPermission] = Calendar.useCalendarPermissions();
-  const [titles, setTitles] = useState<string[]>([]);
+  const [matchesByScopeId, setMatchesByScopeId] = useState<ReadonlyMap<string, CalendarCourseMatch>>(new Map());
 
   useEffect(() => {
     if (permission && !permission.granted && permission.canAskAgain) {
@@ -214,8 +235,8 @@ function useCurrentCourseTitles() {
   }, [permission, requestPermission]);
 
   useEffect(() => {
-    if (!permission?.granted) {
-      setTitles([]);
+    if (!permission?.granted || scopes.length === 0) {
+      setMatchesByScopeId(new Map());
       return;
     }
 
@@ -224,18 +245,44 @@ function useCurrentCourseTitles() {
     const refresh = async () => {
       try {
         const now = Date.now();
-        const startDate = new Date(now - CURRENT_COURSE_WINDOW_MS);
-        const endDate = new Date(now + CURRENT_COURSE_WINDOW_MS);
+        const startDate = new Date(now - RECENT_COURSE_GRACE_MS);
+        const endDate = new Date(now + UPCOMING_COURSE_LOOKAHEAD_MS);
         const calendars = await Calendar.getCalendars();
         const events = await Calendar.listEvents(calendars, startDate, endDate);
-        const nextTitles = [...new Set(events.map((event) => normalizeCourseTitle(event.title)).filter(Boolean))];
+        const { matches } = buildCalendarScopeMatcherForScopes(scopes).matchEvents(events.map(toCalendarEvent));
+        const nextMatchesByScopeId = new Map<string, CalendarCourseMatch>();
+
+        for (const match of matches) {
+          const startsAt = parseCalendarTimestamp(match.event.dtstart);
+          const endsAt = parseCalendarTimestamp(match.event.dtend);
+          if (startsAt == null || endsAt == null) continue;
+
+          const isCurrent = startsAt <= now && endsAt >= now;
+          const isRecent = endsAt < now && now - endsAt <= RECENT_COURSE_GRACE_MS;
+          const isUpcoming = startsAt >= now;
+          if (!isCurrent && !isRecent && !isUpcoming) continue;
+
+          const sortBucket = isCurrent || isRecent ? 0 : 1;
+          const existingMatch = nextMatchesByScopeId.get(match.scope.id);
+          if (
+            !existingMatch ||
+            sortBucket < existingMatch.sortBucket ||
+            (sortBucket === existingMatch.sortBucket && startsAt < existingMatch.startsAt)
+          ) {
+            nextMatchesByScopeId.set(match.scope.id, {
+              startsAt,
+              isCurrent,
+              sortBucket,
+            });
+          }
+        }
 
         if (!cancelled) {
-          setTitles(nextTitles);
+          setMatchesByScopeId(nextMatchesByScopeId);
         }
       } catch {
         if (!cancelled) {
-          setTitles([]);
+          setMatchesByScopeId(new Map());
         }
       }
     };
@@ -249,18 +296,15 @@ function useCurrentCourseTitles() {
       cancelled = true;
       globalThis.clearInterval(intervalId);
     };
-  }, [permission?.granted]);
+  }, [permission?.granted, scopes]);
 
-  return titles;
+  return matchesByScopeId;
 }
 
-function normalizeCourseTitle(value: string) {
-  return value
-    .normalize("NFKC")
-    .replace(/[\u2010-\u2015\u2212]/g, "-")
-    .toLocaleLowerCase("hu-HU")
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
+function parseCalendarTimestamp(value?: string) {
+  if (!value) return null;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 const styles = {

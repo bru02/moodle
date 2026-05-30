@@ -4,6 +4,7 @@ import { Pressable, Text, View } from "react-native";
 
 import { platformColors } from "@/constants/platform-colors";
 
+import { LoadingState } from "@/components/loading-state";
 import { NativeIconButton } from "@/components/native-icon-button";
 import type { CoreCourseModuleContentFile, CoreWSExternalFile, CourseScope, ScopedModule } from "@moodle/core";
 import { cleanMoodleHtml, cleanMoodleText, handleMoodleFileUrl } from "@moodle/core";
@@ -193,9 +194,7 @@ export function FactSection({
       ))}
       {description ? description : null}
       {isLoading && rows.length === 0 ? (
-        <Text selectable style={{ fontSize: 14, lineHeight: 21, color: label2Color }}>
-          Loading…
-        </Text>
+        <LoadingState style={{ paddingHorizontal: 0, paddingVertical: 2 }} />
       ) : null}
       {!description && rows.length === 0 && !isLoading ? (
         <Text selectable style={{ fontSize: 14, lineHeight: 21, color: label2Color }}>
@@ -259,9 +258,7 @@ export function ReadableTextBlock({
         {title}
       </Text>
       {isLoading ? (
-        <Text selectable style={{ fontSize: 15, lineHeight: 23, color: label2Color }}>
-          Loading…
-        </Text>
+        <LoadingState style={{ paddingHorizontal: 0, paddingVertical: 2 }} />
       ) : content ? (
         content
       ) : (

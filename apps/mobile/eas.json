@@ -6,12 +6,18 @@
   "build": {
     "production": {
       "autoIncrement": true,
-      "channel": "production"
+      "channel": "production",
+      "env": {
+        "RCT_HERMES_V1_ENABLED": "1"
+      }
     },
     "development": {
       "autoIncrement": true,
       "developmentClient": true,
-      "channel": "development"
+      "channel": "development",
+      "env": {
+        "RCT_HERMES_V1_ENABLED": "1"
+      }
     }
   },
   "submit": {

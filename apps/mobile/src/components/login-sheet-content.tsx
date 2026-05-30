@@ -1,16 +1,42 @@
-import { CameraView, useCameraPermissions } from "expo-camera";
+import {
+  Button,
+  Form,
+  Host,
+  Section,
+  SecureField,
+  Text as SwiftText,
+  TextField,
+  useNativeState,
+} from "@expo/ui/swift-ui";
+import {
+  autocorrectionDisabled,
+  buttonStyle,
+  controlSize,
+  disabled as disabledModifier,
+  keyboardType,
+  listStyle,
+  onSubmit,
+  submitLabel,
+  textContentType,
+  textFieldStyle,
+  textInputAutocapitalization,
+  tint,
+} from "@expo/ui/swift-ui/modifiers";
+import {
+  CameraView,
+  type BarcodeScanningResult,
+  useCameraPermissions,
+} from "expo-camera";
 import { router, type Href } from "expo-router";
-import { useState } from "react";
-import { Image } from "expo-image";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { useRef, useState } from "react";
+import { Text, View } from "react-native";
 
 import { platformColors } from "@/constants/platform-colors";
-
-import { NativeIconButton } from "@/components/native-icon-button";
-import { PrimaryButton } from "@/components/primary-button";
-import { TextField } from "@/components/text-field";
-import { parseIncomingMoodleLink, prepareBrowserSSOLogin } from "@/lib/deep-links";
 import { openExternalUrl } from "@/lib/browser";
+import {
+  parseIncomingMoodleLink,
+  prepareBrowserSSOLogin,
+} from "@/lib/deep-links";
 import { useSession } from "@/providers/session-provider";
 
 interface ResolvedSite {
@@ -21,14 +47,20 @@ interface ResolvedSite {
 
 export function LoginSheetContent() {
   const [siteUrl, setSiteUrl] = useState("");
+  const siteUrlText = useNativeState("");
   const [error, setError] = useState<string | null>(null);
   const [isContinuing, setIsContinuing] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const session = useSession();
+  const [isScanning, setIsScanning] = useState(false);
+  const [hasScannedCode, setHasScannedCode] = useState(false);
+  const hasScannedCodeRef = useRef(false);
 
   const [resolvedSite, setResolvedSite] = useState<ResolvedSite | null>(null);
   const [username, setUsername] = useState("");
+  const usernameText = useNativeState("");
   const [password, setPassword] = useState("");
+  const passwordText = useNativeState("");
   const [busy, setBusy] = useState(false);
 
   const trimmedSiteUrl = siteUrl.trim();
@@ -36,6 +68,7 @@ export function LoginSheetContent() {
   const handleUrlFocus = () => {
     if (!siteUrl) {
       setSiteUrl("https://");
+      siteUrlText.value = "https://";
     }
   };
 
@@ -49,54 +82,57 @@ export function LoginSheetContent() {
     }
 
     setError(null);
+    hasScannedCodeRef.current = false;
+    setHasScannedCode(false);
+    setIsScanning(true);
+  };
 
-    let handled = false;
-    const subscription = CameraView.onModernBarcodeScanned(({ data }) => {
-      if (handled) {
-        return;
+  const handleScannedQrCode = async ({ data }: BarcodeScanningResult) => {
+    if (hasScannedCodeRef.current) {
+      return;
+    }
+
+    hasScannedCodeRef.current = true;
+    setHasScannedCode(true);
+
+    const parsed = parseIncomingMoodleLink(data);
+    if (!parsed) {
+      setError("This QR code isn't a recognized Moodle link.");
+      hasScannedCodeRef.current = false;
+      setHasScannedCode(false);
+      return;
+    }
+
+    if (parsed.kind === "qr") {
+      try {
+        setBusy(true);
+        setError(null);
+        setSiteUrl(parsed.siteUrl);
+        siteUrlText.value = parsed.siteUrl;
+        await session.signInWithQrPayload(
+          `${parsed.siteUrl}?qrlogin=${encodeURIComponent(parsed.qrLoginKey)}&userid=${encodeURIComponent(parsed.userId)}`,
+        );
+        router.replace("/courses" as Href);
+      } catch (e) {
+        setBusy(false);
+        hasScannedCodeRef.current = false;
+        setHasScannedCode(false);
+        setError(
+          e instanceof Error
+            ? e.message
+            : "Could not sign in with this QR code.",
+        );
       }
-      handled = true;
-      subscription.remove();
-      void CameraView.dismissScanner();
+      return;
+    }
 
-      void (async () => {
-        const parsed = parseIncomingMoodleLink(data);
-        if (!parsed) {
-          setError("This QR code isn't a recognized Moodle link.");
-          return;
-        }
-
-        if (parsed.kind === "qr") {
-          try {
-            setBusy(true);
-            setError(null);
-            setSiteUrl(parsed.siteUrl);
-            await session.signInWithQrPayload(
-              `${parsed.siteUrl}?qrlogin=${encodeURIComponent(parsed.qrLoginKey)}&userid=${encodeURIComponent(parsed.userId)}`,
-            );
-            router.replace("/courses" as Href);
-          } catch (e) {
-            setBusy(false);
-            setError(e instanceof Error ? e.message : "Could not sign in with this QR code.");
-          }
-          return;
-        }
-
-        if (parsed.kind === "site") {
-          setSiteUrl(parsed.siteUrl);
-          setError(null);
-        }
-      })();
-    });
-
-    try {
-      await CameraView.launchScanner({ barcodeTypes: ["qr"] });
-      if (!handled) {
-        subscription.remove();
-      }
-    } catch {
-      subscription.remove();
-      setError("Could not open scanner. Please try again.");
+    if (parsed.kind === "site") {
+      setSiteUrl(parsed.siteUrl);
+      siteUrlText.value = parsed.siteUrl;
+      setError(null);
+      setIsScanning(false);
+      hasScannedCodeRef.current = false;
+      setHasScannedCode(false);
     }
   };
 
@@ -130,7 +166,11 @@ export function LoginSheetContent() {
         launchUrl: resolved.launchUrl ?? "",
       });
     } catch (continueError) {
-      setError(continueError instanceof Error ? continueError.message : "Could not connect to this Moodle site.");
+      setError(
+        continueError instanceof Error
+          ? continueError.message
+          : "Could not connect to this Moodle site.",
+      );
     } finally {
       setIsContinuing(false);
     }
@@ -164,197 +204,236 @@ export function LoginSheetContent() {
   const handleBack = () => {
     setResolvedSite(null);
     setUsername("");
+    usernameText.value = "";
     setPassword("");
+    passwordText.value = "";
     setError(null);
   };
+
+  if (isScanning) {
+    return (
+      <View
+        style={{ flex: 1, backgroundColor: platformColors.systemBackground }}
+      >
+        <CameraView
+          facing="back"
+          onBarcodeScanned={hasScannedCode ? undefined : handleScannedQrCode}
+          barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+          style={{ flex: 1 }}
+        >
+          <View
+            style={{
+              flex: 1,
+              justifyContent: "space-between",
+              paddingHorizontal: 20,
+              paddingTop: 20,
+              paddingBottom: 34,
+            }}
+          >
+            <Host matchContents style={{ alignSelf: "flex-start" }}>
+              <Button
+                label="Cancel"
+                systemImage="xmark"
+                onPress={() => {
+                  setIsScanning(false);
+                  hasScannedCodeRef.current = false;
+                  setHasScannedCode(false);
+                  setError(null);
+                }}
+                modifiers={[buttonStyle("bordered"), controlSize("large")]}
+              />
+            </Host>
+
+            <View
+              pointerEvents="none"
+              style={{
+                alignSelf: "center",
+                width: "72%",
+                aspectRatio: 1,
+                borderRadius: 24,
+                borderCurve: "continuous",
+                borderWidth: 3,
+                borderColor: "rgba(255,255,255,0.92)",
+              }}
+            />
+
+            <Text
+              selectable
+              style={{
+                color: "white",
+                fontSize: 17,
+                lineHeight: 22,
+                fontWeight: "600",
+                textAlign: "center",
+                textShadowColor: "rgba(0,0,0,0.45)",
+                textShadowRadius: 8,
+              }}
+            >
+              {busy
+                ? "Signing in..."
+                : "Place the Moodle QR code inside the frame"}
+            </Text>
+          </View>
+        </CameraView>
+      </View>
+    );
+  }
 
   if (resolvedSite) {
     const usernameValue = username.trim();
     const passwordValue = password.trim();
 
     return (
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 34, gap: 20 }}
-        style={{ flex: 1 }}
-      >
-        <Pressable
-          accessibilityRole="button"
-          onPress={handleBack}
-          style={({ pressed }) => ({
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 4,
-            alignSelf: "flex-start",
-            opacity: pressed ? 0.6 : 1,
-          })}
-        >
-          <Image source="sf:chevron.left" style={{ width: 14, height: 14, tintColor: platformColors.systemBlue }} contentFit="contain" />
-          <Text style={{ fontSize: 17, color: platformColors.systemBlue }}>Back</Text>
-        </Pressable>
-
-        <View style={{ gap: 6 }}>
-          <Text
-            selectable
-            style={{
-              fontSize: 20,
-              fontWeight: "700",
-              color: platformColors.label,
-            }}
+      <Host style={{ flex: 1 }}>
+        <Form modifiers={[listStyle("insetGrouped")]}>
+          <Section
+            header={
+              <SwiftText>
+                {resolvedSite.siteName
+                  ? `Sign in to ${resolvedSite.siteName}`
+                  : "Sign in"}
+              </SwiftText>
+            }
+            footer={<SwiftText>{`Using ${resolvedSite.siteUrl}.`}</SwiftText>}
           >
-            {resolvedSite.siteName ? `Sign in to ${resolvedSite.siteName}` : "Sign in with username and password"}
-          </Text>
-          <Text
-            selectable
-            style={{ fontSize: 15, color: platformColors.secondaryLabel }}
-          >
-            {`Using ${resolvedSite.siteUrl}.`}
-          </Text>
-        </View>
+            <TextField
+              placeholder="Username"
+              text={usernameText}
+              onTextChange={setUsername}
+              modifiers={[
+                textContentType("username"),
+                textInputAutocapitalization("never"),
+                autocorrectionDisabled(),
+                submitLabel("next"),
+                textFieldStyle("automatic"),
+              ]}
+            />
+            <SecureField
+              placeholder="Password"
+              text={passwordText}
+              onTextChange={setPassword}
+              modifiers={[
+                textContentType("password"),
+                autocorrectionDisabled(),
+                submitLabel("go"),
+                onSubmit(() => {
+                  void handleSignIn();
+                }),
+                textFieldStyle("automatic"),
+              ]}
+            />
+          </Section>
 
-        <TextField
-          autoCapitalize="none"
-          autoCorrect={false}
-          placeholder="Username"
-          value={username}
-          onChangeText={setUsername}
-          returnKeyType="next"
-          textContentType="username"
-        />
-        <TextField
-          autoCapitalize="none"
-          autoCorrect={false}
-          placeholder="Password"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-          returnKeyType="go"
-          textContentType="password"
-          onSubmitEditing={() => {
-            void handleSignIn();
-          }}
-        />
+          {error ? (
+            <Section>
+              <SwiftText modifiers={[tint(platformColors.systemRed)]}>
+                {error}
+              </SwiftText>
+            </Section>
+          ) : null}
 
-        {error ? (
-          <Text
-            selectable
-            style={{
-              fontSize: 13,
-              fontWeight: "500",
-              color: platformColors.systemRed,
-            }}
-          >
-            {error}
-          </Text>
-        ) : null}
-
-        <PrimaryButton
-          label={busy ? "Signing in…" : "Sign in"}
-          disabled={busy || !usernameValue || !passwordValue}
-          onPress={() => {
-            void handleSignIn();
-          }}
-        />
-      </ScrollView>
+          <Section>
+            <Button
+              label={busy ? "Signing in..." : "Sign in"}
+              onPress={() => {
+                void handleSignIn();
+              }}
+              modifiers={[
+                buttonStyle("borderedProminent"),
+                controlSize("large"),
+                tint(platformColors.systemBlue),
+                disabledModifier(busy || !usernameValue || !passwordValue),
+              ]}
+            />
+            <Button
+              label="Back"
+              systemImage="chevron.left"
+              onPress={handleBack}
+              modifiers={[
+                buttonStyle("borderless"),
+                controlSize("large"),
+                tint(platformColors.systemBlue),
+              ]}
+            />
+          </Section>
+        </Form>
+      </Host>
     );
   }
 
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 34, gap: 20 }}
-      style={{ flex: 1 }}
-    >
-      <View style={{ gap: 6 }}>
-        <Text
-          style={{
-            fontSize: 20,
-            fontWeight: "700",
-            color: platformColors.label,
-          }}
+    <Host style={{ flex: 1 }}>
+      <Form modifiers={[listStyle("insetGrouped")]}>
+        <Section
+          header={<SwiftText>Connect your campus site</SwiftText>}
+          footer={
+            <SwiftText>
+              Paste your Moodle URL or scan a QR code to continue.
+            </SwiftText>
+          }
         >
-          Connect your campus site
-        </Text>
-        <Text style={{ fontSize: 15, color: platformColors.secondaryLabel }}>
-          Paste your Moodle URL or scan a QR code to continue.
-        </Text>
-      </View>
-
-      <View style={{ flexDirection: "row", gap: 10, alignItems: "stretch" }}>
-        <View
-          style={{
-            flex: 1,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 10,
-            paddingHorizontal: 14,
-            minHeight: 50,
-            borderRadius: 12,
-            borderCurve: "continuous",
-            backgroundColor: platformColors.tertiarySystemFill,
-          }}
-        >
-          <Image source="sf:globe" style={{ width: 18, height: 18, tintColor: platformColors.secondaryLabel }} contentFit="contain" />
-          <TextInput
-            value={siteUrl}
+          <TextField
             placeholder="https://moodle.example.edu"
-            placeholderTextColor={platformColors.placeholderText as string}
-            keyboardType="url"
-            autoCapitalize="none"
-            autoCorrect={false}
-            onFocus={handleUrlFocus}
-            onChangeText={(text) => {
+            text={siteUrlText}
+            onFocusChange={(focused) => {
+              if (focused) {
+                handleUrlFocus();
+              }
+            }}
+            onTextChange={(text) => {
               setSiteUrl(text);
               setError(null);
             }}
-            returnKeyType="go"
-            onSubmitEditing={() => {
+            modifiers={[
+              keyboardType("url"),
+              textContentType("URL"),
+              textInputAutocapitalization("never"),
+              autocorrectionDisabled(),
+              submitLabel("go"),
+              onSubmit(() => {
+                void handleContinue();
+              }),
+              textFieldStyle("automatic"),
+            ]}
+          />
+          <Button
+            label="Scan QR Code"
+            systemImage="qrcode.viewfinder"
+            onPress={() => {
+              void handleQrScan();
+            }}
+            modifiers={[
+              buttonStyle("borderless"),
+              controlSize("large"),
+              tint(platformColors.systemBlue),
+              disabledModifier(busy),
+            ]}
+          />
+        </Section>
+
+        {error ? (
+          <Section>
+            <SwiftText modifiers={[tint(platformColors.systemRed)]}>
+              {error}
+            </SwiftText>
+          </Section>
+        ) : null}
+
+        <Section>
+          <Button
+            label={isContinuing ? "Checking site..." : "Continue"}
+            onPress={() => {
               void handleContinue();
             }}
-            style={{
-              flex: 1,
-              fontSize: 17,
-              color: platformColors.label as string,
-            }}
+            modifiers={[
+              buttonStyle("borderedProminent"),
+              controlSize("large"),
+              tint(platformColors.systemBlue),
+              disabledModifier(!trimmedSiteUrl || isContinuing),
+            ]}
           />
-        </View>
-
-        <NativeIconButton
-          label="Scan QR code"
-          systemImage="qrcode.viewfinder"
-          onPress={handleQrScan}
-          tintColor={platformColors.systemBlue}
-          style={{
-            width: 50,
-            height: 50,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        />
-      </View>
-
-      {error ? (
-        <Text
-          selectable
-          style={{
-            fontSize: 13,
-            fontWeight: "500",
-            color: platformColors.systemRed,
-          }}
-        >
-          {error}
-        </Text>
-      ) : null}
-
-      <PrimaryButton
-        label={isContinuing ? "Checking site…" : "Continue"}
-        disabled={!trimmedSiteUrl || isContinuing}
-        onPress={() => {
-          void handleContinue();
-        }}
-      />
-    </ScrollView>
+        </Section>
+      </Form>
+    </Host>
   );
 }

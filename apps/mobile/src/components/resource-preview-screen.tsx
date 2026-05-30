@@ -6,6 +6,7 @@ import { EnrichedMarkdownText } from "react-native-enriched-markdown";
 import { createNativeEngine, isNativeEngineAvailable } from "react-native-shiki-engine";
 
 import { EmptyState } from "@/components/empty-state";
+import { LoadingState } from "@/components/loading-state";
 import { NativeScrollPage } from "@/components/native-ui";
 import { platformColors } from "@/constants/platform-colors";
 import { openExternalUrl } from "@/lib/browser";
@@ -192,7 +193,7 @@ export function ResourcePreviewScreen() {
   }
 
   if (!textContent) {
-    return <EmptyState title="Loading preview" description="Fetching file contents." />;
+    return <LoadingState style={{ flex: 1, justifyContent: "center", alignItems: "center" }} />;
   }
 
   if (previewKind === "ipynb") {

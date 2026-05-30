@@ -15,7 +15,6 @@
       "appleTeamId": "6978HVCRTY",
       "entitlements": {
         "com.apple.security.application-groups": [
-          "group.moodle.mobile",
           "group.moodle.mobile"
         ]
       },
@@ -67,6 +66,14 @@
       "expo-router",
       "@bacons/apple-targets",
       [
+        "expo-build-properties",
+        {
+          "ios": {
+            "ccacheEnabled": true
+          }
+        }
+      ],
+      [
         "expo-font",
         {
           "fonts": [
@@ -90,15 +97,35 @@
         {
           "calendarPermission": "Allow $(PRODUCT_NAME) to read your calendar so it can match courses against existing events."
         }
-      ]
+      ],
+      "expo-image",
+      [
+        "expo-status-bar",
+        {
+          "style": "auto"
+        }
+      ],
+      [
+        "expo-navigation-bar",
+        {
+          "style": "auto"
+        }
+      ],
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "experiments": {
+      "inlineModules": {
+        "watchedDirectories": [
+          "inline-modules"
+        ]
+      },
       "typedRoutes": true,
       "reactCompiler": true
     },
     "extra": {
       "router": {
-        "root": "apps/mobile/src/app"
+        "root": "src/app"
       },
       "eas": {
         "build": {

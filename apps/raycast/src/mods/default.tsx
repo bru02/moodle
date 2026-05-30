@@ -22,6 +22,7 @@ function DefaultListItem({
   detail: customDetail,
   contentFilename,
   accessories,
+  keywords,
   ...props
 }: DefaultListItemProps) {
   const itemId = getModuleListItemId(module, {
@@ -49,6 +50,27 @@ function DefaultListItem({
       <List.Item.Detail markdown={descriptionMarkdown} />
     ) : undefined);
   const { activeCourse } = useContext(CourseContext);
+  const mergedKeywords = useMemo(() => {
+    const values = new Set<string>();
+
+    for (const keyword of keywords ?? []) {
+      const normalized = keyword.trim().toLowerCase();
+      if (normalized) values.add(normalized);
+    }
+
+    if (module.modname.trim()) {
+      values.add(module.modname.trim().toLowerCase());
+    }
+
+    for (const content of module.contents ?? []) {
+      const parts = content.filename.split(".");
+      if (parts.length < 2) continue;
+      const extension = parts.at(-1)?.trim().toLowerCase();
+      if (extension) values.add(extension);
+    }
+
+    return values.size > 0 ? [...values] : undefined;
+  }, [keywords, module.modname, module.contents]);
   const canViewGeneratedSectionDescription =
     module.modname === "label" && module.id < 0 && Boolean(descriptionMarkdown);
   const existingAccessories = accessories ?? [];
@@ -63,6 +85,7 @@ function DefaultListItem({
       title={title}
       icon={getIcon(module)}
       accessories={existingAccessories}
+      keywords={mergedKeywords}
       actions={
         <ActionPanel>
           {canViewGeneratedSectionDescription && (

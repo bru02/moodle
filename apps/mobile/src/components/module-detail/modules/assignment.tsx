@@ -1,6 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { File } from "expo-file-system";
-import { createUploadTask, FileSystemSessionType, FileSystemUploadType } from "expo-file-system/legacy";
+import { File, UploadType, type UploadTask } from "expo-file-system";
 import { useMemo, useState } from "react";
 import { Text, View } from "react-native";
 
@@ -8,6 +7,7 @@ import { platformColors } from "@/constants/platform-colors";
 
 import type { CoreWSExternalFile } from "@moodle/core";
 
+import { LoadingState } from "@/components/loading-state";
 import { compactFactRows, FilesSection, formatBytes, formatFactDate, formatReadableHtml, formatStatusLabel, formatSubmissionStatus, getFactRow, useModuleDetailAdapter } from "@/components/module-detail/shared";
 import { StatPill } from "@/components/native-ui";
 import { MoodleHtml } from "@/components/moodle-html";
@@ -71,6 +71,7 @@ export function AssignmentDetail({ scope, module }: ModuleDetailProps) {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [draftItemId, setDraftItemId] = useState<number>(0);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [activeUploadTask, setActiveUploadTask] = useState<UploadTask | null>(null);
 
   const assignmentsQuery = useWSQuery<{ courses: { assignments: AssignmentSummary[] }[] }>(
     adapter,
@@ -136,8 +137,8 @@ export function AssignmentDetail({ scope, module }: ModuleDetailProps) {
         throw new Error(`Maximum number of files reached (${maxFileSubmissions}).`);
       }
 
-      const picked = await File.pickFileAsync(undefined, pickerMimeType);
-      const selectedFile = Array.isArray(picked) ? picked[0] : picked;
+      const picked = await File.pickFileAsync({ mimeTypes: pickerMimeType });
+      const selectedFile = picked.result ? new File((picked.result as { uri: string }).uri) : null;
 
       if (!selectedFile) {
         throw new Error("No file selected");
@@ -158,6 +159,7 @@ export function AssignmentDetail({ scope, module }: ModuleDetailProps) {
         file: selectedFile,
         itemId: draftItemId,
         onProgress: (value) => setUploadProgress(value),
+        onTaskCreated: (task) => setActiveUploadTask(task),
       });
 
       await requestWS(adapter, "mod_assign_save_submission", {
@@ -171,13 +173,15 @@ export function AssignmentDetail({ scope, module }: ModuleDetailProps) {
     },
     onSuccess: async () => {
       setUploadProgress(null);
+      setActiveUploadTask(null);
       setStatusMessage("File attached to draft.");
       await statusQuery.refetch();
     },
     onError: (error) => {
       setUploadProgress(null);
+      setActiveUploadTask(null);
       const message = error instanceof Error ? error.message : "Could not upload file.";
-      if (message === "No file selected") {
+      if (message === "No file selected" || isUploadCanceledError(error)) {
         return;
       }
       setStatusMessage(message);
@@ -214,9 +218,7 @@ export function AssignmentDetail({ scope, module }: ModuleDetailProps) {
   return (
     <View style={{ gap: 14 }}>
       {(assignmentsQuery.isLoading || statusQuery.isLoading) && !assignment && !statusData ? (
-        <Text selectable style={{ fontSize: 14, lineHeight: 21, color: platformColors.secondaryLabel }}>
-          Loading…
-        </Text>
+        <LoadingState style={{ paddingHorizontal: 0, paddingVertical: 2 }} />
       ) : (
         <>
           <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap" }}>
@@ -292,6 +294,16 @@ export function AssignmentDetail({ scope, module }: ModuleDetailProps) {
               (typeof maxFileSubmissions === "number" && maxFileSubmissions > 0 && existingFiles.length >= maxFileSubmissions)
             }
           />
+
+          {uploadMutation.isPending && activeUploadTask ? (
+            <PrimaryButton
+              label="Cancel upload"
+              variant="plain"
+              onPress={() => {
+                activeUploadTask.cancel();
+              }}
+            />
+          ) : null}
 
           {existingFiles.length > 0 ? (
             <View style={{ gap: 6 }}>
@@ -461,9 +473,10 @@ function normalizeHtmlForComparison(value: string) {
 async function uploadAssignmentDraftFile(input: {
   siteOrigin: string;
   token: string;
-  file: File;
+  file: InstanceType<typeof File>;
   itemId?: number;
   onProgress?: (value: number) => void;
+  onTaskCreated?: (task: UploadTask) => void;
 }) {
   const uploadUrl = new URL("/webservice/upload.php", input.siteOrigin);
   uploadUrl.searchParams.set("token", input.token);
@@ -471,27 +484,22 @@ async function uploadAssignmentDraftFile(input: {
   uploadUrl.searchParams.set("itemid", String(input.itemId ?? 0));
   uploadUrl.searchParams.set("filearea", "draft");
 
-  const task = createUploadTask(
-    uploadUrl.toString(),
-    input.file.uri,
-    {
-      httpMethod: "POST",
-      uploadType: FileSystemUploadType.MULTIPART,
-      fieldName: "file",
-      mimeType: input.file.type || "application/octet-stream",
-      sessionType: FileSystemSessionType.BACKGROUND,
-    },
-    (event) => {
-      if (event.totalBytesExpectedToSend > 0) {
-        input.onProgress?.(event.totalBytesSent / event.totalBytesExpectedToSend);
+  const uploadTask = input.file.createUploadTask(uploadUrl.toString(), {
+    httpMethod: "POST",
+    uploadType: UploadType.MULTIPART,
+    fieldName: "file",
+    mimeType: input.file.type || "application/octet-stream",
+    sessionType: "background",
+    onProgress: (event) => {
+      if (event.totalBytes > 0) {
+        input.onProgress?.(event.bytesSent / event.totalBytes);
       }
     },
-  );
+  });
 
-  const response = await task.uploadAsync();
-  if (!response) {
-    throw new Error("Upload cancelled");
-  }
+  input.onTaskCreated?.(uploadTask);
+
+  const response = await uploadTask.uploadAsync();
 
   if (response.status < 200 || response.status >= 300) {
     throw new Error(`Upload failed (${response.status})`);
@@ -509,4 +517,12 @@ async function uploadAssignmentDraftFile(input: {
   }
 
   return first.itemid;
+}
+
+function isUploadCanceledError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return /abort|cancel(l)?ed/i.test(error.message);
 }

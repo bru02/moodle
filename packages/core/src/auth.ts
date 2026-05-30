@@ -2,6 +2,7 @@ import { AuthError } from "./errors";
 import {
   getMoodleErrorCode,
   getMoodleErrorMessage,
+  getMoodleExceptionMessage,
   isMoodleErrorPayload,
 } from "./moodle-errors";
 import {
@@ -75,7 +76,11 @@ function throwOnAuthPayload(
 ): never {
   const message = getMoodleErrorMessage(payload) ?? fallbackMessage;
   const errorCode = getMoodleErrorCode(payload) ?? code;
-  throw new AuthError(message, { code: errorCode });
+  const exceptionMessage = getMoodleExceptionMessage(payload);
+  throw new AuthError(message, {
+    code: errorCode,
+    details: exceptionMessage,
+  });
 }
 
 function createAjaxRequestBody(method: string, args: Record<string, unknown>) {
@@ -437,6 +442,16 @@ export async function authenticateWithQrLogin(input: {
 }) {
   const siteOrigin = normalizeSiteOrigin(input.siteOrigin);
   const lang = input.lang ?? "en";
+  const qrUserId = Number(input.userId);
+
+
+  console.log("[auth][qr] request", {
+    siteOrigin,
+    userId: qrUserId,
+    hasQrLoginKey: Boolean(input.qrLoginKey),
+    qrLoginKeyLength: input.qrLoginKey?.length ?? 0,
+  });
+
   const { response, payload } = await fetchJson({
     fetcher: input.fetcher,
     url: `${siteOrigin}/lib/ajax/service-nologin.php?info=tool_mobile_get_tokens_for_qr_login&lang=${lang}`,
@@ -452,7 +467,7 @@ export async function authenticateWithQrLogin(input: {
           methodname: "tool_mobile_get_tokens_for_qr_login",
           args: {
             qrloginkey: input.qrLoginKey,
-            userid: input.userId,
+            userid: qrUserId,
           },
         },
       ]),
@@ -460,6 +475,14 @@ export async function authenticateWithQrLogin(input: {
   });
 
   const tokenResponse = parseTokenResponse(payload);
+  console.log("[auth][qr] response", {
+    status: response.status,
+    ok: response.ok,
+    hasToken: Boolean(tokenResponse.token),
+    hasPrivateToken: Boolean(tokenResponse.privatetoken),
+    payloadType: Array.isArray(payload) ? "array" : typeof payload,
+  });
+
   if (!response.ok || !tokenResponse.token) {
     throwOnAuthPayload(payload, "QR login failed", "qr_login_failed");
   }

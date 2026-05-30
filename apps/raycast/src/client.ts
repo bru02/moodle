@@ -2,10 +2,12 @@ import {
   AuthError,
   authenticateWithCredentials,
   authenticateWithQrLogin,
+  authenticateWithToken,
   type MoodleSession,
 } from "@moodle/core";
 import { Cache, LocalStorage } from "@raycast/api";
 
+import { parsePasswordTokenPair } from "./auth-preferences";
 import {
   isQrAuth,
   preferences,
@@ -29,6 +31,18 @@ async function authenticate(): Promise<User> {
       siteOrigin,
       qrLoginKey: siteUrl.searchParams.get("qrlogin") ?? "",
       userId: siteUrl.searchParams.get("userid") ?? "",
+    });
+    return mapSessionToUser(session);
+  }
+
+  const tokenPair = preferences.username
+    ? null
+    : parsePasswordTokenPair(preferences.password ?? "");
+  if (tokenPair) {
+    const session = await authenticateWithToken({
+      siteOrigin,
+      token: tokenPair.token,
+      privateToken: tokenPair.privateToken,
     });
     return mapSessionToUser(session);
   }
@@ -107,6 +121,13 @@ export function getUser(): Promise<User> {
 
 export function getUserSync(): User | null {
   return user;
+}
+
+export function resetUserState() {
+  user = null;
+  userPromise = null;
+  cache.remove("userData");
+  void LocalStorage.removeItem("userData");
 }
 
 export async function refreshUserTokens(): Promise<User> {

@@ -1,5 +1,5 @@
 import { buildAuthenticatedExternalOpenUrl, type StoredAccount as CoreStoredAccount } from "@moodle/core";
-import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
+import { DarkTheme, DefaultTheme, ThemeProvider } from "expo-router/react-navigation";
 import { router, Stack, type Href } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Alert, Linking, View } from "react-native";
@@ -61,6 +61,13 @@ function RootNavigator() {
         }
 
         if (parsed.kind === "qr") {
+          console.log("[deep-link][qr] handling", {
+            siteUrl: parsed.siteUrl,
+            userId: parsed.userId,
+            hasQrLoginKey: Boolean(parsed.qrLoginKey),
+            qrLoginKeyLength: parsed.qrLoginKey.length,
+          });
+
           await session.signInWithQrPayload(
             `${parsed.siteUrl}?qrlogin=${encodeURIComponent(parsed.qrLoginKey)}&userid=${encodeURIComponent(parsed.userId)}`,
           );

@@ -79,4 +79,19 @@ describe("calendar course matching", () => {
     expect(matches).toHaveLength(1);
     expect(matches[0]?.scope.title).toBe("Data Wrangling - Project Course");
   });
+
+  it("can match unmerged scopes when course merging is disabled", () => {
+    const event = toCalendarEvent({
+      title: "Managerial Accounting",
+      notes: "G01-UZAD-MA\n\nTeacher\n\n",
+    });
+
+    const { matches } = matchCalendarEventsToCourseScopes(courses, [event], {
+      merge: false,
+    });
+
+    expect(matches).toHaveLength(1);
+    expect(matches[0]?.scope.id).toBe("212335");
+    expect(matches[0]?.matchedBy.section).toBe(true);
+  });
 });

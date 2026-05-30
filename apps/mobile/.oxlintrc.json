@@ -12,6 +12,7 @@
   "globals": {
     "URL": "readonly",
     "URLSearchParams": "readonly",
+    "__DEV__": "readonly",
     "__dirname": "readonly",
     "btoa": "readonly",
     "clearTimeout": "readonly",

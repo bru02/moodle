@@ -15,11 +15,11 @@ export type DonateUserActivityInput = {
 };
 
 export async function openUniversalLinkOnly(url: string): Promise<boolean> {
-  return UniversalLinksModule.openUniversalLinkOnly(url);
+  return (await UniversalLinksModule?.openUniversalLinkOnly(url)) ?? false;
 }
 
 export async function donateUserActivity(input: DonateUserActivityInput) {
-  await UniversalLinksModule.donateUserActivity({
+  await UniversalLinksModule?.donateUserActivity({
     ...input,
     eligibleForSearch: input.eligibleForSearch ?? true,
     eligibleForPrediction: input.eligibleForPrediction ?? true,
@@ -28,5 +28,5 @@ export async function donateUserActivity(input: DonateUserActivityInput) {
 }
 
 export async function clearCurrentUserActivity() {
-  await UniversalLinksModule.clearCurrentUserActivity();
+  await UniversalLinksModule?.clearCurrentUserActivity();
 }

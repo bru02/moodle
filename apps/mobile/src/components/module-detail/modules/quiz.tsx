@@ -1,5 +1,6 @@
 import { Text, View } from "react-native";
 
+import { LoadingState } from "@/components/loading-state";
 import { MoodleHtml } from "@/components/moodle-html";
 import { StatPill } from "@/components/native-ui";
 import { platformColors } from "@/constants/platform-colors";
@@ -100,9 +101,7 @@ export function QuizDetail({ scope, module }: ModuleDetailProps) {
   return (
     <View style={{ gap: 14 }}>
       {(quizzesQuery.isLoading || attemptsQuery.isLoading || accessQuery.isLoading || bestGradeQuery.isLoading) && !quiz && !attemptsData ? (
-        <Text selectable style={{ fontSize: 14, lineHeight: 21, color: platformColors.secondaryLabel }}>
-          Loading…
-        </Text>
+        <LoadingState style={{ paddingHorizontal: 0, paddingVertical: 2 }} />
       ) : (
         <>
           <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap" }}>

@@ -22,9 +22,32 @@
   },
   "devDependencies": {
     "oxfmt": "^0.40.0",
-    "oxlint": "^1.55.0"
+    "oxlint": "^1.63.0"
   },
   "version": "1.0.0",
+  "resolutions": {
+    "@expo/cli": "^56.1.4",
+    "@expo/config": "~56.0.5",
+    "@expo/config-plugins": "~56.0.5",
+    "@expo/devtools": "~56.0.2",
+    "@expo/dom-webview": "~56.0.5",
+    "@expo/fingerprint": "^0.18.1",
+    "@expo/log-box": "^56.0.9",
+    "@expo/metro": "~56.0.0",
+    "@expo/metro-config": "~56.0.8",
+    "@expo/metro-runtime": "^56.0.5",
+    "@expo/router-server": "^56.0.5",
+    "@expo/vector-icons": "^15.0.2",
+    "babel-preset-expo": "~56.0.8",
+    "expo": "56.0.0-preview.11",
+    "expo-asset": "~56.0.9",
+    "expo-constants": "~56.0.10",
+    "expo-file-system": "~56.0.4",
+    "expo-font": "~56.0.3",
+    "expo-keep-awake": "~56.0.3",
+    "expo-modules-autolinking": "~56.0.6",
+    "expo-modules-core": "~56.0.8"
+  },
   "patchedDependencies": {
     "@native-html/heuristic-table-plugin@0.7.0": "patches/@native-html%2Fheuristic-table-plugin@0.7.0.patch",
     "react-native-shiki-engine@0.3.9": "patches/react-native-shiki-engine@0.3.9.patch",

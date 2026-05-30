@@ -44,17 +44,30 @@ export type CalendarScopeMatcher = {
 export function matchCalendarEventsToCourseScopes(
   courseRows: readonly MoodleCourseLike[],
   events: readonly CalendarEvent[],
+  options?: {
+    merge?: boolean;
+  },
 ) {
-  return buildCalendarScopeMatcher(courseRows).matchEvents(events);
+  return buildCalendarScopeMatcher(courseRows, options).matchEvents(events);
 }
 
 export function buildCalendarScopeMatcher(
   courseRows: readonly MoodleCourseLike[],
+  options?: {
+    merge?: boolean;
+  },
 ): CalendarScopeMatcher {
-  const scopes = buildCourseScopes(courseRows.map(toSimpleCourse));
+  const scopes = buildCourseScopes(courseRows.map(toSimpleCourse), options?.merge);
   const rowsByCourseId = new Map(
     courseRows.map((row) => [Number(row.id), row] as const),
   );
+  return buildCalendarScopeMatcherForScopes(scopes, rowsByCourseId);
+}
+
+export function buildCalendarScopeMatcherForScopes(
+  scopes: readonly CourseScope[],
+  rowsByCourseId: ReadonlyMap<number, MoodleCourseLike> = new Map(),
+): CalendarScopeMatcher {
   const titleIndex = new Map<string, ScopeIndexEntry[]>();
 
   for (const scope of scopes) {
@@ -70,7 +83,7 @@ export function buildCalendarScopeMatcher(
   }
 
   return {
-    scopes,
+    scopes: [...scopes],
     matchEvent(event) {
       return matchEventToScope(event, titleIndex);
     },
@@ -88,7 +101,7 @@ export function buildCalendarScopeMatcher(
       }
 
       return {
-        scopes,
+        scopes: [...scopes],
         matches,
         unmatchedEvents,
       };
@@ -160,9 +173,10 @@ function indexScope(
 ): ScopeIndexEntry {
   const sectionCodes = [
     ...new Set(
-      scope.courseIds.flatMap((courseId) =>
-        listCourseSectionCodes(rowsByCourseId.get(courseId)),
-      ),
+      scope.courses.flatMap((course) => [
+        ...listSimpleCourseSectionCodes(course),
+        ...listCourseSectionCodes(rowsByCourseId.get(course.id)),
+      ]),
     ),
   ];
   const rawTitles = scope.courseIds.flatMap((courseId) => {
@@ -210,6 +224,12 @@ function listCourseSectionCodes(course?: MoodleCourseLike) {
   }
 
   return [...sectionCodes];
+}
+
+function listSimpleCourseSectionCodes(course: CourseScope["courses"][number]) {
+  return [course.seminarGroup].filter(
+    (sectionCode): sectionCode is string => Boolean(sectionCode),
+  );
 }
 
 function extractEventBaseTitle(summary: string) {

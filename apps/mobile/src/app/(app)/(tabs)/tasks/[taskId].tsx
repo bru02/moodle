@@ -1,4 +1,4 @@
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router/react-navigation";
 import { Stack, useLocalSearchParams, router } from "expo-router";
 import { useCallback, useMemo } from "react";
 import { Text, View } from "react-native";
@@ -8,6 +8,7 @@ import { Button, Host } from "@expo/ui/swift-ui";
 import { buttonStyle, controlSize, tint } from "@expo/ui/swift-ui/modifiers";
 
 import { EmptyState } from "@/components/empty-state";
+import { LoadingState } from "@/components/loading-state";
 import { GroupHeader, InsetGroup, NativeScrollPage, SectionTitle, StatPill, SymbolBadge } from "@/components/native-ui";
 import { useTasksQuery } from "@/lib/moodle-queries";
 import { clearCurrentUserActivity, donateUserActivity } from "@/lib/user-activity";
@@ -54,7 +55,7 @@ export default function TaskDetailScreen() {
   );
 
   if (tasksQuery.isLoading && !task) {
-    return <EmptyState title="Loading task" />;
+    return <LoadingState style={{ flex: 1, justifyContent: "center", alignItems: "center" }} />;
   }
 
   if (!task) {
