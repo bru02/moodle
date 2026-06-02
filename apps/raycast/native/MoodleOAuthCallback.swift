@@ -19,8 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       return
     }
 
-    let handoff = readHandoff()
-    let state = handoff.state
+    let state = readHandoff()
 
     guard !state.isEmpty else {
       NSApp.terminate(nil)
@@ -36,7 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     components.scheme = "raycast"
     components.host = "oauth"
     components.queryItems = [
-      URLQueryItem(name: "package_name", value: handoff.packageName),
+      URLQueryItem(name: "package_name", value: "Extension"),
       URLQueryItem(name: "state", value: state),
       URLQueryItem(name: "code", value: code),
     ]
@@ -48,20 +47,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     NSApp.terminate(nil)
   }
 
-  private func readHandoff() -> (state: String, packageName: String) {
+  private func readHandoff() -> String {
     let raw = (try? String(contentsOfFile: statePath, encoding: .utf8))
       .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) } ?? ""
 
     guard let data = raw.data(using: .utf8),
           let json = try? JSONSerialization.jsonObject(with: data) as? [String: String]
     else {
-      return (raw, "Extension")
+      return raw
     }
 
-    return (
-      json["state"] ?? "",
-      json["packageName"] ?? "Extension"
-    )
+    return json["state"] ?? ""
   }
 }
 
