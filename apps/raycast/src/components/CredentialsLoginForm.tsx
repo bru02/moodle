@@ -1,4 +1,8 @@
-import { authenticateWithCredentials, type MoodleSession } from "@moodle/core";
+import {
+  authenticateWithCredentials,
+  type MoodleIdentityProvider,
+  type MoodleSession,
+} from "@moodle/core";
 import {
   Action,
   ActionPanel,
@@ -10,11 +14,13 @@ import {
 import { FormValidation, useForm } from "@raycast/utils";
 import { useState } from "react";
 
-import { saveStoredCredentials } from "../client";
+import { saveSession, saveStoredCredentials } from "../client";
 import { siteOrigin } from "../helpers/preferences";
+import { authenticateWithMoodleIdentityProvider } from "../oauth-auth";
 
 type CredentialsLoginFormProps = {
-  onCancel: () => void;
+  identityProviders?: MoodleIdentityProvider[];
+  siteName?: string;
   onSuccess: (session: MoodleSession) => void;
 };
 
@@ -24,13 +30,44 @@ type CredentialsLoginFormValues = {
 };
 
 export default function CredentialsLoginForm({
-  onCancel,
+  identityProviders = [],
+  siteName,
   onSuccess,
 }: CredentialsLoginFormProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const loginTarget = siteName?.trim() || 'Moodle';
+
   const { handleSubmit, itemProps } = useForm<CredentialsLoginFormValues>({
     async onSubmit(values) {
-      await submit(values);
+      const username = values.username.trim();
+
+      setIsLoading(true);
+      const toast = await showToast({
+        style: Toast.Style.Animated,
+        title: `Signing in to ${loginTarget}`,
+      });
+
+      try {
+        const session = await authenticateWithCredentials({
+          siteOrigin,
+          username,
+          password: values.password,
+        });
+        await saveStoredCredentials(
+          { username, password: values.password },
+          session,
+        );
+        toast.style = Toast.Style.Success;
+        toast.title = "Logged in";
+        onSuccess(session);
+      } catch (error) {
+        const message = getErrorMessage(error);
+        toast.style = Toast.Style.Failure;
+        toast.title = `Login failed: ${message}`;
+        toast.message = message;
+      } finally {
+        setIsLoading(false);
+      }
     },
     validation: {
       username: FormValidation.Required,
@@ -38,32 +75,27 @@ export default function CredentialsLoginForm({
     },
   });
 
-  async function submit(values: CredentialsLoginFormValues) {
-    const username = values.username.trim();
-
+  async function loginWithIdentityProvider(provider: MoodleIdentityProvider) {
     setIsLoading(true);
     const toast = await showToast({
       style: Toast.Style.Animated,
-      title: "Signing in to Moodle",
+      title: `Opening ${provider.name}`,
     });
 
     try {
-      const session = await authenticateWithCredentials({
+      const result = await authenticateWithMoodleIdentityProvider(
         siteOrigin,
-        username,
-        password: values.password,
-      });
-      await saveStoredCredentials(
-        { username, password: values.password },
-        session,
+        provider,
       );
+      saveSession(result.session);
       toast.style = Toast.Style.Success;
       toast.title = "Logged in";
-      onSuccess(session);
+      onSuccess(result.session);
     } catch (error) {
+      const message = getErrorMessage(error);
       toast.style = Toast.Style.Failure;
-      toast.title = "Login failed";
-      toast.message = error instanceof Error ? error.message : String(error);
+      toast.title = `Login failed: ${message}`;
+      toast.message = message;
     } finally {
       setIsLoading(false);
     }
@@ -72,6 +104,7 @@ export default function CredentialsLoginForm({
   return (
     <Form
       isLoading={isLoading}
+      navigationTitle={`Login to ${loginTarget}`}
       actions={
         <ActionPanel>
           <Action.SubmitForm
@@ -79,15 +112,31 @@ export default function CredentialsLoginForm({
             icon={Icon.Person}
             onSubmit={handleSubmit}
           />
-          <Action title="Go Back" icon={Icon.ArrowLeft} onAction={onCancel} />
+          {identityProviders.length > 0 ? (
+            <ActionPanel.Section title="Login via...">
+              {identityProviders.map((provider) => (
+                <Action
+                  key={provider.url}
+                  title={provider.name}
+                  icon={
+                    provider.iconurl ? { source: provider.iconurl } : Icon.Globe
+                  }
+                  onAction={() => {
+                    void loginWithIdentityProvider(provider);
+                  }}
+                />
+              ))}
+            </ActionPanel.Section>
+          ) : null}
         </ActionPanel>
       }
     >
-      <Form.Description
-        text={`Sign in with your Moodle account for ${siteOrigin}.`}
-      />
       <Form.TextField title="Username" {...itemProps.username} />
       <Form.PasswordField title="Password" {...itemProps.password} />
     </Form>
   );
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }

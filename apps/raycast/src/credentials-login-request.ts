@@ -1,6 +1,13 @@
-import type { MoodleSession } from "@moodle/core";
+import type { MoodleIdentityProvider, MoodleSession } from "@moodle/core";
 
-type CredentialsLoginHandler = () => Promise<MoodleSession>;
+export type CredentialsLoginOptions = {
+  identityProviders?: MoodleIdentityProvider[];
+  siteName?: string;
+};
+
+type CredentialsLoginHandler = (
+  options?: CredentialsLoginOptions,
+) => Promise<MoodleSession>;
 
 let handler: CredentialsLoginHandler | null = null;
 
@@ -10,10 +17,12 @@ export function setCredentialsLoginHandler(
   handler = next;
 }
 
-export async function requestCredentialsLogin(): Promise<MoodleSession> {
+export async function requestCredentialsLogin(
+  options?: CredentialsLoginOptions,
+): Promise<MoodleSession> {
   if (!handler) {
     throw new Error("Credentials login navigation is not ready");
   }
 
-  return await handler();
+  return await handler(options);
 }

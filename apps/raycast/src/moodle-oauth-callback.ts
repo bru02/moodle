@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 
-import { AuthError } from "@moodle/core";
+import {
+  AuthError,
+  type MoodleIdentityProvider,
+  type MoodlePublicConfig,
+} from "@moodle/core";
 
 type Handoff = {
   siteOrigin: string;
@@ -27,6 +31,7 @@ export function buildMoodleLaunchURL(
   siteOrigin: string,
   passport: string,
   launchURL?: string,
+  extraParams?: Record<string, string>,
 ) {
   const url = launchURL
     ? new URL(launchURL, normalizeSiteOrigin(siteOrigin))
@@ -34,8 +39,36 @@ export function buildMoodleLaunchURL(
   url.searchParams.set("service", "moodle_mobile_app");
   url.searchParams.set("passport", passport);
   url.searchParams.set("urlscheme", "moodlemobile");
+  for (const [key, value] of Object.entries(extraParams ?? {})) {
+    url.searchParams.set(key, value);
+  }
   url.hash = "raycast";
   return url.toString();
+}
+
+export function getValidIdentityProvidersForConfig(config: MoodlePublicConfig) {
+  const providers = config.identityproviders ?? [];
+  const validBaseUrls = [
+    `${config.wwwroot.replace(/\/$/, "")}/auth/oauth2/`,
+    `${config.httpswwwroot.replace(/\/$/, "")}/auth/oauth2/`,
+  ];
+
+  return providers.filter((provider) => {
+    const oauthId = getIdentityProviderOAuthId(provider);
+    return Boolean(
+      provider.url &&
+      oauthId &&
+      validBaseUrls.some((baseUrl) => provider.url.includes(baseUrl)),
+    );
+  });
+}
+
+export function getIdentityProviderOAuthId(provider: MoodleIdentityProvider) {
+  try {
+    return new URL(provider.url).searchParams.get("id");
+  } catch {
+    return null;
+  }
 }
 
 function parseDirectTokenCallback(callbackURL: string) {
@@ -66,16 +99,26 @@ function parseDeprecatedTokenCallback(callbackURL: string) {
   if (!callbackURL.startsWith(prefix)) return null;
 
   const encoded = decodeURIComponent(callbackURL.slice(prefix.length)).replace(
-    /[/#]+$/g,
+    /\/?#?\/?$/,
     "",
   );
-  const decoded = Buffer.from(encoded, "base64").toString("utf8");
+  const decoded = Buffer.from(normalizeBase64Token(encoded), "base64").toString(
+    "utf8",
+  );
   if (!decoded) {
     throw new AuthError("Moodle token callback was not valid base64", {
       code: "invalid_oauth_callback",
     });
   }
   return splitBrowserTokenPayload(decoded);
+}
+
+function normalizeBase64Token(value: string) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  return normalized.padEnd(
+    normalized.length + ((4 - (normalized.length % 4)) % 4),
+    "=",
+  );
 }
 
 function validateBrowserTokenPayload(tokenParts: string[], handoff: Handoff) {
@@ -142,7 +185,10 @@ function siteOriginFromDirectCallback(url: URL) {
 }
 
 export function normalizeSiteOrigin(value: string) {
-  const url = new URL(value);
+  const trimmed = value.trim();
+  const url = new URL(
+    /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`,
+  );
   url.search = "";
   url.hash = "";
   while (url.pathname.length > 1 && url.pathname.endsWith("/")) {

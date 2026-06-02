@@ -1,9 +1,16 @@
-import { isAuthError, type MoodleSession } from "@moodle/core";
-import { useNavigation } from "@raycast/api";
-import { Component, useEffect, useRef, type ReactNode } from "react";
+import {
+  isAuthError,
+  type MoodleIdentityProvider,
+  type MoodleSession,
+} from "@moodle/core";
+import { Detail } from "@raycast/api";
+import { Component, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { resetUserState } from "../client";
-import { setCredentialsLoginHandler } from "../credentials-login-request";
+import {
+  setCredentialsLoginHandler,
+  type CredentialsLoginOptions,
+} from "../credentials-login-request";
 import AuthErrorDetail from "./AuthErrorDetail";
 import CredentialsLoginForm from "./CredentialsLoginForm";
 
@@ -13,6 +20,14 @@ type AuthErrorBoundaryProps = {
 
 type AuthErrorBoundaryState = {
   error: unknown;
+};
+
+type PendingCredentialsLogin = {
+  promise: Promise<MoodleSession>;
+  resolve: (session: MoodleSession) => void;
+  reject: (error: Error) => void;
+  identityProviders: MoodleIdentityProvider[];
+  siteName?: string;
 };
 
 class AuthErrorBoundaryInner extends Component<
@@ -49,38 +64,66 @@ class AuthErrorBoundaryInner extends Component<
 }
 
 export default function AuthErrorBoundary(props: AuthErrorBoundaryProps) {
-  useCredentialsLoginNavigation();
+  const credentialsLogin = useCredentialsLoginNavigation();
+  if (!credentialsLogin.isReady) return <Detail isLoading />;
+  if (credentialsLogin.loginForm) return credentialsLogin.loginForm;
+
   return <AuthErrorBoundaryInner {...props} />;
 }
 
 function useCredentialsLoginNavigation() {
-  const { pop, push } = useNavigation();
-  const pending = useRef<Promise<MoodleSession> | null>(null);
-
-  setCredentialsLoginHandler(() => {
-    if (pending.current) return pending.current;
-
-    pending.current = new Promise((resolve, reject) => {
-      push(
-        <CredentialsLoginForm
-          onCancel={() => {
-            pending.current = null;
-            pop();
-            reject(new Error("Credentials login cancelled"));
-          }}
-          onSuccess={(session) => {
-            pending.current = null;
-            pop();
-            resolve(session);
-          }}
-        />,
-      );
-    });
-
-    return pending.current;
-  });
+  const pending = useRef<PendingCredentialsLogin | null>(null);
+  const [isReady, setIsReady] = useState(false);
+  const [isLoginFormVisible, setIsLoginFormVisible] = useState(false);
 
   useEffect(() => {
-    return () => setCredentialsLoginHandler(null);
+    setCredentialsLoginHandler((options?: CredentialsLoginOptions) => {
+      if (pending.current) {
+        return pending.current.promise;
+      }
+
+      let resolveLogin!: (session: MoodleSession) => void;
+      let rejectLogin!: (error: Error) => void;
+      const promise = new Promise<MoodleSession>((resolve, reject) => {
+        resolveLogin = resolve;
+        rejectLogin = reject;
+      });
+      pending.current = {
+        promise,
+        resolve: resolveLogin,
+        reject: rejectLogin,
+        identityProviders: options?.identityProviders ?? [],
+        siteName: options?.siteName,
+      };
+      setIsLoginFormVisible(true);
+
+      return promise;
+    });
+
+    return () => {
+      setCredentialsLoginHandler(null);
+    };
   }, []);
+
+  useEffect(() => {
+    setIsReady(true);
+  }, []);
+
+  if (!isReady) return { isReady: false, loginForm: null };
+
+  return {
+    isReady: true,
+    loginForm: isLoginFormVisible ? (
+      <CredentialsLoginForm
+        identityProviders={pending.current?.identityProviders ?? []}
+        siteName={pending.current?.siteName}
+        onSuccess={(session) => {
+          const current = pending.current;
+          pending.current = null;
+          setIsLoginFormVisible(false);
+          current?.resolve(session);
+        }}
+      />
+    ) : null,
+  };
 }

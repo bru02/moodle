@@ -26,13 +26,13 @@ export function ViewPage({ module }: { module: Module }) {
       markdown={content}
       actions={
         <ActionPanel>
+          <OpenInBrowserAction url={module.url!} />
           <Action.CopyToClipboard
             title="Copy as Markdown"
             icon={Icon.Clipboard}
             shortcut={Keyboard.Shortcut.Common.Copy}
             content={content ?? ""}
           />
-          <OpenInBrowserAction url={module.url!} />
         </ActionPanel>
       }
     />

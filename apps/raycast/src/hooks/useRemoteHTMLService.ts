@@ -18,47 +18,74 @@ export function useRemoteHTMLResource(
   return useFetch(handledUrl, {
     execute: !!url,
     mapResult(r: string) {
-      const md = turndown(
-        r.replace(
-          relativeUrlAttributeRegex,
-          (
-            match,
-            prefix: string,
-            tagName: string,
-            attributeName: string,
-            attributeUrl: string,
-            suffix: string,
-          ) => {
-            if (!shouldResolveRelativeUrl(attributeUrl)) {
-              return rewriteActivityHref(
-                match,
-                tagName,
-                attributeName,
-                attributeUrl,
-                courseId,
-              );
-            }
-
-            const resolvedUrl = resolveModuleContentUrl(
-              attributeUrl,
-              handledUrl,
-              contents ?? [],
-            );
-            const finalUrl =
-              tagName.toLowerCase() === "a" &&
-              attributeName.toLowerCase() === "href"
-                ? rewriteActivityDeeplink(resolvedUrl, courseId)
-                : resolvedUrl;
-            return `${prefix}${finalUrl}${suffix}`;
-          },
-        ),
-      );
-
       return {
-        data: md,
+        data: htmlResourceToMarkdown(r, handledUrl, contents, courseId),
       };
     },
   });
+}
+
+export async function fetchRemoteHTMLResource(
+  url: string,
+  contents?: Content[],
+  courseId?: number,
+) {
+  const handledUrl = handleFileUrl(url);
+  const response = await fetch(handledUrl);
+
+  if (!response.ok) {
+    throw new Error(`Failed to load HTML (${response.status})`);
+  }
+
+  return htmlResourceToMarkdown(
+    await response.text(),
+    handledUrl,
+    contents,
+    courseId,
+  );
+}
+
+function htmlResourceToMarkdown(
+  html: string,
+  handledUrl: string,
+  contents?: Content[],
+  courseId?: number,
+) {
+  return turndown(
+    html.replace(
+      relativeUrlAttributeRegex,
+      (
+        match,
+        prefix: string,
+        tagName: string,
+        attributeName: string,
+        attributeUrl: string,
+        suffix: string,
+      ) => {
+        if (!shouldResolveRelativeUrl(attributeUrl)) {
+          return rewriteActivityHref(
+            match,
+            tagName,
+            attributeName,
+            attributeUrl,
+            courseId,
+          );
+        }
+
+        const resolvedUrl = resolveModuleContentUrl(
+          attributeUrl,
+          handledUrl,
+          contents ?? [],
+        );
+        const finalUrl =
+          tagName.toLowerCase() === "a" &&
+          attributeName.toLowerCase() === "href"
+            ? rewriteActivityDeeplink(resolvedUrl, courseId)
+            : resolvedUrl;
+        return `${prefix}${finalUrl}${suffix}`;
+      },
+    ),
+  );
 }
 
 function shouldResolveRelativeUrl(url: string) {

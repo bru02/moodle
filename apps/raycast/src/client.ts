@@ -1,5 +1,10 @@
-import { authenticateWithCredentials, type MoodleSession } from "@moodle/core";
+import {
+  authenticateWithCredentials,
+  isAuthError,
+  type MoodleSession,
+} from "@moodle/core";
 import { Cache, LocalStorage } from "@raycast/api";
+import { showFailureToast } from "@raycast/utils";
 
 import { requestCredentialsLogin } from "./credentials-login-request";
 import { siteOrigin } from "./helpers/preferences";
@@ -24,11 +29,22 @@ type StoredCredentials = {
 async function authenticate(): Promise<User> {
   const credentials = await getStoredCredentials();
   if (credentials) {
-    const session = await authenticateWithCredentials({
-      siteOrigin,
-      username: credentials.username,
-      password: credentials.password,
-    });
+    let session: MoodleSession;
+    try {
+      session = await authenticateWithCredentials({
+        siteOrigin,
+        username: credentials.username,
+        password: credentials.password,
+      });
+    } catch (error) {
+      if (!isAuthError(error)) {
+        throw error;
+      }
+
+      await showFailureToast(error, { title: "Authentication failed" });
+      session = await requestFreshCredentialsLogin();
+    }
+
     return mapSessionToUser(session);
   }
 
@@ -50,6 +66,13 @@ function saveUser(u: User) {
   const json = JSON.stringify(u);
   cache.set("userData", json);
   LocalStorage.setItem("userData", json);
+}
+
+export function saveSession(session: MoodleSession) {
+  const nextUser = mapSessionToUser(session);
+  saveUser(nextUser);
+  userPromise = Promise.resolve(nextUser);
+  suspended = createSuspense(ensureUserPromise());
 }
 
 async function loadUser(): Promise<User> {
@@ -125,15 +148,27 @@ export async function refreshUserTokens(): Promise<User> {
     return refreshed;
   }
 
-  const refreshed = mapSessionToUser(
-    await authenticateWithCredentials({
-      siteOrigin,
-      username: credentials.username,
-      password: credentials.password,
-    }),
-  );
-  saveUser(refreshed);
-  return refreshed;
+  try {
+    const refreshed = mapSessionToUser(
+      await authenticateWithCredentials({
+        siteOrigin,
+        username: credentials.username,
+        password: credentials.password,
+      }),
+    );
+    saveUser(refreshed);
+    return refreshed;
+  } catch (error) {
+    if (!isAuthError(error)) {
+      throw error;
+    }
+
+    await showFailureToast(error, { title: "Authentication failed" });
+    const session = await requestFreshCredentialsLogin();
+    const refreshed = mapSessionToUser(session);
+    saveUser(refreshed);
+    return refreshed;
+  }
 }
 
 export async function getStoredCredentials(): Promise<StoredCredentials | null> {
@@ -168,13 +203,17 @@ export async function saveStoredCredentials(
   userPromise = null;
   cache.remove("userData");
   void LocalStorage.removeItem("userData");
-  saveUser(mapSessionToUser(session));
-  suspended = createSuspense(ensureUserPromise());
+  saveSession(session);
 }
 
 export async function clearStoredCredentials() {
   await LocalStorage.removeItem(CREDENTIALS_KEY);
   resetUserState();
+}
+
+async function requestFreshCredentialsLogin(): Promise<MoodleSession> {
+  await clearStoredCredentials();
+  return await requestCredentialsLogin();
 }
 
 function createSuspense<T>(promise: Promise<T>): { read(): T } {

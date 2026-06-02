@@ -8,6 +8,7 @@ import {
   AuthError,
   authenticateWithToken,
   checkSite,
+  type MoodleIdentityProvider,
   type MoodleSession,
   TypeOfLogin,
 } from "@moodle/core";
@@ -16,6 +17,8 @@ import { environment, OAuth } from "@raycast/api";
 import { requestCredentialsLogin } from "./credentials-login-request";
 import {
   buildMoodleLaunchURL,
+  getIdentityProviderOAuthId,
+  getValidIdentityProvidersForConfig,
   normalizeSiteOrigin,
   parseMoodleMobileCallback,
 } from "./moodle-oauth-callback";
@@ -59,6 +62,12 @@ export type MoodleOAuthResult = {
   privateToken?: string;
   siteOrigin: string;
   session: MoodleSession;
+};
+
+type BrowserLaunchInput = {
+  siteUrl: string;
+  launchUrl?: string;
+  extraParams?: Record<string, string>;
 };
 
 export async function prepareMoodleOAuthCallbackApp() {
@@ -181,7 +190,10 @@ export async function authenticateWithMoodleOAuth(
     siteCheck.code !== TypeOfLogin.BROWSER &&
     siteCheck.code !== TypeOfLogin.EMBEDDED
   ) {
-    const session = await requestCredentialsLogin();
+    const session = await requestCredentialsLogin({
+      identityProviders: getValidIdentityProvidersForConfig(siteCheck.config),
+      siteName: siteCheck.config.sitename,
+    });
     return {
       callbackURL: "",
       token: session.token,
@@ -191,6 +203,42 @@ export async function authenticateWithMoodleOAuth(
     };
   }
 
+  return await authenticateWithBrowserLaunch({
+    siteUrl: siteCheck.siteUrl,
+    launchUrl: siteCheck.config.launchurl,
+  });
+}
+
+export async function authenticateWithMoodleIdentityProvider(
+  siteOrigin: string,
+  provider: MoodleIdentityProvider,
+): Promise<MoodleOAuthResult> {
+  const siteCheck = await checkSite({ siteUrl: siteOrigin });
+  const providerOAuthId = getIdentityProviderOAuthId(provider);
+  const validProvider = getValidIdentityProvidersForConfig(
+    siteCheck.config,
+  ).find(
+    (candidate) => getIdentityProviderOAuthId(candidate) === providerOAuthId,
+  );
+  const oauthId = validProvider
+    ? getIdentityProviderOAuthId(validProvider)
+    : null;
+  if (!oauthId) {
+    throw new AuthError("Moodle identity provider is not valid for this site", {
+      code: "invalid_identity_provider",
+    });
+  }
+
+  return await authenticateWithBrowserLaunch({
+    siteUrl: siteCheck.siteUrl,
+    launchUrl: siteCheck.config.launchurl,
+    extraParams: { oauthsso: oauthId },
+  });
+}
+
+async function authenticateWithBrowserLaunch(
+  input: BrowserLaunchInput,
+): Promise<MoodleOAuthResult> {
   const client = new OAuth.PKCEClient({
     redirectMethod: OAuth.RedirectMethod.App,
     providerName: "Moodle",
@@ -200,9 +248,10 @@ export async function authenticateWithMoodleOAuth(
 
   const passport = String(Math.random() * 1000);
   const launchURL = buildMoodleLaunchURL(
-    siteCheck.siteUrl,
+    input.siteUrl,
     passport,
-    siteCheck.config.launchurl,
+    input.launchUrl,
+    input.extraParams,
   );
   const request = await client.authorizationRequest({
     endpoint: "https://moodle.local/oauth-placeholder",
@@ -218,7 +267,7 @@ export async function authenticateWithMoodleOAuth(
     state: request.state,
     packageName,
     redirectURI: request.redirectURI,
-    siteOrigin: normalizeSiteOrigin(siteCheck.siteUrl),
+    siteOrigin: normalizeSiteOrigin(input.siteUrl),
     passport,
   };
 

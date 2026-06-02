@@ -18,7 +18,7 @@ import DefaultListItem from "./default";
 
 function ChatListItem({ module }: { module: Module }) {
   const ctx = useContext(CourseContext);
-  const { scope, activeCourse } = ctx;
+  const { scope } = ctx;
   const { data, isPending } = useWSQuery("mod_chat_get_chats_by_courses", {
     courseids: scope.courseIds,
   });

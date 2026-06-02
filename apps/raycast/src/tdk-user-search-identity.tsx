@@ -133,7 +133,6 @@ async function searchUsers(
   const json = (await res.json()) as [
     { data: unknown; error?: boolean; exception?: { message: string } },
   ];
-  console.log("searchUsers response:", JSON.stringify(json, null, 2));
   if (json[0].error) {
     throw new Error(json[0].exception?.message ?? "Unknown error");
   }

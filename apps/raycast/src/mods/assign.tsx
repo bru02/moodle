@@ -26,7 +26,7 @@ import ResourceListItem from "./resource";
 
 function AssignListItem({ module }: { module: Module }) {
   const ctx = useContext(CourseContext);
-  const { scope, activeCourse } = ctx;
+  const { scope } = ctx;
   const { data, isPending } = useWSQuery("mod_assign_get_assignments", {
     courseids: scope.courseIds,
   });
@@ -217,18 +217,42 @@ function AssignmentFilesList({
 
   const { introattachments = [] } = assignment;
 
+  const syncedSubmittedFiles = useMemo(
+    () =>
+      submittedFiles.map((file) => ({
+        ...file,
+        filename: "Sol – " + file.filename,
+      })),
+    [submittedFiles],
+  );
+
+  const syncedFeedbackFiles = useMemo(
+    () =>
+      feedbackFiles.map((file) => ({
+        ...file,
+        filename: "Feedback - " + file.filename,
+      })),
+    [feedbackFiles],
+  );
+
   const allFiles = useMemo(() => {
     const introFiles = introattachments.map(
       (file) => [getFilePath(file, module, course), file] as const,
     );
-    const submitted = submittedFiles
-      .map((file) => ({ ...file, filename: "Sol – " + file.filename }))
-      .map((file) => [getFilePath(file, module, course), file] as const);
-    const feedback = feedbackFiles
-      .map((file) => ({ ...file, filename: "Feedback - " + file.filename }))
-      .map((file) => [getFilePath(file, module, course), file] as const);
+    const submitted = syncedSubmittedFiles.map(
+      (file) => [getFilePath(file, module, course), file] as const,
+    );
+    const feedback = syncedFeedbackFiles.map(
+      (file) => [getFilePath(file, module, course), file] as const,
+    );
     return [...introFiles, ...submitted, ...feedback];
-  }, [introattachments, submittedFiles, feedbackFiles, module, course]);
+  }, [
+    introattachments,
+    syncedSubmittedFiles,
+    syncedFeedbackFiles,
+    module,
+    course,
+  ]);
 
   useSync(allFiles);
 
@@ -240,12 +264,16 @@ function AssignmentFilesList({
         ))}
       </List.Section>
       <List.Section title="Submitted Files">
-        {submittedFiles.map((i) => (
-          <ResourceListItem key={i.filename} module={module} content={i} />
+        {syncedSubmittedFiles.map((i) => (
+          <ResourceListItem
+            key={`${i.filename}-${i.fileurl}`}
+            module={module}
+            content={i}
+          />
         ))}
       </List.Section>
       <List.Section title="Feedback Files">
-        {feedbackFiles.map((i) => (
+        {syncedFeedbackFiles.map((i) => (
           <ResourceListItem
             key={`${i.filename}-${i.fileurl}`}
             module={module}
