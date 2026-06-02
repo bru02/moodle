@@ -1,3 +1,7 @@
+import { readFile } from "fs/promises";
+import { join } from "path";
+
+import initLiteParseWasm, { LiteParse } from "@llamaindex/liteparse-wasm";
 import {
   Action,
   ActionPanel,
@@ -7,6 +11,7 @@ import {
   Keyboard,
   Toast,
   closeMainWindow,
+  environment,
   showToast,
 } from "@raycast/api";
 import { getProgressIcon } from "@raycast/utils";
@@ -14,7 +19,7 @@ import { useContext, useMemo } from "react";
 
 import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
-import { formatBytes, shortcut, stripHTML } from "../helpers";
+import { formatBytes, shortcut } from "../helpers";
 import {
   canConvert,
   checkFileSize,
@@ -22,6 +27,7 @@ import {
   handleFileUrl,
   pdfify,
 } from "../helpers/files";
+import { htmlToPlainText } from "../helpers/markdown";
 import { preferences } from "../helpers/preferences";
 import { useFileSyncExceptionsStore, useFileSyncProgressStore } from "../store";
 import { CoreWSExternalFile, Module } from "../types";
@@ -29,17 +35,25 @@ import DefaultListItem from "./default";
 
 const syncEnabled = Boolean(preferences.sync_folder);
 
-type LiteParseModule = typeof import("@llamaindex/liteparse");
+let liteParseWasmReady: Promise<unknown> | undefined;
 
-const importLiteParse = new Function(
-  "specifier",
-  "return import(specifier)",
-) as (specifier: string) => Promise<LiteParseModule>;
+function initLiteParse() {
+  liteParseWasmReady ??= readFile(
+    join(environment.assetsPath, "liteparse_wasm_bg.wasm"),
+  ).then((wasm) => initLiteParseWasm({ module_or_path: wasm }));
+
+  return liteParseWasmReady;
+}
 
 async function parseFileAsMarkdown(filePath: string) {
-  const { LiteParse } = await importLiteParse("@llamaindex/liteparse");
-  const parser = new LiteParse({ outputFormat: "text" });
-  const result = await parser.parse(filePath, true);
+  await initLiteParse();
+
+  const parser = new LiteParse({
+    ocrEnabled: false,
+    outputFormat: "text",
+    quiet: true,
+  });
+  const result = await parser.parse(await readFile(filePath));
 
   return result.text.trim();
 }
@@ -132,7 +146,7 @@ export default function ResourceListItem({
       <DefaultListItem
         module={module}
         contentFilename={filename}
-        title={stripHTML(title)}
+        title={htmlToPlainText(title)}
         subtitle={subtitle}
         keywords={keywords}
         icon={Icon.Download}
@@ -164,7 +178,7 @@ export default function ResourceListItem({
       <DefaultListItem
         module={module}
         contentFilename={filename}
-        title={stripHTML(title)}
+        title={htmlToPlainText(title)}
         subtitle={subtitle}
         keywords={keywords}
         icon={
@@ -191,7 +205,7 @@ export default function ResourceListItem({
     <DefaultListItem
       module={module}
       contentFilename={filename}
-      title={stripHTML(title)}
+      title={htmlToPlainText(title)}
       subtitle={subtitle}
       keywords={keywords}
       icon={

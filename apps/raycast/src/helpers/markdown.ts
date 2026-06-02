@@ -3,6 +3,7 @@ import {
   getYouTubeThumbnail,
   selectMoodleLanguage,
   stripInlineDataImages,
+  stripHTML,
 } from "@moodle/core";
 import TurndownService from "turndown";
 
@@ -13,6 +14,7 @@ type MarkdownLoader = (content: string) => string;
 export const turndownService = new TurndownService();
 
 turndownService.use(gfm);
+patchIntrawordUnderscoreEscapes(turndownService);
 
 type NodeWithSiblings = {
   nodeName?: string;
@@ -36,6 +38,16 @@ function isStrongLike(node: NodeWithSiblings | null | undefined): boolean {
 function isWordCharacter(value: string | null): boolean {
   if (!value) return false;
   return wordCharacter.test(value);
+}
+
+function patchIntrawordUnderscoreEscapes(service: TurndownService) {
+  const originalEscape = service.escape.bind(service);
+
+  service.escape = (content: string) =>
+    originalEscape(content).replace(
+      /(?<=[\p{L}\p{N}])\\_(?=[\p{L}\p{N}])/gu,
+      "_",
+    );
 }
 
 function getBoundaryCharacter(
@@ -152,7 +164,10 @@ const htmlLoaders: MarkdownLoader[] = [
   stripInlineDataImagesLoader,
   multilang2Loader,
 ];
-const markdownLoaders: MarkdownLoader[] = [mathjaxNotationLoader];
+const markdownLoaders: MarkdownLoader[] = [
+  intrawordUnderscoreLoader,
+  mathjaxNotationLoader,
+];
 
 export function turndown(html: string) {
   const normalizedHtml = htmlLoaders.reduce(
@@ -167,12 +182,25 @@ export function turndown(html: string) {
   return result;
 }
 
+export function htmlToPlainText(html: string) {
+  const normalizedHtml = htmlLoaders.reduce(
+    (content, loader) => loader(content),
+    html,
+  );
+
+  return stripHTML(normalizedHtml).trim();
+}
+
 function stripInlineDataImagesLoader(content: string): string {
   return stripInlineDataImages(content);
 }
 
 function multilang2Loader(content: string): string {
   return selectMoodleLanguage(content, "en");
+}
+
+function intrawordUnderscoreLoader(content: string): string {
+  return content.replace(/(?<=[\p{L}\p{N}])\\_(?=[\p{L}\p{N}])/gu, "_");
 }
 
 function mathjaxNotationLoader(content: string): string {

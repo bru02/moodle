@@ -1,13 +1,14 @@
 import { mkdir } from "fs/promises";
 
 import { parseBookToc, resolveBookChapterContentFile } from "@moodle/core";
-import { Action, ActionPanel, Icon, List, open } from "@raycast/api";
+import { Action, ActionPanel, Icon, Keyboard, List, open } from "@raycast/api";
 import { useContext } from "react";
 
 import { OpenInBrowserAction } from "../components/OpenInBrowserAction";
 import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
 import { getModuleFolder } from "../helpers/files";
+import { htmlToPlainText } from "../helpers/markdown";
 import { preferences } from "../helpers/preferences";
 import { useRemoteHTMLResource } from "../hooks/useRemoteHTMLService";
 import { Module } from "../types";
@@ -31,20 +32,52 @@ export function BookChapterDetail({
   return <List.Item.Detail isLoading={isLoading} markdown={content} />;
 }
 
+function CopyBookChapterMarkdownAction({
+  module,
+  href,
+}: {
+  module: Module;
+  href: string;
+}) {
+  const { activeCourse } = useContext(CourseContext);
+  const fileurl = resolveBookChapterContentFile(module.contents, href)?.fileurl;
+  const { data: content } = useRemoteHTMLResource(
+    fileurl,
+    module.contents,
+    activeCourse.id,
+  );
+
+  return (
+    <Action.CopyToClipboard
+      title="Copy as Markdown"
+      icon={Icon.Clipboard}
+      shortcut={Keyboard.Shortcut.Common.Copy}
+      content={content ?? ""}
+    />
+  );
+}
+
 export function ViewBook({ module }: { module: Module }) {
   const tocContent = module.contents?.find((c) => c.filename === "structure");
   const toc = parseBookToc(tocContent?.content);
 
   return (
-    <List navigationTitle={module.name} isShowingDetail={true}>
+    <List
+      navigationTitle={htmlToPlainText(module.name)}
+      isShowingDetail={true}
+    >
       {toc?.toReversed().map((content) => {
         return (
           <List.Item
             key={content.href}
-            title={content.title}
+            title={htmlToPlainText(content.title)}
             detail={<BookChapterDetail module={module} href={content.href} />}
             actions={
               <ActionPanel>
+                <CopyBookChapterMarkdownAction
+                  module={module}
+                  href={content.href}
+                />
                 <OpenInBrowserAction
                   url={`${module.url}&chapterid=${content.href.match(/\d+/)?.[0]}`}
                 />

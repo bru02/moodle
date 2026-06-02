@@ -1,9 +1,10 @@
-import { Action, ActionPanel, Detail, Icon } from "@raycast/api";
+import { Action, ActionPanel, Detail, Icon, Keyboard } from "@raycast/api";
 import { useContext } from "react";
 
 import { OpenInBrowserAction } from "../components/OpenInBrowserAction";
 import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
+import { htmlToPlainText } from "../helpers/markdown";
 import { useRemoteHTMLResource } from "../hooks/useRemoteHTMLService";
 import { Module } from "../types";
 import DefaultListItem from "./default";
@@ -20,11 +21,17 @@ export function ViewPage({ module }: { module: Module }) {
   );
   return (
     <Detail
-      navigationTitle={module.name}
+      navigationTitle={htmlToPlainText(module.name)}
       isLoading={isLoading}
       markdown={content}
       actions={
         <ActionPanel>
+          <Action.CopyToClipboard
+            title="Copy as Markdown"
+            icon={Icon.Clipboard}
+            shortcut={Keyboard.Shortcut.Common.Copy}
+            content={content ?? ""}
+          />
           <OpenInBrowserAction url={module.url!} />
         </ActionPanel>
       }

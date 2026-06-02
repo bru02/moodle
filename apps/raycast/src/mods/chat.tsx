@@ -48,7 +48,7 @@ function ChatListItem({ module }: { module: Module }) {
             }
           />
           <OpenInBrowserAction url={module.url!} />
-          <CompletionAction module={module} course={activeCourse} />
+          <CompletionAction module={module} />
           <HiddenItemActionsSection item={module} />
         </ActionPanel>
       }

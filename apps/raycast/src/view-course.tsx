@@ -15,8 +15,8 @@ import AuthErrorDetail from "./components/AuthErrorDetail";
 import { DismissibleItemsContext } from "./components/DismissibleItemsContext";
 import WithHiddenItems from "./components/WithHiddenItems";
 import CourseContext from "./course-context";
-import { stripHTML } from "./helpers";
 import { getFilePath } from "./helpers/files";
+import { htmlToPlainText } from "./helpers/markdown";
 import { getModuleListItemId } from "./helpers/modules";
 import { useHiddenItemsState } from "./hooks/useHiddenItems";
 import { useWSBatchQuery } from "./hooks/useWSQuery";
@@ -313,7 +313,10 @@ function CourseContentList({
                 </List.Section>
               )}
               {displayLayout.sections.map((section) => (
-                <List.Section key={section.id} title={stripHTML(section.title)}>
+                <List.Section
+                  key={section.id}
+                  title={htmlToPlainText(section.title)}
+                >
                   <RenderedModuleItems
                     modules={section.modules}
                     scope={scope}

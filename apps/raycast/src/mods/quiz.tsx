@@ -19,7 +19,7 @@ import {
 import CourseContext from "../course-context";
 import { formatDurationSeconds, formatRelativeTime } from "../helpers/format";
 import { buildGradeAccessoryTextByModuleId } from "../helpers/grades";
-import { turndown } from "../helpers/markdown";
+import { htmlToPlainText, turndown } from "../helpers/markdown";
 import { requestWS, useWSBatchQuery, useWSQuery } from "../hooks/useWSQuery";
 import { Module } from "../types";
 import type {
@@ -32,7 +32,7 @@ import { ModuleListItemShell } from "./module-list-item-shell";
 
 function QuizListItem({ module }: { module: Module }) {
   const ctx = useContext(CourseContext);
-  const { scope, activeCourse } = ctx;
+  const { scope } = ctx;
   const { data, isPending } = useWSQuery("mod_quiz_get_quizzes_by_courses", {
     courseids: scope.courseIds,
   });
@@ -59,7 +59,7 @@ function QuizListItem({ module }: { module: Module }) {
   );
 
   if (!currentQuiz) {
-    return <ModuleListItemShell module={module} course={activeCourse} />;
+    return <ModuleListItemShell module={module} />;
   }
 
   return (
@@ -80,7 +80,6 @@ function QuizListItem({ module }: { module: Module }) {
         quiz: currentQuiz,
         accessInfo,
       })}
-      course={activeCourse}
       primaryAction={
         <StartQuizAction
           module={module}
@@ -284,7 +283,7 @@ function StartQuizForm({
   return (
     <Form
       isLoading={isSubmitting}
-      navigationTitle={`Start ${module.name}`}
+      navigationTitle={`Start ${htmlToPlainText(module.name)}`}
       actions={
         <ActionPanel>
           <Action.SubmitForm
@@ -328,7 +327,7 @@ function QuizAttemptsList({
 
   return (
     <List
-      navigationTitle={`${module.name} Attempts`}
+      navigationTitle={`${htmlToPlainText(module.name)} Attempts`}
       isLoading={isPending}
       isShowingDetail={true}
     >

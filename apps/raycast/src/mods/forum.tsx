@@ -4,7 +4,7 @@ import { useContext } from "react";
 import { OpenInBrowserAction } from "../components/OpenInBrowserAction";
 import CourseContext from "../course-context";
 import { formatRelativeTime } from "../helpers/format";
-import { turndown } from "../helpers/markdown";
+import { htmlToPlainText, turndown } from "../helpers/markdown";
 import { useWSQuery } from "../hooks/useWSQuery";
 import { Module } from "../types";
 import type {
@@ -15,7 +15,7 @@ import { ModuleListItemShell } from "./module-list-item-shell";
 
 export default function ForumListItem({ module }: { module: Module }) {
   const ctx = useContext(CourseContext);
-  const { scope, activeCourse } = ctx;
+  const { scope } = ctx;
   const { data, isPending } = useWSQuery("mod_forum_get_forums_by_courses", {
     courseids: scope.courseIds,
   });
@@ -25,7 +25,7 @@ export default function ForumListItem({ module }: { module: Module }) {
   );
 
   if (!currentForum) {
-    return <ModuleListItemShell module={module} course={activeCourse} />;
+    return <ModuleListItemShell module={module} />;
   }
 
   return (
@@ -35,7 +35,6 @@ export default function ForumListItem({ module }: { module: Module }) {
         <ForumListItemDetail forum={currentForum} isLoading={isPending} />
       }
       accessories={getForumAccessories(currentForum)}
-      course={activeCourse}
       primaryAction={
         <Action.Push
           title="View Discussions"
@@ -83,14 +82,14 @@ function ForumDiscussionsList({
 
   return (
     <List
-      navigationTitle={`${module.name} Discussions`}
+      navigationTitle={`${htmlToPlainText(module.name)} Discussions`}
       isLoading={isPending}
       isShowingDetail={true}
     >
       {discussions.map((discussion) => (
         <List.Item
           key={discussion.discussion ?? discussion.id}
-          title={discussion.name || discussion.subject}
+          title={htmlToPlainText(discussion.name || discussion.subject)}
           subtitle={
             typeof discussion.userfullname === "string"
               ? discussion.userfullname

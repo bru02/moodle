@@ -93,7 +93,7 @@ const persister = experimental_createQueryPersister({
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      persister: persister.persisterFn,
+      persister: persister.persisterFn as never,
       retry: (failureCount, error) => {
         if (isAuthError(error)) {
           return false;

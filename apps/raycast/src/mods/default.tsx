@@ -6,7 +6,7 @@ import CompletionAction from "../components/CompletionAction";
 import { OpenInBrowserAction } from "../components/OpenInBrowserAction";
 import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
-import { turndown } from "../helpers/markdown";
+import { htmlToPlainText, turndown } from "../helpers/markdown";
 import { getModuleListItemId } from "../helpers/modules";
 import { siteOrigin } from "../helpers/preferences";
 import { Module } from "../types";
@@ -29,7 +29,7 @@ function DefaultListItem({
     suffix: contentFilename,
     hasDetail: customDetail != null ? true : undefined,
   });
-  const title = turndown(module.name).trim() || module.name;
+  const title = htmlToPlainText(module.name);
   const hasDedicatedModuleDetail =
     module.modname === "assign" ||
     module.modname === "forum" ||
@@ -107,7 +107,7 @@ function DefaultListItem({
                 : module.url || fallbackUrl
             }
           />
-          <CompletionAction module={module} course={activeCourse} />
+          <CompletionAction module={module} />
           <HiddenItemActionsSection item={module} />
         </ActionPanel>
       }

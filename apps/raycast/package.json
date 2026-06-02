@@ -31,19 +31,19 @@
   ],
   "dependencies": {
     "@bwat47/turndown-plugin-gfm": "^1.0.5",
-    "@llamaindex/liteparse": "^1.5.3",
+    "@llamaindex/liteparse-wasm": "2.0.4",
     "@moodle/core": "workspace:*",
-    "@raycast/api": "^1.104.9",
-    "@raycast/utils": "^2.2.3",
-    "@tanstack/query-persist-client-core": "5.100.9",
-    "@tanstack/react-query": "5.100.9",
-    "date-fns": "^4.1.0",
+    "@raycast/api": "^1.104.19",
+    "@raycast/utils": "^2.2.5",
+    "@tanstack/query-persist-client-core": "5.100.14",
+    "@tanstack/react-query": "5.100.14",
+    "date-fns": "^4.4.0",
     "html-entities": "^2.6.0",
     "mac-system-proxy": "1.0.4",
     "react": "19.2.0",
     "sanitize-filename-ts": "^1.0.2",
-    "turndown": "^7.2.2",
-    "zustand": "^5.0.11"
+    "turndown": "^7.2.4",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@raycast/eslint-config": "^2.0.4",
@@ -75,30 +75,20 @@
     {
       "name": "site_url",
       "title": "Moodle site url",
-      "description": "eg. https://moodle.uni-corvinus.hu",
+      "description": "https://moodle.uni-corvinus.hu",
       "type": "textfield",
       "required": true
-    },
-    {
-      "name": "username",
-      "title": "Username",
-      "description": "eg. sigma",
-      "type": "textfield",
-      "required": false
-    },
-    {
-      "name": "password",
-      "title": "Password",
-      "description": "eg. sigma",
-      "type": "password",
-      "required": false
     },
     {
       "name": "sync_folder",
       "title": "Sync Folder",
       "description": "Leave empty to disable sync",
       "type": "directory",
-      "required": false
+      "required": false,
+      "default": {
+        "macOS": "~/Documents/Moodle",
+        "Windows": "C:\\Users\\%USERPROFILE%\\Documents\\Moodle"
+      }
     },
     {
       "name": "sync_max_size",

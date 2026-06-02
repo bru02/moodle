@@ -1,4 +1,3 @@
-import type { SimpleCourse } from "@moodle/core";
 import { Action, Icon } from "@raycast/api";
 import { useMutation } from "@tanstack/react-query";
 
@@ -14,57 +13,52 @@ import {
   type CoreCourseModuleWSCompletionData,
 } from "../types/contents";
 
-type MutationContext = { previousData?: CoreCourseGetContentsWSSection[] };
+type MutationContext = {
+  previousContentQueries: ReturnType<typeof getCourseContentQueries>;
+};
 
-export default function CompletionAction({
-  module,
-  course,
-}: {
-  module: Module;
-  course: SimpleCourse;
-}) {
+export default function CompletionAction({ module }: { module: Module }) {
   const { token } = useUser();
   const completionData = module.completiondata;
-  const courseQueryKey = [
-    "core_course_get_contents",
-    { courseid: String(course.id) },
-  ] as const;
 
   const mutation = useMutation<void, Error, boolean, MutationContext>(
     {
       mutationFn: (completed) =>
         updateCompletionStatus(token, module.id, completed),
       onMutate: async (completed) => {
-        await queryClient.cancelQueries({ queryKey: courseQueryKey });
+        await queryClient.cancelQueries({
+          queryKey: ["core_course_get_contents"],
+        });
 
-        const previousData =
-          queryClient.getQueryData<CoreCourseGetContentsWSSection[]>(
-            courseQueryKey,
-          );
-        if (completionData && previousData) {
+        const previousContentQueries = getCourseContentQueries();
+
+        if (completionData) {
           const optimisticCompletion = buildOptimisticCompletion(
             completionData,
             completed,
           );
-          queryClient.setQueryData(
-            courseQueryKey,
-            updateSectionCompletion(
-              previousData,
-              module.id,
-              optimisticCompletion,
-            ),
+          queryClient.setQueriesData(
+            { queryKey: ["core_course_get_contents"] },
+            (data) =>
+              updateCompletionInContentsData(
+                data,
+                module.id,
+                optimisticCompletion,
+              ),
           );
         }
 
-        return { previousData } satisfies MutationContext;
+        return { previousContentQueries };
       },
-      onError: (_error, _variables, context) => {
-        if (context?.previousData) {
-          queryClient.setQueryData(courseQueryKey, context.previousData);
+      onError: (_error, _completed, context) => {
+        for (const [queryKey, data] of context?.previousContentQueries ?? []) {
+          queryClient.setQueryData(queryKey, data);
         }
       },
       onSettled: () => {
-        queryClient.invalidateQueries({ queryKey: courseQueryKey });
+        queryClient.invalidateQueries({
+          queryKey: ["core_course_get_contents"],
+        });
       },
     },
     queryClient,
@@ -99,6 +93,14 @@ export default function CompletionAction({
   );
 }
 
+function getCourseContentQueries() {
+  return queryClient.getQueriesData<
+    CoreCourseGetContentsWSSection[] | CoreCourseGetContentsWSSection[][]
+  >({
+    queryKey: ["core_course_get_contents"],
+  });
+}
+
 function buildOptimisticCompletion(
   current: CoreCourseModuleWSCompletionData,
   completed: boolean,
@@ -112,21 +114,49 @@ function buildOptimisticCompletion(
   };
 }
 
-function updateSectionCompletion(
+function updateCompletionInContentsData(
+  data: unknown,
+  moduleId: number,
+  completion: CoreCourseModuleWSCompletionData,
+) {
+  if (!Array.isArray(data)) return data;
+  if (data.every(isCourseContentSection)) {
+    return updateSectionsCompletion(data, moduleId, completion);
+  }
+  if (
+    data.every((row) => Array.isArray(row) && row.every(isCourseContentSection))
+  ) {
+    return data.map((sections) =>
+      updateSectionsCompletion(sections, moduleId, completion),
+    );
+  }
+  return data;
+}
+
+function isCourseContentSection(
+  value: unknown,
+): value is CoreCourseGetContentsWSSection {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "modules" in value &&
+    Array.isArray(value.modules)
+  );
+}
+
+function updateSectionsCompletion(
   sections: CoreCourseGetContentsWSSection[],
   moduleId: number,
   completion: CoreCourseModuleWSCompletionData,
 ) {
   return sections.map((section) => {
-    let sectionChanged = false;
+    let changed = false;
     const modules = section.modules.map((mod) => {
-      if (mod.id !== moduleId) {
-        return mod;
-      }
-      sectionChanged = true;
+      if (mod.id !== moduleId) return mod;
+      changed = true;
       return { ...mod, completiondata: completion };
     });
-    return sectionChanged ? { ...section, modules } : section;
+    return changed ? { ...section, modules } : section;
   });
 }
 

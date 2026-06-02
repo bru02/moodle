@@ -7,6 +7,7 @@ import { OpenInBrowserAction } from "../components/OpenInBrowserAction";
 import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
 import { getModuleFolder } from "../helpers/files";
+import { htmlToPlainText } from "../helpers/markdown";
 import { preferences } from "../helpers/preferences";
 import { Module } from "../types";
 import DefaultListItem from "./default";
@@ -14,7 +15,7 @@ import ResourceListItem from "./resource";
 
 export function ViewFolder({ module }: { module: Module }) {
   return (
-    <List navigationTitle={module.name}>
+    <List navigationTitle={htmlToPlainText(module.name)}>
       {module.contents?.map((content) => (
         <ResourceListItem
           key={content.filename}

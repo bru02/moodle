@@ -9,7 +9,7 @@ import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
 import { formatDurationSeconds, formatRelativeTime } from "../helpers/format";
 import { buildGradeAccessoryTextByModuleId } from "../helpers/grades";
-import { turndown } from "../helpers/markdown";
+import { htmlToPlainText, turndown } from "../helpers/markdown";
 import { useWSBatchQuery, useWSQuery } from "../hooks/useWSQuery";
 import { Module } from "../types";
 import type {
@@ -24,7 +24,7 @@ import DefaultListItem from "./default";
 
 function H5PActivityListItem({ module }: { module: Module }) {
   const ctx = useContext(CourseContext);
-  const { scope, activeCourse } = ctx;
+  const { scope } = ctx;
   const user = useUser();
   const { data, isPending } = useWSQuery(
     "mod_h5pactivity_get_h5pactivities_by_courses",
@@ -100,7 +100,7 @@ function H5PActivityListItem({ module }: { module: Module }) {
             />
           ) : null}
           {module.url && <OpenInBrowserAction url={module.url} />}
-          <CompletionAction module={module} course={activeCourse} />
+          <CompletionAction module={module} />
           <HiddenItemActionsSection item={module} />
         </ActionPanel>
       }
@@ -224,7 +224,7 @@ function H5PAttemptsList({
 
   return (
     <List
-      navigationTitle={`${module.name} Attempts`}
+      navigationTitle={`${htmlToPlainText(module.name)} Attempts`}
       isLoading={isPending}
       isShowingDetail={true}
     >

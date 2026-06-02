@@ -7,7 +7,7 @@ import {
   openExtensionPreferences,
 } from "@raycast/api";
 
-import { isQrAuth } from "../helpers/preferences";
+import { clearStoredCredentials } from "../client";
 
 type AuthErrorDetailProps = {
   error: unknown;
@@ -37,17 +37,11 @@ export default function AuthErrorDetail({
   const title = isAuth ? "Authentication Error" : "Request Failed";
 
   const troubleshooting = isAuth
-    ? isQrAuth
-      ? [
-          "- Open extension preferences and paste a fresh Moodle Mobile QR login URL.",
-          "- Make sure the QR link has not expired.",
-          "- Retry after updating preferences.",
-        ]
-      : [
-          "- Open extension preferences and verify `site_url`, `username`, and `password`.",
-          "- Re-enter your password if it has changed.",
-          "- Retry after updating preferences.",
-        ]
+    ? [
+        "- Open extension preferences and verify `site_url`.",
+        "- Retry the browser sign-in flow or contact your Moodle site support.",
+        "- If you previously signed in with a password, clear saved credentials and retry.",
+      ]
     : [
         "- Retry the request.",
         "- Check your network connection and Moodle availability.",
@@ -66,6 +60,14 @@ export default function AuthErrorDetail({
             title="Open Extension Preferences"
             icon={Icon.Gear}
             onAction={openExtensionPreferences}
+          />
+          <Action
+            title="Clear Saved Credentials"
+            icon={Icon.Trash}
+            onAction={() => {
+              void clearStoredCredentials();
+              onRetry?.();
+            }}
           />
           <Action
             title="Retry"

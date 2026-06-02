@@ -1,19 +1,9 @@
-import {
-  AuthError,
-  authenticateWithCredentials,
-  authenticateWithQrLogin,
-  authenticateWithToken,
-  type MoodleSession,
-} from "@moodle/core";
+import { authenticateWithCredentials, type MoodleSession } from "@moodle/core";
 import { Cache, LocalStorage } from "@raycast/api";
 
-import { parsePasswordTokenPair } from "./auth-preferences";
-import {
-  isQrAuth,
-  preferences,
-  siteOrigin,
-  siteUrl,
-} from "./helpers/preferences";
+import { requestCredentialsLogin } from "./credentials-login-request";
+import { siteOrigin } from "./helpers/preferences";
+import { authenticateWithMoodleOAuth } from "./oauth-auth";
 
 export interface User extends MoodleSession {
   id: number;
@@ -24,41 +14,26 @@ export interface User extends MoodleSession {
 const cache = new Cache({ namespace: "user" });
 let user: User | null = null;
 let userPromise: Promise<User> | null = null;
+const CREDENTIALS_KEY = "moodleCredentials";
+
+type StoredCredentials = {
+  username: string;
+  password: string;
+};
 
 async function authenticate(): Promise<User> {
-  if (isQrAuth) {
-    const session = await authenticateWithQrLogin({
+  const credentials = await getStoredCredentials();
+  if (credentials) {
+    const session = await authenticateWithCredentials({
       siteOrigin,
-      qrLoginKey: siteUrl.searchParams.get("qrlogin") ?? "",
-      userId: siteUrl.searchParams.get("userid") ?? "",
+      username: credentials.username,
+      password: credentials.password,
     });
     return mapSessionToUser(session);
   }
 
-  const tokenPair = preferences.username
-    ? null
-    : parsePasswordTokenPair(preferences.password ?? "");
-  if (tokenPair) {
-    const session = await authenticateWithToken({
-      siteOrigin,
-      token: tokenPair.token,
-      privateToken: tokenPair.privateToken,
-    });
-    return mapSessionToUser(session);
-  }
-
-  if (!preferences.username || !preferences.password) {
-    throw new AuthError("Missing username or password in preferences", {
-      code: "missing_credentials",
-    });
-  }
-
-  const session = await authenticateWithCredentials({
-    siteOrigin,
-    username: preferences.username,
-    password: preferences.password,
-  });
-  return mapSessionToUser(session);
+  const result = await authenticateWithMoodleOAuth(siteOrigin);
+  return mapSessionToUser(result.session);
 }
 
 function mapSessionToUser(session: MoodleSession): User {
@@ -82,6 +57,7 @@ async function loadUser(): Promise<User> {
   if (cached) {
     try {
       user = JSON.parse(cached) as User;
+      return user;
     } catch {
       /* ignore */
     }
@@ -109,9 +85,10 @@ function ensureUserPromise(): Promise<User> {
   return userPromise;
 }
 
-const suspended = createSuspense(ensureUserPromise());
+let suspended: ReturnType<typeof createSuspense<User>> | null = null;
 
 export function useUser(): User {
+  if (!suspended) suspended = createSuspense(ensureUserPromise());
   return suspended.read();
 }
 
@@ -128,12 +105,76 @@ export function resetUserState() {
   userPromise = null;
   cache.remove("userData");
   void LocalStorage.removeItem("userData");
+  suspended = null;
+}
+
+export function replaceUserToken(token: string) {
+  if (!user) return;
+  saveUser({ ...user, token });
+  userPromise = Promise.resolve(user);
+  suspended = createSuspense(ensureUserPromise());
 }
 
 export async function refreshUserTokens(): Promise<User> {
-  const refreshed = await authenticate();
+  const credentials = await getStoredCredentials();
+  if (!credentials) {
+    resetUserState();
+    const session = await requestCredentialsLogin();
+    const refreshed = mapSessionToUser(session);
+    saveUser(refreshed);
+    return refreshed;
+  }
+
+  const refreshed = mapSessionToUser(
+    await authenticateWithCredentials({
+      siteOrigin,
+      username: credentials.username,
+      password: credentials.password,
+    }),
+  );
   saveUser(refreshed);
   return refreshed;
+}
+
+export async function getStoredCredentials(): Promise<StoredCredentials | null> {
+  const stored = await LocalStorage.getItem<string>(CREDENTIALS_KEY);
+  if (!stored) return null;
+
+  try {
+    const credentials = JSON.parse(stored) as Partial<StoredCredentials>;
+    if (credentials.username && credentials.password) {
+      return {
+        username: credentials.username,
+        password: credentials.password,
+      };
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return null;
+}
+
+export async function saveStoredCredentials(
+  credentials: StoredCredentials,
+  session?: MoodleSession,
+) {
+  await LocalStorage.setItem(CREDENTIALS_KEY, JSON.stringify(credentials));
+  if (!session) {
+    resetUserState();
+    return;
+  }
+
+  userPromise = null;
+  cache.remove("userData");
+  void LocalStorage.removeItem("userData");
+  saveUser(mapSessionToUser(session));
+  suspended = createSuspense(ensureUserPromise());
+}
+
+export async function clearStoredCredentials() {
+  await LocalStorage.removeItem(CREDENTIALS_KEY);
+  resetUserState();
 }
 
 function createSuspense<T>(promise: Promise<T>): { read(): T } {

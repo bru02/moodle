@@ -16,9 +16,8 @@ import DatesDetail from "../components/DatesDetail";
 import { OpenInBrowserAction } from "../components/OpenInBrowserAction";
 import { HiddenItemActionsSection } from "../components/WithHiddenItems";
 import CourseContext from "../course-context";
-import { stripHTML } from "../helpers";
 import { formatRelativeTime } from "../helpers/format";
-import { turndown } from "../helpers/markdown";
+import { htmlToPlainText, turndown } from "../helpers/markdown";
 import { queryClient, requestWS, useWSQuery } from "../hooks/useWSQuery";
 import { Module } from "../types";
 import type {
@@ -29,7 +28,7 @@ import DefaultListItem from "./default";
 
 function ChoiceListItem({ module }: { module: Module }) {
   const ctx = useContext(CourseContext);
-  const { scope, activeCourse } = ctx;
+  const { scope } = ctx;
   const { data: choicesData, isPending: isChoicePending } = useWSQuery(
     "mod_choice_get_choices_by_courses",
     {
@@ -119,7 +118,7 @@ function ChoiceListItem({ module }: { module: Module }) {
             />
           )}
           {module.url && <OpenInBrowserAction url={module.url} />}
-          <CompletionAction module={module} course={activeCourse} />
+          <CompletionAction module={module} />
           <HiddenItemActionsSection item={module} />
         </ActionPanel>
       }
@@ -233,7 +232,7 @@ function ChoiceResponseForm({
   return (
     <Form
       isLoading={isSubmitting}
-      navigationTitle={`${submitTitle}: ${module.name}`}
+      navigationTitle={`${submitTitle}: ${htmlToPlainText(module.name)}`}
       actions={
         <ActionPanel>
           <Action.SubmitForm
@@ -333,7 +332,10 @@ function ChoiceOptionsList({
     [options],
   );
   return (
-    <List navigationTitle={`${module.name} Options`} isShowingDetail={true}>
+    <List
+      navigationTitle={`${htmlToPlainText(module.name)} Options`}
+      isShowingDetail={true}
+    >
       {sortedOptions.map((option) => (
         <List.Item
           key={option.id}
@@ -476,7 +478,7 @@ function canClearChoiceResponse(
 }
 
 function getChoiceOptionLabel(option: AddonModChoiceOption) {
-  const label = stripHTML(option.text);
+  const label = htmlToPlainText(option.text);
   if (label.length > 0) {
     return label;
   }

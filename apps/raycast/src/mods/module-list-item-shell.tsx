@@ -1,4 +1,3 @@
-import type { SimpleCourse } from "@moodle/core";
 import { ActionPanel, type List } from "@raycast/api";
 import type { ReactNode } from "react";
 
@@ -10,7 +9,6 @@ import DefaultListItem from "./default";
 
 type ModuleListItemShellProps = {
   module: Module;
-  course: SimpleCourse;
   detail?: ReactNode;
   accessories?: List.Item.Accessory[];
   primaryAction?: ReactNode;
@@ -19,7 +17,6 @@ type ModuleListItemShellProps = {
 
 export function ModuleListItemShell({
   module,
-  course,
   detail,
   accessories,
   primaryAction,
@@ -35,7 +32,7 @@ export function ModuleListItemShell({
           {primaryAction ?? null}
           {extraActions}
           <OpenInBrowserAction url={module.url!} />
-          <CompletionAction module={module} course={course} />
+          <CompletionAction module={module} />
           <HiddenItemActionsSection item={module} />
         </ActionPanel>
       }

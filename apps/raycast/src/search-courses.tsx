@@ -4,8 +4,18 @@ import {
   listCourses,
   toSimpleCourse,
   type CourseScope,
+  type MoodleSession,
 } from "@moodle/core";
-import { Action, ActionPanel, Grid, Icon, LaunchProps } from "@raycast/api";
+import {
+  Action,
+  ActionPanel,
+  environment,
+  Grid,
+  Icon,
+  LaunchProps,
+  showToast,
+  Toast,
+} from "@raycast/api";
 import {
   createDeeplink,
   useCachedState,
@@ -13,7 +23,7 @@ import {
 } from "@raycast/utils";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { resetUserState } from "./client";
+import { replaceUserToken, useUser } from "./client";
 import AuthErrorBoundary from "./components/AuthErrorBoundary";
 import AuthErrorDetail from "./components/AuthErrorDetail";
 import { OpenFolderAction } from "./components/OpenFolderAction";
@@ -37,6 +47,9 @@ type SearchCoursesLaunchContext = { courseId?: string; preselectItem?: number };
 type SearchCoursesLaunchProps = LaunchProps<{
   launchContext?: SearchCoursesLaunchContext;
 }>;
+type SearchCoursesProps = {
+  launchContext?: SearchCoursesLaunchContext;
+};
 const COURSE_VISIBILITY_NAMESPACE = "courses";
 
 export default function Command({ launchContext }: SearchCoursesLaunchProps) {
@@ -47,7 +60,8 @@ export default function Command({ launchContext }: SearchCoursesLaunchProps) {
   );
 }
 
-function SearchCourses({ launchContext }: SearchCoursesLaunchProps) {
+function SearchCourses({ launchContext }: SearchCoursesProps) {
+  const user = useUser();
   const { data, isLoading, error, refetch } = useWSQuery(
     "core_enrol_get_users_courses",
     { userid: 0 },
@@ -58,6 +72,7 @@ function SearchCourses({ launchContext }: SearchCoursesLaunchProps) {
   const [searchText, setSearchText] = useState("");
 
   const courses = useMemo(() => (data ?? []).map(toSimpleCourse), [data]);
+  const credentialsJson = useMemo(() => stringifyMoodleSession(user), [user]);
 
   const { data: sortedCourses, visitItem } = useFrecencySorting(courses, {
     sortUnvisited: (a, b) => b.timemodified - a.timemodified,
@@ -182,6 +197,8 @@ function SearchCourses({ launchContext }: SearchCoursesLaunchProps) {
             visibleScopes,
             visitItem,
             trackCourseAccess,
+            credentialsJson,
+            user.token.length,
           );
           if (items.length === 0) return null;
           if (isPinnedSection)
@@ -199,6 +216,8 @@ function renderScopeItems(
   scopes: readonly CourseScope[],
   visitItem: (course: CourseScope["mergedCourse"]) => void,
   trackCourseAccess: (courseId: number, method: CourseAccessMethod) => void,
+  credentialsJson: string,
+  tokenLength: number,
 ) {
   return scopes.map((scope) => {
     const course = scope.mergedCourse;
@@ -248,6 +267,29 @@ function renderScopeItems(
               }}
             />
             <ActionPanel.Section>
+              {environment.isDevelopment && (
+                <>
+                  <Action.CopyToClipboard
+                    title="Copy Credentials"
+                    content={credentialsJson}
+                    icon={Icon.Clipboard}
+                    shortcut={shortcut("c", ["shift"])}
+                  />
+                  <Action
+                    title="Corrupt Token"
+                    icon={Icon.ExclamationMark}
+                    style={Action.Style.Destructive}
+                    onAction={async () => {
+                      replaceUserToken("a".repeat(tokenLength));
+                      await showToast({
+                        style: Toast.Style.Success,
+                        title: "Token corrupted",
+                        message: "Reload to trigger the invalid token flow",
+                      });
+                    }}
+                  />
+                </>
+              )}
               <Action.CreateQuicklink
                 quicklink={{
                   link: createDeeplink({
@@ -266,4 +308,18 @@ function renderScopeItems(
       />
     );
   });
+}
+
+function stringifyMoodleSession(session: MoodleSession) {
+  return JSON.stringify(
+    {
+      username: session.account.username,
+      siteOrigin: session.siteOrigin,
+      token: session.token,
+      privateToken: session.privateToken,
+      accessKey: session.accessKey,
+    },
+    null,
+    2,
+  );
 }

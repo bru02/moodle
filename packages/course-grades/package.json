@@ -1,0 +1,24 @@
+{
+  "name": "@moodle/course-grades",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "bin": {
+    "course-grades": "./src/cli.ts"
+  },
+  "scripts": {
+    "context": "bun scripts/build-llm-context.ts",
+    "fix-lint": "oxlint src --config ../../.oxlintrc.json --fix --fix-suggestions && oxfmt --write package.json tsconfig.json src",
+    "format": "oxfmt --write package.json tsconfig.json src",
+    "format:check": "oxfmt --check package.json tsconfig.json src",
+    "lint": "oxlint src --config ../../.oxlintrc.json --deny-warnings",
+    "test": "bun test ./src"
+  },
+  "dependencies": {
+    "@llamaindex/liteparse-wasm": "2.0.4",
+    "html-entities": "^2.6.0",
+    "yauzl": "^2.10.0",
+    "@moodle/core": "workspace:*"
+  }
+}
