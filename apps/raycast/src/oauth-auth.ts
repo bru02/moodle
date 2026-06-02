@@ -29,7 +29,16 @@ const STATE_PATH =
   process.platform === "win32"
     ? join(tmpdir(), ".moodle-oauth-state")
     : "/tmp/.moodle-oauth-state";
+
 const APP_ASSET_PATH = join(environment.assetsPath, "MoodleOAuthCallback.app");
+const WINDOWS_CALLBACK_SCRIPT_PATH = join(
+  tmpdir(),
+  "moodle-oauth-callback.ps1",
+);
+const WINDOWS_CALLBACK_LAUNCHER_PATH = join(
+  tmpdir(),
+  "moodle-oauth-callback.vbs",
+);
 const LSREGISTER =
   "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister";
 const CODESIGN = "/usr/bin/codesign";
@@ -47,10 +56,14 @@ const POWERSHELL = join(
   "v1.0",
   "powershell.exe",
 );
+const WSCRIPT = join(
+  process.env.SystemRoot ?? "C:\\Windows",
+  "System32",
+  "wscript.exe",
+);
 
 type HandoffState = {
   state: string;
-  packageName: string;
   redirectURI: string;
   siteOrigin: string;
   passport: string;
@@ -121,16 +134,24 @@ export async function prepareMoodleOAuthCallbackApp() {
 
 async function prepareWindowsMoodleOAuthCallback() {
   const command = [
-    quoteWindowsArg(POWERSHELL),
-    "-NoProfile",
-    "-WindowStyle Hidden",
-    "-ExecutionPolicy Bypass",
-    "-Command",
-    quoteWindowsArg(getWindowsProtocolHandlerScript()),
+    quoteWindowsArg(WSCRIPT),
+    "//B",
+    "//Nologo",
+    quoteWindowsArg(WINDOWS_CALLBACK_LAUNCHER_PATH),
     '"%1"',
   ].join(" ");
 
   try {
+    await writeFile(
+      WINDOWS_CALLBACK_SCRIPT_PATH,
+      getWindowsProtocolHandlerScript(),
+      "ascii",
+    );
+    await writeFile(
+      WINDOWS_CALLBACK_LAUNCHER_PATH,
+      getWindowsProtocolHandlerLauncherScript(),
+      "ascii",
+    );
     await execFileAsync(REG, [
       "add",
       "HKCU\\Software\\Classes\\moodlemobile",
@@ -171,15 +192,40 @@ function getWindowsProtocolHandlerScript() {
     `$handoff = Get-Content -Raw -LiteralPath '${statePath}' | ConvertFrom-Json`,
     "$bytes = [Text.Encoding]::UTF8.GetBytes($callbackUrl)",
     "$code = [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+','-').Replace('/','_')",
-    "$packageName = [uri]::EscapeDataString([string]$handoff.packageName)",
-    "$state = [uri]::EscapeDataString([string]$handoff.state)",
     "$code = [uri]::EscapeDataString($code)",
-    'Start-Process "raycast://oauth?package_name=$packageName&state=$state&code=$code"',
-  ].join("; ");
+    "$state = [uri]::EscapeDataString([string]$handoff.state)",
+    "$redirectURI = [string]$handoff.redirectURI",
+    "$queryParams = @()",
+    "if ($redirectURI -notmatch '[?&]state=') { $queryParams += \"state=$state\" }",
+    "$queryParams += \"code=$code\"",
+    "$separator = '?'",
+    "if ($redirectURI.Contains('?')) { $separator = '&' }",
+    "$raycastUrl = \"$redirectURI$separator$($queryParams -join '&')\"",
+    'Start-Process "$raycastUrl"',
+  ].join("\r\n");
+}
+
+function getWindowsProtocolHandlerLauncherScript() {
+  return [
+    'Set shell = CreateObject("WScript.Shell")',
+    "Set args = WScript.Arguments",
+    "If args.Count = 0 Then WScript.Quit 1",
+    `powershellPath = ${quoteVBScriptString(POWERSHELL)}`,
+    `scriptPath = ${quoteVBScriptString(WINDOWS_CALLBACK_SCRIPT_PATH)}`,
+    'command = Quote(powershellPath) & " -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File " & Quote(scriptPath) & " " & Quote(args(0))',
+    "shell.Run command, 0, False",
+    "Function Quote(value)",
+    "  Quote = Chr(34) & Replace(value, Chr(34), Chr(34) & Chr(34)) & Chr(34)",
+    "End Function",
+  ].join("\r\n");
 }
 
 function quoteWindowsArg(value: string) {
   return `"${value.replace(/"/g, '\\"')}"`;
+}
+
+function quoteVBScriptString(value: string) {
+  return `"${value.replace(/"/g, '""')}"`;
 }
 
 export async function authenticateWithMoodleOAuth(
@@ -259,13 +305,8 @@ async function authenticateWithBrowserLaunch(
     scope: "moodle",
   });
 
-  const packageName =
-    new URL(request.redirectURI).searchParams.get("package_name") ??
-    "Extension";
-
   const handoff: HandoffState = {
     state: request.state,
-    packageName,
     redirectURI: request.redirectURI,
     siteOrigin: normalizeSiteOrigin(input.siteUrl),
     passport,
@@ -274,15 +315,21 @@ async function authenticateWithBrowserLaunch(
   await writeFile(STATE_PATH, JSON.stringify(handoff), "utf8");
   try {
     await prepareMoodleOAuthCallbackApp();
-
+    console.log("Launching OAuth authorization", { launchURL });
     const result = await client.authorize({
       url: launchURL,
     });
+
+    console.log("OAuth authorization result", { result });
+
+
 
     const callbackURL = Buffer.from(
       result.authorizationCode,
       "base64url",
     ).toString("utf8");
+
+    console.log("Decoded callback URL", { callbackURL });
     if (!callbackURL) {
       throw new AuthError("Moodle OAuth callback did not contain a URL", {
         code: "oauth_callback_missing_url",
@@ -309,6 +356,8 @@ async function authenticateWithBrowserLaunch(
       siteOrigin: tokens.siteOrigin,
       session,
     };
+  } catch (error) {
+    console.error(error);
   } finally {
     await rm(STATE_PATH, { force: true });
   }
